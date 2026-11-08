@@ -93,7 +93,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="bg-white rounded-xl p-6 border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
-              <span>{schoolProfile?.name || 'Mwivona Comprehensive School'} · Parent Portal</span>
+              <span>{schoolProfile?.name || 'Comprehensive School'} · Parent Portal</span>
               <span aria-hidden="true">·</span>
               <span className="font-mono text-emerald-700 font-semibold flex items-center gap-1">
                 <ShieldCheck className="w-3.5 h-3.5" /> Confidential Child Data
@@ -808,10 +808,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </h2>
               <div className="flex flex-wrap items-center gap-2 mt-1">
                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-200 border border-emerald-400/30">
-                  {schoolProfile.primaryWingName || 'Mwivona Primary School'} (Grades 1–6)
+                  {schoolProfile.primaryWingName || `${schoolProfile.name} Primary School`} (Grades 1–6)
                 </span>
                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-400/20 text-indigo-200 border border-indigo-400/30">
-                  {schoolProfile.juniorWingName || 'Mwivona Junior School'} (Grades 7–9)
+                  {schoolProfile.juniorWingName || `${schoolProfile.name} Junior School`} (Grades 7–9)
                 </span>
               </div>
               <p className="text-indigo-200 text-xs mt-1">

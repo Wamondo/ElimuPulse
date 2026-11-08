@@ -77,6 +77,13 @@ service cloud.firestore {
       allow write: if hasValidId(configId);
     }
 
+    // Registered Institutions & Multi-School Profiles
+    match /schools/{schoolId} {
+      allow list: if true;
+      allow get: if hasValidId(schoolId);
+      allow write: if hasValidId(schoolId);
+    }
+
     // Grade Levels & Streams
     match /grades/{gradeId} {
       allow list: if true;

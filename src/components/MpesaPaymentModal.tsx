@@ -312,7 +312,7 @@ export const MpesaPaymentModal: React.FC<MpesaPaymentModalProps> = ({
                   <span>SIMULATED SAFARICOM M-PESA POPUP</span>
                 </div>
                 <p className="text-xs font-mono leading-relaxed">
-                  Do you want to pay <strong>Kshs {amount.toLocaleString()}</strong> to <strong>{schoolProfile?.name || 'Mwivona Comprehensive School'} Fees</strong> (Account: <strong>{learner?.studentId}</strong>)?
+                  Do you want to pay <strong>Kshs {amount.toLocaleString()}</strong> to <strong>{schoolProfile?.name || 'Comprehensive School'} Fees</strong> (Account: <strong>{learner?.studentId}</strong>)?
                 </p>
                 <div className="pt-2 flex justify-end">
                   <button

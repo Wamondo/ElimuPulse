@@ -3,6 +3,7 @@ import { getAuth } from 'firebase/auth';
 import {
   getFirestore,
   doc,
+  getDoc,
   getDocFromServer,
   getDocs,
   collection,
@@ -146,7 +147,7 @@ export async function fetchDocumentFromFirestore<T>(
   const path = `${collectionName}/${id}`;
   try {
     const docRef = doc(db, collectionName, id);
-    const docSnap = await getDocFromServer(docRef);
+    const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
       return docSnap.data() as T;
     }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { PaymentReminder } from '../types';
 import {
@@ -13,8 +13,10 @@ import {
   Settings,
   Calendar,
   Filter,
-  Check
+  Check,
+  Smartphone
 } from 'lucide-react';
+import { SmsGatewaySettingsModal } from './SmsGatewaySettingsModal';
 
 export const AutomatedRemindersView: React.FC = () => {
   const {
@@ -24,19 +26,33 @@ export const AutomatedRemindersView: React.FC = () => {
     reminders,
     batchDispatchReminders,
     currentUser,
+    schoolProfile,
   } = useApp();
 
   const [activeChannelFilter, setActiveChannelFilter] = useState<'all' | 'sms' | 'email'>('all');
   const [isDispatching, setIsDispatching] = useState(false);
   const [dispatchAlert, setDispatchAlert] = useState<string | null>(null);
+  const [isSmsGatewayOpen, setIsSmsGatewayOpen] = useState(false);
+
+  const schoolName = schoolProfile?.name || 'Comprehensive School';
+  const paybillDesc = schoolProfile?.mpesaPaybill
+    ? `Paybill ${schoolProfile.mpesaPaybill} (${schoolProfile.mpesaAccountName || 'FEES'})`
+    : 'M-Pesa or Bank';
 
   // Template editing state
   const [smsTemplate, setSmsTemplate] = useState(
-    'Dear {ParentName}, this is a reminder from Mwivona Comprehensive School that tuition balance of Kshs {AmountDue} for {LearnerName} is due on {DueDate}. Kindly remit via M-Pesa Paybill 522522 (MWIVONA-FEES) or Bank.'
+    `Dear {ParentName}, this is a reminder from ${schoolName} that tuition balance of Kshs {AmountDue} for {LearnerName} is due on {DueDate}. Kindly remit via M-Pesa ${paybillDesc}.`
   );
   const [emailTemplate, setEmailTemplate] = useState(
-    'Subject: Official Tuition Fee Statement - {LearnerName}\n\nDear {ParentName},\n\nWe would like to remind you that a tuition balance of Kshs {AmountDue} remains for {LearnerName} ({Grade}) for Term 2. Payment is scheduled for {DueDate}.\n\nThank you,\nBursar Office\nMwivona Comprehensive School'
+    `Subject: Official Tuition Fee Statement - {LearnerName}\n\nDear {ParentName},\n\nWe would like to remind you that a tuition balance of Kshs {AmountDue} remains for {LearnerName} ({Grade}) for Term 2. Payment is scheduled for {DueDate}.\n\nThank you,\nBursar Office\n${schoolName}`
   );
+
+  useEffect(() => {
+    if (schoolProfile?.name) {
+      setSmsTemplate(`Dear {ParentName}, this is a reminder from ${schoolProfile.name} that tuition balance of Kshs {AmountDue} for {LearnerName} is due on {DueDate}. Kindly remit via M-Pesa ${paybillDesc}.`);
+      setEmailTemplate(`Subject: Official Tuition Fee Statement - {LearnerName}\n\nDear {ParentName},\n\nWe would like to remind you that a tuition balance of Kshs {AmountDue} remains for {LearnerName} ({Grade}) for Term 2. Payment is scheduled for {DueDate}.\n\nThank you,\nBursar Office\n${schoolProfile.name}`);
+    }
+  }, [schoolProfile?.name, schoolProfile?.mpesaPaybill, schoolProfile?.mpesaAccountName]);
 
   // Filter pending fee balances
   const pendingAccounts = feeStructures.filter((fs) => fs.balance > 0);
@@ -77,14 +93,24 @@ export const AutomatedRemindersView: React.FC = () => {
         </div>
 
         {(currentUser.role === 'admin' || currentUser.role === 'bursar') && (
-          <button
-            onClick={handleBatchDispatch}
-            disabled={isDispatching}
-            className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-lg transition-colors cursor-pointer self-start md:self-auto"
-          >
-            <Send className="w-3.5 h-3.5" />
-            <span>{isDispatching ? 'Dispatching Queue...' : 'Batch Send Due Reminders Now'}</span>
-          </button>
+          <div className="flex items-center gap-2.5 self-start md:self-auto flex-wrap">
+            <button
+              onClick={() => setIsSmsGatewayOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg transition-colors cursor-pointer shadow-xs"
+              title="Configure live Africa's Talking API key, check balance, and send real test SMS"
+            >
+              <Smartphone className="w-3.5 h-3.5 text-indigo-600" />
+              <span>SMS Gateway & Wallet</span>
+            </button>
+            <button
+              onClick={handleBatchDispatch}
+              disabled={isDispatching}
+              className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-lg transition-colors cursor-pointer shadow-xs"
+            >
+              <Send className="w-3.5 h-3.5" />
+              <span>{isDispatching ? 'Dispatching Queue...' : 'Batch Send Due Reminders Now'}</span>
+            </button>
+          </div>
         )}
       </div>
 
@@ -338,6 +364,11 @@ export const AutomatedRemindersView: React.FC = () => {
         </div>
 
       </div>
+
+      <SmsGatewaySettingsModal
+        isOpen={isSmsGatewayOpen}
+        onClose={() => setIsSmsGatewayOpen(false)}
+      />
     </div>
   );
 };

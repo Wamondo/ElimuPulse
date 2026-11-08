@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
 import {
   UserRole,
   UserSession,
@@ -75,6 +75,7 @@ import {
   OWNER_LOCK_DOC_ID,
 } from '../services/deviceLockService';
 import { createSynchronousPresetPng } from '../utils/signaturePresets';
+import { dispatchRealSms } from '../services/smsGatewayService';
 
 interface AppContextType {
   currentUser: UserSession;
@@ -136,6 +137,11 @@ interface AppContextType {
   // School, Grades 1-9, Teachers, Subjects, Admins
   schoolProfile: SchoolProfile;
   updateSchoolProfile: (updates: Partial<SchoolProfile>) => void;
+  registeredSchools: SchoolProfile[];
+  currentSchoolId: string;
+  registerNewSchool: (schoolData: Omit<SchoolProfile, 'id'>) => Promise<SchoolProfile>;
+  toggleSchoolLock: (schoolId?: string, reason?: string) => Promise<{ success: boolean; isLocked: boolean; schoolName: string }>;
+  switchActiveSchool: (schoolId: string, isSystemRouting?: boolean) => void;
 
   grades: GradeLevel[];
   addGrade: (grade: Omit<GradeLevel, 'id'>) => void;
@@ -396,14 +402,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return INITIAL_TEACHERS;
   });
 
-  const [schoolProfile, setSchoolProfile] = useState<SchoolProfile>(() => {
-    let base = { ...INITIAL_SCHOOL_PROFILE } as SchoolProfile;
-    const saved = localStorage.getItem(`${STORAGE_KEY_PREFIX}school_profile`);
+  const [registeredSchools, setRegisteredSchools] = useState<SchoolProfile[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_KEY_PREFIX}registered_schools`);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      } catch { /* ignore */ }
+    }
+
+    let base = { ...INITIAL_SCHOOL_PROFILE, id: 'sch-001', isLocked: false } as SchoolProfile;
+    const legacySaved = localStorage.getItem(`${STORAGE_KEY_PREFIX}school_profile`);
+    if (legacySaved) {
+      try {
+        const parsed = JSON.parse(legacySaved);
         if (parsed && parsed.name && !parsed.name.includes('Academia') && parsed.primaryWingName && parsed.juniorWingName) {
-          base = parsed;
+          base = { ...parsed, id: parsed.id || 'sch-001', isLocked: Boolean(parsed.isLocked) };
         }
       } catch { /* ignore */ }
     }
@@ -439,20 +455,41 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           id: 'sig-seal-init',
           role: 'seal' as const,
           roleTitle: 'Official Institutional Seal & Stamp',
-          signatoryName: 'Mwivona Comprehensive School Seal',
-          signatureDataUrl: createSynchronousPresetPng('seal', 'Mwivona Seal', '#4338ca'),
+          signatoryName: `${base.name || 'Institutional'} Seal`,
+          signatureDataUrl: createSynchronousPresetPng('seal', `${base.name || 'Official'} Seal`, '#4338ca'),
           sourceType: 'preset' as const,
           updatedAt: new Date().toISOString(),
           dateStr: new Date().toLocaleDateString('en-GB'),
           isVerified: true,
-          verificationCode: 'SEAL-MWIVONA-OFFICIAL',
+          verificationCode: `SEAL-${(base.name || 'OFFICIAL').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8)}`,
         },
       };
       base = { ...base, signatures: defaultSigs };
     }
 
-    return base;
+    return [base];
   });
+
+  const [currentSchoolId, setCurrentSchoolId] = useState<string>(() => {
+    const saved = localStorage.getItem(`${STORAGE_KEY_PREFIX}active_school_id`);
+    return saved || 'sch-001';
+  });
+
+  const [schoolProfile, setSchoolProfile] = useState<SchoolProfile>(() => {
+    const match = registeredSchools.find((s) => s.id === currentSchoolId);
+    return match || registeredSchools[0] || ({ ...INITIAL_SCHOOL_PROFILE, id: 'sch-001', isLocked: false } as SchoolProfile);
+  });
+
+  // Keep schoolProfile and localStorage synced when registeredSchools or currentSchoolId change
+  useEffect(() => {
+    const active = registeredSchools.find((s) => s.id === currentSchoolId) || registeredSchools[0];
+    if (active) {
+      setSchoolProfile(active);
+      localStorage.setItem(`${STORAGE_KEY_PREFIX}school_profile`, JSON.stringify(active));
+      localStorage.setItem(`${STORAGE_KEY_PREFIX}active_school_id`, active.id);
+    }
+    localStorage.setItem(`${STORAGE_KEY_PREFIX}registered_schools`, JSON.stringify(registeredSchools));
+  }, [registeredSchools, currentSchoolId]);
 
   const [grades, setGrades] = useState<GradeLevel[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_KEY_PREFIX}grades`);
@@ -658,6 +695,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           remoteSettings,
           remoteAssessments,
           remoteSubmissions,
+          remoteSchools,
         ] = await Promise.all([
           fetchCollectionFromFirestore<LearnerRecord>('learners').catch(() => []),
           fetchCollectionFromFirestore<ParentRecord>('parents').catch(() => []),
@@ -673,6 +711,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           fetchDocumentFromFirestore<SchoolProfile & { id: string }>('settings', 'school_config').catch(() => null),
           fetchCollectionFromFirestore<AssessmentRecord>('assessments').catch(() => []),
           fetchCollectionFromFirestore<SubjectMarksSubmission>('subjectSubmissions').catch(() => []),
+          fetchCollectionFromFirestore<SchoolProfile>('schools').catch(() => []),
         ]);
 
         if (!isMounted) return;
@@ -691,6 +730,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             batchSyncToFirestore('attendance', INITIAL_ATTENDANCE),
             batchSyncToFirestore('auditLogs', INITIAL_AUDIT_LOGS),
             saveDocumentToFirestore('settings', { ...INITIAL_SCHOOL_PROFILE, id: 'school_config' }),
+            saveDocumentToFirestore('schools', { ...INITIAL_SCHOOL_PROFILE, id: 'sch-001', isLocked: false }),
             batchSyncToFirestore('grades', INITIAL_GRADES),
             batchSyncToFirestore('subjects', INITIAL_SUBJECTS),
             batchSyncToFirestore('admins', INITIAL_ADMIN_ACCOUNTS),
@@ -699,6 +739,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           ]);
         } else {
           // Hydrate live state from Firestore
+          if (remoteSchools && remoteSchools.length > 0) {
+            setRegisteredSchools(remoteSchools);
+            const active = remoteSchools.find((s) => s.id === currentSchoolId) || remoteSchools[0];
+            setSchoolProfile(active);
+          } else if (remoteSettings && remoteSettings.name) {
+            const { id: _, ...profile } = remoteSettings;
+            setSchoolProfile(profile as SchoolProfile);
+          }
           if (remoteLearners && remoteLearners.length > 0) setLearners(remoteLearners);
           if (remoteParents && remoteParents.length > 0) setParents(remoteParents);
           if (remoteTeachers && remoteTeachers.length > 0) setTeachers(remoteTeachers);
@@ -731,10 +779,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             batchSyncToFirestore('subjects', INITIAL_SUBJECTS).catch(() => {});
           }
           if (remoteAdmins && remoteAdmins.length > 0) setAdminAccounts(remoteAdmins);
-          if (remoteSettings && remoteSettings.name) {
-            const { id: _, ...profile } = remoteSettings;
-            setSchoolProfile(profile as SchoolProfile);
-          }
         }
         setIsCloudLoaded(true);
       } catch (err) {
@@ -768,6 +812,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         batchSyncToFirestore('admins', adminAccounts),
         batchSyncToFirestore('assessments', assessments),
         batchSyncToFirestore('subjectSubmissions', subjectSubmissions),
+        ...registeredSchools.map((sch) => saveDocumentToFirestore('schools', sch)),
       ]);
       addAuditLog(
         'Cloud Database Synchronized',
@@ -1084,6 +1129,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     );
 
     if (matchedParent) {
+      const parentSchoolId = matchedParent.schoolId || 'sch-001';
+      const targetSchool = registeredSchools.find((s) => s.id === parentSchoolId) || schoolProfile;
+      switchActiveSchool(targetSchool.id, true);
+
       const child = learners.find((l) => l.parentId === matchedParent.id);
       const session: UserSession = {
         id: `session-parent-${matchedParent.id}`,
@@ -1093,10 +1142,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         phone: normalizeKenyanPhone(matchedParent.phone),
         idNumber: matchedParent.nationalId,
         title: child
-          ? `Parent of ${child.firstName} ${child.lastName} (${child.grade})`
-          : 'Parent / Guardian',
+          ? `Parent of ${child.firstName} ${child.lastName} (${child.grade}) · ${targetSchool.name}`
+          : `Parent / Guardian · ${targetSchool.name}`,
         parentId: matchedParent.id,
         learnerId: child ? child.id : undefined,
+        schoolId: targetSchool.id,
       };
 
       setCurrentUser(session);
@@ -1104,9 +1154,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setDecryptedParentIds(new Set([matchedParent.id]));
       addAuditLog(
         'Parent Portal Authentication',
-        `Authenticated parent ${matchedParent.fullName} via Phone (${maskPhoneNumber(matchedParent.phone)}) & ID. Scoped access to learner: ${
-          child ? `${child.firstName} ${child.lastName} (${child.studentId})` : 'Unassigned'
-        }.`
+        `Authenticated parent ${matchedParent.fullName} routed to ${targetSchool.name}.`
       );
       return { success: true, session };
     }
@@ -1117,6 +1165,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     );
 
     if (matchedTeacher) {
+      const teacherSchoolId = matchedTeacher.schoolId || 'sch-001';
+      const targetSchool = registeredSchools.find((s) => s.id === teacherSchoolId) || schoolProfile;
+
+      // ENFORCE SCHOOL LOCK: Teachers cannot log in when school is locked
+      if (targetSchool.isLocked) {
+        return {
+          success: false,
+          error: `School Portal Locked: ${targetSchool.name} is currently locked by the Institution Director. Teachers and faculty cannot log in while the school portal is locked. Only when unlocked can they log in. (Notice: ${targetSchool.lockReason || 'Administrative lock engaged by Institution Director'}).`,
+        };
+      }
+
+      switchActiveSchool(targetSchool.id, true);
+
       const isClassTeacher = matchedTeacher.teacherType === 'class_teacher';
       const session: UserSession = {
         id: `session-teacher-${matchedTeacher.id}`,
@@ -1126,11 +1187,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         phone: normalizeKenyanPhone(matchedTeacher.phone),
         idNumber: matchedTeacher.nationalOrStaffId,
         title: isClassTeacher
-          ? `Class Teacher · ${matchedTeacher.assignedGrade}`
-          : `Subject Teacher (${matchedTeacher.registeredSubjects.join(', ')})`,
+          ? `Class Teacher · ${matchedTeacher.assignedGrade} (${targetSchool.name})`
+          : `Subject Teacher (${matchedTeacher.registeredSubjects.join(', ')}) · ${targetSchool.name}`,
         teacherType: matchedTeacher.teacherType,
         teacherGrade: matchedTeacher.assignedGrade,
         registeredSubjects: matchedTeacher.registeredSubjects,
+        schoolId: targetSchool.id,
       };
 
       setCurrentUser(session);
@@ -1138,9 +1200,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setDecryptedParentIds(new Set());
       addAuditLog(
         'Teacher Portal Authentication',
-        isClassTeacher
-          ? `${matchedTeacher.name} logged in as Class Teacher for ${matchedTeacher.assignedGrade} with full grade access.`
-          : `${matchedTeacher.name} logged in as Subject Teacher for: ${matchedTeacher.registeredSubjects.join(', ')}.`
+        `${matchedTeacher.name} logged into ${targetSchool.name} as ${isClassTeacher ? `Class Teacher (${matchedTeacher.assignedGrade})` : 'Subject Teacher'}.`
       );
       return { success: true, session };
     }
@@ -1150,6 +1210,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       (a) => phoneMatch(a.phone, cleanPhone) && idMatch(a.nationalOrStaffId, rawId)
     );
     if (matchedRegisteredAdmin) {
+      const adminSchoolId = matchedRegisteredAdmin.schoolId || 'sch-001';
+      const targetSchool = registeredSchools.find((s) => s.id === adminSchoolId) || schoolProfile;
+
+      // ENFORCE SCHOOL LOCK: School administrators cannot log in when school is locked
+      if (targetSchool.isLocked) {
+        return {
+          success: false,
+          error: `School Portal Locked: ${targetSchool.name} is currently locked by the Institution Director. School administrators and bursars cannot log in while the school portal is locked. Only when unlocked can they log in. (Notice: ${targetSchool.lockReason || 'Administrative lock engaged by Institution Director'}).`,
+        };
+      }
+
+      switchActiveSchool(targetSchool.id, true);
+
       const session: UserSession = {
         id: `session-admin-${matchedRegisteredAdmin.id}`,
         name: matchedRegisteredAdmin.name,
@@ -1157,13 +1230,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         email: matchedRegisteredAdmin.email,
         phone: normalizeKenyanPhone(matchedRegisteredAdmin.phone),
         idNumber: matchedRegisteredAdmin.nationalOrStaffId,
-        title: matchedRegisteredAdmin.title,
+        title: `${matchedRegisteredAdmin.title} · ${targetSchool.name}`,
+        schoolId: targetSchool.id,
       };
       setCurrentUser(session);
       setIsAuthenticated(true);
       addAuditLog(
         `${matchedRegisteredAdmin.role === 'admin' ? 'Administrator' : 'Bursar'} Portal Authentication`,
-        `${matchedRegisteredAdmin.name} (${matchedRegisteredAdmin.title}) logged in.`
+        `${matchedRegisteredAdmin.name} logged into ${targetSchool.name}.`
       );
       return { success: true, session };
     }
@@ -1176,10 +1250,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         idMatch(u.idNumber, rawId)
     );
     if (matchedSession) {
-      setCurrentUser(matchedSession);
+      const adminSchoolId = matchedSession.schoolId || 'sch-001';
+      const targetSchool = registeredSchools.find((s) => s.id === adminSchoolId) || schoolProfile;
+
+      if (targetSchool.isLocked) {
+        return {
+          success: false,
+          error: `School Portal Locked: ${targetSchool.name} is currently locked by the Institution Director. School administrators cannot log in while the school portal is locked. Only when unlocked can they log in.`,
+        };
+      }
+
+      switchActiveSchool(targetSchool.id, true);
+      setCurrentUser({ ...matchedSession, schoolId: targetSchool.id });
       setIsAuthenticated(true);
       addAuditLog(`${matchedSession.role.toUpperCase()} Authentication`, `${matchedSession.name} logged in.`);
-      return { success: true, session: matchedSession };
+      return { success: true, session: { ...matchedSession, schoolId: targetSchool.id } };
     }
 
     return {
@@ -1530,6 +1615,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       ...cleanParentData,
       id: parentId,
       encryptedPayload,
+      schoolId: currentSchoolId,
     };
 
     const colors = ['bg-indigo-600', 'bg-emerald-600', 'bg-amber-600', 'bg-rose-600', 'bg-sky-600', 'bg-teal-600', 'bg-violet-600'];
@@ -1547,6 +1633,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       enrollmentDate: new Date().toISOString().slice(0, 10),
       status: 'active',
       photoPlaceholderColor: randomColor,
+      schoolId: currentSchoolId,
     };
 
     const newFeeStructure: FeeStructure = {
@@ -1562,6 +1649,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       balance: initialTuition + 250,
       dueDate,
       status: 'pending',
+      schoolId: currentSchoolId,
     };
 
     setParents((prev) => [newParent, ...prev]);
@@ -1657,6 +1745,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       status: 'completed',
       recordedBy: currentUser.name,
       notes,
+      schoolId: currentSchoolId,
     };
 
     // Update Fee structure
@@ -1710,6 +1799,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         ? `Overdue Tuition Alert: Dear ${parent.fullName}, tuition balance of Ksh ${fee.balance.toLocaleString()} for ${learner.firstName} ${learner.lastName} is past due date (${fee.dueDate}). Kindly settle promptly.`
         : `Tuition Reminder: Dear ${parent.fullName}, term fees of Ksh ${fee.balance.toLocaleString()} for ${learner.firstName} ${learner.lastName} are due on ${fee.dueDate}.`;
 
+      if (channel === 'sms' && parent.phone) {
+        dispatchRealSms(parent.phone, message).catch((err) => {
+          console.warn('Real SMS dispatch error:', err);
+        });
+      }
+
       updatedReminders.unshift({
         id: `rem-auto-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
         learnerId: learner.id,
@@ -1723,6 +1818,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         scheduledDate: new Date().toISOString().slice(0, 10),
         sentDate: new Date().toLocaleString(),
         messagePreview: message,
+        schoolId: currentSchoolId,
       });
 
       sentCount++;
@@ -1791,7 +1887,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
 
       channels.forEach((ch) => {
-        if (ch === 'sms') sentSmsCount++;
+        if (ch === 'sms') {
+          sentSmsCount++;
+          if (parent.phone) {
+            dispatchRealSms(parent.phone, messageText).catch((err) => {
+              console.warn('Real SMS dispatch error:', err);
+            });
+          }
+        }
         if (ch === 'email') sentEmailCount++;
 
         newReminders.unshift({
@@ -1807,6 +1910,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           scheduledDate: new Date().toISOString().slice(0, 10),
           sentDate: new Date().toLocaleString(),
           messagePreview: messageText,
+          schoolId: currentSchoolId,
         });
       });
     });
@@ -1834,6 +1938,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       ...reminderData,
       id: `rem-sch-${Date.now()}`,
       status: 'scheduled',
+      schoolId: currentSchoolId,
     };
     setReminders((prev) => [newReminder, ...prev]);
     saveDocumentToFirestore('paymentReminders', newReminder).catch((e) => console.warn('Firestore write error:', e));
@@ -1841,15 +1946,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const saveScoreCard = (card: ScoreCard) => {
+    const cardWithSchool: ScoreCard = {
+      ...card,
+      schoolId: card.schoolId || currentSchoolId,
+    };
     setScoreCards((prev) => {
-      const exists = prev.some((c) => c.id === card.id);
+      const exists = prev.some((c) => c.id === cardWithSchool.id);
       if (exists) {
-        return prev.map((c) => (c.id === card.id ? card : c));
+        return prev.map((c) => (c.id === cardWithSchool.id ? cardWithSchool : c));
       }
-      return [card, ...prev];
+      return [cardWithSchool, ...prev];
     });
 
-    saveDocumentToFirestore('scoreCards', card).catch((e) => console.warn('Firestore write error:', e));
+    saveDocumentToFirestore('scoreCards', cardWithSchool).catch((e) => console.warn('Firestore write error:', e));
 
     const learner = learners.find((l) => l.id === card.learnerId);
     addAuditLog(
@@ -1866,6 +1975,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       session,
       id,
       markedBy: currentUser.name,
+      schoolId: currentSchoolId,
     };
 
     setAttendance((prev) => {
@@ -1897,6 +2007,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           session: sess,
           status,
           markedBy: currentUser.name,
+          schoolId: currentSchoolId,
         });
       });
     });
@@ -1917,22 +2028,30 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const saveAssessment = (assessment: AssessmentRecord) => {
+    const assessmentWithSchool: AssessmentRecord = {
+      ...assessment,
+      schoolId: assessment.schoolId || currentSchoolId,
+    };
     setAssessments((prev) => {
-      const exists = prev.some((a) => a.id === assessment.id);
-      return exists ? prev.map((a) => (a.id === assessment.id ? assessment : a)) : [assessment, ...prev];
+      const exists = prev.some((a) => a.id === assessmentWithSchool.id);
+      return exists ? prev.map((a) => (a.id === assessmentWithSchool.id ? assessmentWithSchool : a)) : [assessmentWithSchool, ...prev];
     });
 
-    saveDocumentToFirestore('assessments', assessment).catch((e) => console.warn('Firestore write error:', e));
+    saveDocumentToFirestore('assessments', assessmentWithSchool).catch((e) => console.warn('Firestore write error:', e));
     addAuditLog('Assessment Configured', `Updated assessment ${assessment.name} for ${assessment.grade} (${assessment.term})`);
   };
 
   const saveSubjectSubmission = (submission: SubjectMarksSubmission) => {
+    const submissionWithSchool: SubjectMarksSubmission = {
+      ...submission,
+      schoolId: submission.schoolId || currentSchoolId,
+    };
     setSubjectSubmissions((prev) => {
-      const exists = prev.some((s) => s.id === submission.id);
-      return exists ? prev.map((s) => (s.id === submission.id ? submission : s)) : [submission, ...prev];
+      const exists = prev.some((s) => s.id === submissionWithSchool.id);
+      return exists ? prev.map((s) => (s.id === submissionWithSchool.id ? submissionWithSchool : s)) : [submissionWithSchool, ...prev];
     });
 
-    saveDocumentToFirestore('subjectSubmissions', submission).catch((e) => console.warn('Firestore write error:', e));
+    saveDocumentToFirestore('subjectSubmissions', submissionWithSchool).catch((e) => console.warn('Firestore write error:', e));
     addAuditLog('Subject Marks Submitted', `Submitted marks for ${submission.subjectName} (${submission.grade} - ${submission.term})`);
   };
 
@@ -2005,19 +2124,191 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     attendance.filter((a) => a.learnerId === learnerId);
 
   const updateSchoolProfile = (updates: Partial<SchoolProfile>) => {
-    setSchoolProfile((prev) => {
-      const next = { ...prev, ...updates };
-      localStorage.setItem(`${STORAGE_KEY_PREFIX}school_profile`, JSON.stringify(next));
-      saveDocumentToFirestore('settings', { ...next, id: 'school_config' }).catch(() => {});
-      return next;
+    setRegisteredSchools((prev) => {
+      const updated = prev.map((s) => {
+        if (s.id === currentSchoolId) {
+          return { ...s, ...updates };
+        }
+        return s;
+      });
+      localStorage.setItem(`${STORAGE_KEY_PREFIX}registered_schools`, JSON.stringify(updated));
+      const active = updated.find((s) => s.id === currentSchoolId) || updated[0];
+      setSchoolProfile(active);
+      localStorage.setItem(`${STORAGE_KEY_PREFIX}school_profile`, JSON.stringify(active));
+      saveDocumentToFirestore('schools', active).catch(() => {});
+      saveDocumentToFirestore('settings', { ...active, id: 'school_config' }).catch(() => {});
+      return updated;
     });
     addAuditLog('School Profile Updated', `Updated official details for ${schoolProfile.name}`);
+  };
+
+  const registerNewSchool = async (schoolData: Omit<SchoolProfile, 'id'>): Promise<SchoolProfile> => {
+    // Only accessed inside the owner's account and registered under approval of the owner
+    if (!isOwner) {
+      throw new Error("Access Denied: New school registration can only be approved by the App Owner and accessed within the Owner's account.");
+    }
+
+    const newId = `sch-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
+    const defaultSigs = {
+      hoi: {
+        id: `sig-hoi-${newId}`,
+        role: 'hoi' as const,
+        roleTitle: 'Chief Principal & Head of Institution',
+        signatoryName: schoolData.principalName || 'Head of Institution',
+        signatureDataUrl: createSynchronousPresetPng('hoi', schoolData.principalName || 'Principal', '#1e3a8a'),
+        sourceType: 'preset' as const,
+        updatedAt: new Date().toISOString(),
+        dateStr: new Date().toLocaleDateString('en-GB'),
+        isVerified: true,
+        verificationCode: `SIG-HOI-${newId.toUpperCase()}`,
+      },
+      bursar: {
+        id: `sig-bursar-${newId}`,
+        role: 'bursar' as const,
+        roleTitle: 'Chief Bursar & Treasury Controller',
+        signatoryName: 'Bursar & Treasury Office',
+        signatureDataUrl: createSynchronousPresetPng('bursar', 'Bursar', '#0f172a'),
+        sourceType: 'preset' as const,
+        updatedAt: new Date().toISOString(),
+        dateStr: new Date().toLocaleDateString('en-GB'),
+        isVerified: true,
+        verificationCode: `SIG-BURSAR-${newId.toUpperCase()}`,
+      },
+      seal: {
+        id: `sig-seal-${newId}`,
+        role: 'seal' as const,
+        roleTitle: 'Official Institutional Seal & Stamp',
+        signatoryName: `${schoolData.name} Seal`,
+        signatureDataUrl: createSynchronousPresetPng('seal', schoolData.name, '#4338ca'),
+        sourceType: 'preset' as const,
+        updatedAt: new Date().toISOString(),
+        dateStr: new Date().toLocaleDateString('en-GB'),
+        isVerified: true,
+        verificationCode: `SEAL-${newId.toUpperCase()}`,
+      },
+    };
+
+    const newSchool: SchoolProfile = {
+      ...schoolData,
+      id: newId,
+      isLocked: false,
+      approvedByOwner: true,
+      approvedByOwnerPhone: '0716235185',
+      approvedAt: new Date().toISOString(),
+      registeredAt: new Date().toISOString(),
+      signatures: schoolData.signatures || defaultSigs,
+    };
+
+    // Auto-instantiate independent CBC Grade Cohorts and Learning Areas for this new institution
+    const newSchoolGrades: GradeLevel[] = INITIAL_GRADES.map((g, idx) => ({
+      ...g,
+      id: `grd-${newId}-${idx + 1}`,
+      schoolId: newId,
+      classTeacherId: undefined,
+    }));
+    const newSchoolSubjects: SubjectDefinition[] = INITIAL_SUBJECTS.map((s, idx) => ({
+      ...s,
+      id: `sub-${newId}-${idx + 1}`,
+      schoolId: newId,
+      assignedTeacherId: undefined,
+    }));
+
+    setGrades((prev) => [...prev, ...newSchoolGrades]);
+    setSubjects((prev) => [...prev, ...newSchoolSubjects]);
+    newSchoolGrades.forEach((g) => saveDocumentToFirestore('grades', g).catch(() => {}));
+    newSchoolSubjects.forEach((s) => saveDocumentToFirestore('subjects', s).catch(() => {}));
+
+    const nextSchools = [...registeredSchools, newSchool];
+    setRegisteredSchools(nextSchools);
+    setCurrentSchoolId(newId);
+    setSchoolProfile(newSchool);
+
+    localStorage.setItem(`${STORAGE_KEY_PREFIX}registered_schools`, JSON.stringify(nextSchools));
+    localStorage.setItem(`${STORAGE_KEY_PREFIX}active_school_id`, newId);
+    localStorage.setItem(`${STORAGE_KEY_PREFIX}school_profile`, JSON.stringify(newSchool));
+
+    saveDocumentToFirestore('schools', newSchool).catch((e) => console.warn('Firestore school save error:', e));
+    saveDocumentToFirestore('settings', { ...newSchool, id: 'school_config' }).catch(() => {});
+
+    addAuditLog(
+      'School Registration Approved by Owner',
+      `App Owner formally approved and registered new institution: ${newSchool.name} (MoE/KNEC Code: ${newSchool.registrationNumber}, County: ${newSchool.county}). Complete CBC Grade cohorts and academic ledgers instantiated under Owner governance.`
+    );
+
+    return newSchool;
+  };
+
+  const toggleSchoolLock = async (
+    targetSchoolId?: string,
+    reason?: string
+  ): Promise<{ success: boolean; isLocked: boolean; schoolName: string }> => {
+    const idToToggle = targetSchoolId || currentSchoolId;
+    let targetName = schoolProfile.name;
+    let newLockedState = !schoolProfile.isLocked;
+
+    setRegisteredSchools((prev) => {
+      const updated = prev.map((sch) => {
+        if (sch.id === idToToggle) {
+          targetName = sch.name;
+          newLockedState = !sch.isLocked;
+          return {
+            ...sch,
+            isLocked: newLockedState,
+            lockedAt: newLockedState ? new Date().toISOString() : undefined,
+            lockReason: newLockedState ? (reason || 'Administrative review by Institution Director.') : undefined,
+          };
+        }
+        return sch;
+      });
+
+      localStorage.setItem(`${STORAGE_KEY_PREFIX}registered_schools`, JSON.stringify(updated));
+      const target = updated.find((s) => s.id === idToToggle);
+      if (target) {
+        saveDocumentToFirestore('schools', target).catch((e) => console.warn('Firestore school lock update error:', e));
+        if (target.id === currentSchoolId) {
+          saveDocumentToFirestore('settings', { ...target, id: 'school_config' }).catch(() => {});
+          setSchoolProfile(target);
+        }
+      }
+      return updated;
+    });
+
+    addAuditLog(
+      newLockedState ? 'School Portal Locked' : 'School Portal Unlocked',
+      `${newLockedState ? 'Locked' : 'Unlocked'} ${targetName}. Faculty and administrative logins are ${newLockedState ? 'suspended' : 'restored'}.`
+    );
+
+    return {
+      success: true,
+      isLocked: newLockedState,
+      schoolName: targetName,
+    };
+  };
+
+  const switchActiveSchool = (schoolId: string, isSystemRouting = false) => {
+    // Only the App Owner can freely switch active schools.
+    // System routing (e.g. during verified login) is permitted.
+    if (!isSystemRouting && isAuthenticated && !isOwner) {
+      console.warn('Unauthorized attempt to switch schools: Only app owner can switch schools.');
+      return;
+    }
+    const target = registeredSchools.find((s) => s.id === schoolId);
+    if (!target) return;
+    setCurrentSchoolId(schoolId);
+    setSchoolProfile(target);
+    localStorage.setItem(`${STORAGE_KEY_PREFIX}active_school_id`, schoolId);
+    localStorage.setItem(`${STORAGE_KEY_PREFIX}school_profile`, JSON.stringify(target));
+    addAuditLog(
+      'Active Institution Switched',
+      `Switched active school view to ${target.name} (${target.registrationNumber}).`
+    );
   };
 
   const addGrade = (grade: Omit<GradeLevel, 'id'>) => {
     const newGrade: GradeLevel = {
       ...grade,
       id: `grd-${Date.now()}`,
+      schoolId: grade.schoolId || currentSchoolId,
     };
     setGrades((prev) => [...prev, newGrade]);
     saveDocumentToFirestore('grades', newGrade).catch(() => {});
@@ -2048,6 +2339,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const newSubject: SubjectDefinition = {
       ...subject,
       id: `sub-${Date.now()}`,
+      schoolId: subject.schoolId || currentSchoolId,
     };
     setSubjects((prev) => [...prev, newSubject]);
     saveDocumentToFirestore('subjects', newSubject).catch(() => {});
@@ -2078,6 +2370,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const newTeacher: TeacherRecord = {
       ...teacher,
       id: `tch-${Date.now()}`,
+      schoolId: teacher.schoolId || currentSchoolId,
     };
     setTeachers((prev) => [...prev, newTeacher]);
     saveDocumentToFirestore('teachers', newTeacher).catch(() => {});
@@ -2108,6 +2401,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const newAdmin: AdminAccount = {
       ...admin,
       id: `adm-${Date.now()}`,
+      schoolId: admin.schoolId || currentSchoolId,
     };
     setAdminAccounts((prev) => [...prev, newAdmin]);
     saveDocumentToFirestore('admins', newAdmin).catch(() => {});
@@ -2158,6 +2452,76 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     (currentUser.phone && (normalizeKenyanPhone(currentUser.phone) === '0716235185' || currentUser.phone === '0716235185'))
   );
 
+  // Scoped data arrays strictly isolated to current active school
+  const activeLearners = useMemo(
+    () => learners.filter((l) => (l.schoolId || 'sch-001') === currentSchoolId),
+    [learners, currentSchoolId]
+  );
+  const activeParents = useMemo(
+    () => parents.filter((p) => (p.schoolId || 'sch-001') === currentSchoolId),
+    [parents, currentSchoolId]
+  );
+  const activeTeachers = useMemo(
+    () => teachers.filter((t) => (t.schoolId || 'sch-001') === currentSchoolId),
+    [teachers, currentSchoolId]
+  );
+  const activeFeeStructures = useMemo(
+    () => feeStructures.filter((f) => (f.schoolId || 'sch-001') === currentSchoolId),
+    [feeStructures, currentSchoolId]
+  );
+  const activeFeePayments = useMemo(
+    () => feePayments.filter((p) => (p.schoolId || 'sch-001') === currentSchoolId),
+    [feePayments, currentSchoolId]
+  );
+  const activeReminders = useMemo(
+    () => reminders.filter((r) => (r.schoolId || 'sch-001') === currentSchoolId),
+    [reminders, currentSchoolId]
+  );
+  const activeScoreCards = useMemo(
+    () => scoreCards.filter((s) => (s.schoolId || 'sch-001') === currentSchoolId),
+    [scoreCards, currentSchoolId]
+  );
+  const activeAttendance = useMemo(
+    () => attendance.filter((a) => (a.schoolId || 'sch-001') === currentSchoolId),
+    [attendance, currentSchoolId]
+  );
+  const activeGrades = useMemo(() => {
+    const scoped = grades.filter((g) => (g.schoolId || 'sch-001') === currentSchoolId);
+    if (scoped.length > 0) return scoped;
+    return INITIAL_GRADES.map((g, i) => ({
+      ...g,
+      id: `grd-${currentSchoolId}-${i + 1}`,
+      schoolId: currentSchoolId,
+    }));
+  }, [grades, currentSchoolId]);
+
+  const activeSubjects = useMemo(() => {
+    const scoped = subjects.filter((s) => (s.schoolId || 'sch-001') === currentSchoolId);
+    if (scoped.length > 0) return scoped;
+    return INITIAL_SUBJECTS.map((s, i) => ({
+      ...s,
+      id: `sbj-${currentSchoolId}-${i + 1}`,
+      schoolId: currentSchoolId,
+    }));
+  }, [subjects, currentSchoolId]);
+
+  const activeAdminAccounts = useMemo(
+    () => adminAccounts.filter((a) => (a.schoolId || 'sch-001') === currentSchoolId),
+    [adminAccounts, currentSchoolId]
+  );
+  const activeAssessments = useMemo(
+    () => assessments.filter((a) => (a.schoolId || 'sch-001') === currentSchoolId),
+    [assessments, currentSchoolId]
+  );
+  const activeSubjectSubmissions = useMemo(
+    () => subjectSubmissions.filter((s) => (s.schoolId || 'sch-001') === currentSchoolId),
+    [subjectSubmissions, currentSchoolId]
+  );
+  const activeAuditLogs = useMemo(
+    () => auditLogs.filter((l) => !l.schoolId || l.schoolId === currentSchoolId),
+    [auditLogs, currentSchoolId]
+  );
+
   return (
     <AppContext.Provider
       value={{
@@ -2180,26 +2544,31 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         requestPasswordResetLink,
         resetPasswordForUser,
         logout,
-        parents,
-        learners,
-        teachers,
-        feeStructures,
-        feePayments,
-        reminders,
-        scoreCards,
-        attendance,
-        auditLogs,
+        parents: activeParents,
+        learners: activeLearners,
+        teachers: activeTeachers,
+        feeStructures: activeFeeStructures,
+        feePayments: activeFeePayments,
+        reminders: activeReminders,
+        scoreCards: activeScoreCards,
+        attendance: activeAttendance,
+        auditLogs: activeAuditLogs,
         schoolProfile,
         updateSchoolProfile,
-        grades,
+        registeredSchools,
+        currentSchoolId,
+        registerNewSchool,
+        toggleSchoolLock,
+        switchActiveSchool,
+        grades: activeGrades,
         addGrade,
         updateGrade,
         deleteGrade,
-        subjects,
+        subjects: activeSubjects,
         addSubject,
         updateSubject,
         deleteSubject,
-        adminAccounts,
+        adminAccounts: activeAdminAccounts,
         addAdminAccount,
         updateAdminAccount,
         deleteAdminAccount,
@@ -2218,9 +2587,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         sendBulkOverdueReminders,
         scheduleReminder,
         saveScoreCard,
-        assessments,
+        assessments: activeAssessments,
         saveAssessment,
-        subjectSubmissions,
+        subjectSubmissions: activeSubjectSubmissions,
         saveSubjectSubmission,
         toggleExamAbsence,
         recordSingleAttendance,

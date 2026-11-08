@@ -374,7 +374,7 @@ export const OFFICIAL_SIGNATURE_PRESETS: SignaturePreset[] = [
     id: 'preset-official-seal',
     role: 'seal',
     roleTitle: 'Official Institutional Seal & Stamp',
-    signatoryName: 'Mwivona Comprehensive School Seal',
+    signatoryName: 'Official Institutional Seal',
     designation: 'MoE / KNEC Certified Institutional Ratification Stamp',
     description: 'Circular bilingual embossed seal with center crest, laurel stars and official code',
     inkColor: '#4338ca', // Indigo / Purple official stamp ink

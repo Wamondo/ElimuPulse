@@ -17,12 +17,12 @@ export interface MpesaDarajaConfig {
 
 const DEFAULT_MPESA_CONFIG: MpesaDarajaConfig = {
   businessShortCode: '522522',
-  businessName: 'Mwivona Comprehensive School Fees',
+  businessName: 'Comprehensive School Fees',
   accountReferencePrefix: 'STU-',
   consumerKey: 'dk8204918290481290348129048',
   consumerSecret: 'sec_892184918204810294819024',
   passkey: 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919',
-  callbackUrl: 'https://mwivonacomprehensive.sc.ke/api/mpesa/c2b-callback',
+  callbackUrl: '/api/mpesa/c2b-callback',
   environment: 'production',
 };
 

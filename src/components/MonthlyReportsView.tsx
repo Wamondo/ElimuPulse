@@ -400,7 +400,7 @@ export const MonthlyReportsView: React.FC = () => {
             />
             <div>
               <h2 className="text-lg font-bold text-slate-900 uppercase">
-                {schoolProfile?.name || 'Mwivona Comprehensive School'}
+                {schoolProfile?.name || 'Comprehensive School'}
               </h2>
               <p className="text-xs text-slate-600">
                 Primary & Junior School Wings · Official Monthly Executive Financial & Performance Statement

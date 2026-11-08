@@ -21,7 +21,11 @@ import {
   ShieldAlert,
   RefreshCw,
   Send,
-  ArrowLeft
+  ArrowLeft,
+  ChevronDown,
+  Check,
+  Building2,
+  Unlock,
 } from 'lucide-react';
 import crestImage from '../assets/images/school_crest_emblem_1792317813141.jpg';
 import { ForgotPasswordModal } from './ForgotPasswordModal';
@@ -41,6 +45,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     currentDeviceName,
     deviceKickoutNotice,
     clearDeviceKickoutNotice,
+    schoolProfile,
+    registeredSchools,
+    currentSchoolId,
+    switchActiveSchool,
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'parent' | 'teacher' | 'admin'>('admin');
@@ -50,6 +58,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
+  const [showSchoolDropdown, setShowSchoolDropdown] = useState(false);
   const [ownerDesignation, setOwnerDesignation] = useState<OwnerDesignation>('owner');
 
   // OTP Challenge State for Secondary/Third-Party Device Access
@@ -189,7 +198,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         <div className="inline-flex p-3 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 shadow-xl mb-4">
           <img
             src={crestImage}
-            alt="Mwivona Comprehensive School Crest"
+            alt={`${schoolProfile?.name || 'School'} Crest`}
             className="w-16 h-16 object-contain rounded-xl"
             referrerPolicy="no-referrer"
           />
@@ -203,10 +212,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
           ElimuPulse
         </h1>
         <p className="mt-1 text-sm text-indigo-100 font-semibold">
-          Mwivona Comprehensive School
+          {schoolProfile?.name || 'Comprehensive School Portal'}
         </p>
         <p className="mt-0.5 text-xs text-indigo-300 font-medium">
-          Primary School &amp; Junior School Wings · Official Institutional Portal
+          {schoolProfile?.primaryWingName || 'Primary Wing'} &amp; {schoolProfile?.juniorWingName || 'Junior Wing'} · Kenyan CBC System
         </p>
       </div>
 
@@ -228,6 +237,85 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
             >
               Dismiss
             </button>
+          </div>
+        )}
+
+        {/* Institution Selector Bar */}
+        <div className="mb-4 p-3 bg-white/10 backdrop-blur-md border border-white/15 rounded-xl flex items-center justify-between gap-2 text-xs shadow-md">
+          <div className="relative flex-1">
+            <button
+              type="button"
+              onClick={() => setShowSchoolDropdown(!showSchoolDropdown)}
+              className="w-full text-left flex items-center justify-between gap-2 py-1 px-2 rounded-lg bg-slate-900/40 hover:bg-slate-900/60 border border-white/10 text-slate-100 transition-colors cursor-pointer"
+            >
+              <div className="truncate">
+                <span className="text-[10px] text-indigo-300 font-mono block">Selected Institution:</span>
+                <span className="font-bold text-xs truncate block">{schoolProfile?.name || 'Academic Institution'}</span>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {schoolProfile?.isLocked ? (
+                  <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-rose-500/30 text-rose-300 border border-rose-500/40 flex items-center gap-1">
+                    <Lock className="w-2.5 h-2.5" /> LOCKED
+                  </span>
+                ) : (
+                  <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> LIVE
+                  </span>
+                )}
+                <ChevronDown className="w-3.5 h-3.5 text-slate-300" />
+              </div>
+            </button>
+
+            {/* Dropdown list of registered schools */}
+            {showSchoolDropdown && (
+              <div className="absolute left-0 top-full mt-1.5 w-full bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-40 p-2 space-y-1">
+                <div className="px-2 py-1 text-[10px] font-mono text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                  <span>Registered Institutions ({registeredSchools?.length || 1})</span>
+                  <span className="text-emerald-400 text-[9px]">Owner Regulated</span>
+                </div>
+                {(registeredSchools || []).map((sch) => (
+                  <button
+                    key={sch.id}
+                    type="button"
+                    onClick={() => {
+                      switchActiveSchool(sch.id);
+                      setShowSchoolDropdown(false);
+                      setErrorMsg(null);
+                    }}
+                    className={`w-full text-left px-2.5 py-2 rounded-lg flex items-center justify-between text-xs transition-colors cursor-pointer ${
+                      sch.id === currentSchoolId
+                        ? 'bg-indigo-600/30 border border-indigo-400/50 text-indigo-200 font-bold'
+                        : 'hover:bg-slate-800 text-slate-300'
+                    }`}
+                  >
+                    <div className="truncate">
+                      <div className="font-semibold truncate">{sch.name}</div>
+                      <div className="text-[10px] text-slate-400">{sch.county} · {sch.registrationNumber || 'MoE Registered'}</div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {sch.isLocked && (
+                        <span className="p-1 rounded bg-rose-900/60 text-rose-300 border border-rose-700" title="School is locked">
+                          <Lock className="w-3 h-3" />
+                        </span>
+                      )}
+                      {sch.id === currentSchoolId && <Check className="w-3.5 h-3.5 text-indigo-400" />}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Institutional Lock Alert Banner when active school is locked */}
+        {schoolProfile?.isLocked && (
+          <div className="mb-4 p-3 bg-linear-to-r from-rose-950/80 via-amber-950/70 to-rose-950/80 border border-rose-500/40 rounded-xl text-rose-200 text-xs shadow-md flex items-center justify-between gap-3 animate-in fade-in">
+            <div className="flex items-center gap-2">
+              <Lock className="w-4 h-4 text-rose-400 shrink-0" />
+              <span>
+                <strong>School Portal Locked:</strong> Faculty &amp; admin logins for <strong>{schoolProfile.name}</strong> are suspended. Only Institution Director / Owner can access and unlock.
+              </span>
+            </div>
           </div>
         )}
 
@@ -460,10 +548,30 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
 
                 {/* Error Message */}
                 {errorMsg && (
-                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-start gap-2.5 animate-in fade-in">
-                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                    <span>{errorMsg}</span>
-                  </div>
+                  errorMsg.includes('School Portal Locked') ? (
+                    <div className="p-3.5 bg-rose-50 border-2 border-rose-400 rounded-xl text-rose-950 text-xs flex items-start gap-3 shadow-sm animate-in fade-in">
+                      <div className="p-2 bg-rose-200/80 rounded-lg text-rose-800 shrink-0 mt-0.5">
+                        <Lock className="w-5 h-5" />
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1.5 font-black uppercase tracking-wider text-[11px] text-rose-900">
+                          <span>Institutional Portal Locked</span>
+                          <span className="bg-rose-200 text-rose-900 border border-rose-300 px-1.5 py-0.2 rounded font-mono text-[9px]">LOCKED</span>
+                        </div>
+                        <p className="leading-relaxed text-rose-900 font-medium">
+                          {errorMsg}
+                        </p>
+                        <p className="text-[11px] text-rose-700 font-semibold pt-1">
+                          Only the <strong>School Owner &amp; Institution Director</strong> can log in to administer school affairs or unlock the portal.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-start gap-2.5 animate-in fade-in">
+                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                      <span>{errorMsg}</span>
+                    </div>
+                  )
                 )}
 
                 {/* Credentials Form */}

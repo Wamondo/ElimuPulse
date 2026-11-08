@@ -119,8 +119,8 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
   const activeLearner = learners.find((l) => l.id === selectedLearnerId);
   const activeIsJunior = activeLearner ? isLearnerJunior(activeLearner) : false;
   const activeWingName = activeIsJunior
-    ? (schoolProfile?.juniorWingName || 'Mwivona Junior School')
-    : (schoolProfile?.primaryWingName || 'Mwivona Primary School');
+    ? (schoolProfile?.juniorWingName || `${schoolProfile?.name || 'School'} Junior Wing`)
+    : (schoolProfile?.primaryWingName || `${schoolProfile?.name || 'School'} Primary Wing`);
 
   // Active Assessment configuration for this Grade & Term
   const activeAssessment: AssessmentRecord | undefined = useMemo(() => {

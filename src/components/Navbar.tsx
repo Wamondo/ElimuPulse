@@ -12,11 +12,17 @@ import {
   BookOpen,
   GraduationCap,
   Users,
-  Smartphone
+  Smartphone,
+  Building,
+  Lock,
+  Unlock,
+  Plus
 } from 'lucide-react';
 import crestImage from '../assets/images/school_crest_emblem_1792317813141.jpg';
 import { UserSession, OwnerDesignation } from '../types';
 import { PWAInstallButton } from './PWAInstallButton';
+import { NewSchoolRegistrationModal } from './NewSchoolRegistrationModal';
+import { SchoolLockModal } from './SchoolLockModal';
 
 interface NavbarProps {
   activeTab: string;
@@ -33,8 +39,22 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenSecurityModal,
   onOpenProductionCenter,
 }) => {
-  const { currentUser, logout, schoolProfile, isOwner, switchOwnerResponsibility } = useApp();
+  const {
+    currentUser,
+    logout,
+    schoolProfile,
+    isOwner,
+    switchOwnerResponsibility,
+    registeredSchools,
+    currentSchoolId,
+    registerNewSchool,
+    toggleSchoolLock,
+    switchActiveSchool,
+  } = useApp();
   const [showOwnerSwitcher, setShowOwnerSwitcher] = useState(false);
+  const [showSchoolSwitcher, setShowSchoolSwitcher] = useState(false);
+  const [isRegisterSchoolOpen, setIsRegisterSchoolOpen] = useState(false);
+  const [isSchoolLockModalOpen, setIsSchoolLockModalOpen] = useState(false);
 
   // Dynamic Navigation Links based on logged-in role
   const getNavLinks = () => {
@@ -183,42 +203,188 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <header className="sticky top-0 z-30 bg-white border-b border-slate-200">
+      {/* Institutional Lock Alert Banner */}
+      {schoolProfile?.isLocked && (
+        <div className="bg-linear-to-r from-rose-700 via-amber-700 to-rose-700 text-white px-4 py-1.5 text-xs font-semibold flex items-center justify-between shadow-xs">
+          <div className="flex items-center gap-2">
+            <Lock className="w-4 h-4 text-amber-200 shrink-0 animate-bounce" />
+            <span>
+              <strong>School Portal Locked:</strong> {schoolProfile.name} is currently locked by the Institution Director. Teachers and school administrators cannot log in. Director management features remain fully active.
+            </span>
+          </div>
+          {isOwner && (
+            <button
+              onClick={() => setIsSchoolLockModalOpen(true)}
+              className="px-2.5 py-0.5 bg-white text-rose-800 hover:bg-rose-50 rounded text-[11px] font-bold cursor-pointer transition-colors shrink-0 ml-2 shadow-xs"
+            >
+              Unlock School Now
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Top Bar 3-Zone Contract */}
         <div className="flex items-center justify-between gap-8 h-16">
           
-          {/* Zone 1: Single text element wordmark + School Crest */}
-          <div className="flex items-center gap-3 shrink-0">
+          {/* Zone 1: Single text element wordmark + School Crest & Multi-School Switcher */}
+          <div className="flex items-center gap-3 shrink-0 relative">
             <img
               src={crestImage}
-              alt="Mwivona Comprehensive School Crest"
+              alt="School Crest"
               className="w-9 h-9 object-contain rounded-md"
               referrerPolicy="no-referrer"
             />
-            <button
-              onClick={() => setActiveTab('dashboard')}
-              className="text-left cursor-pointer hover:opacity-90 transition-opacity"
-            >
-              <div className="flex items-center gap-2">
-                <span className="font-black text-base tracking-tight text-indigo-700 leading-tight">
-                  ElimuPulse
-                </span>
-                <span className="text-slate-300">·</span>
-                <span className="font-extrabold text-sm tracking-tight text-slate-900 leading-tight truncate max-w-[190px] sm:max-w-none">
-                  {schoolProfile?.name || 'Mwivona Comprehensive School'}
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-medium">
-                <span className="text-emerald-700 font-semibold">Primary</span>
-                <span>&</span>
-                <span className="text-indigo-700 font-semibold">Junior School</span>
-                <span className="text-slate-300">·</span>
-                <span className="inline-flex items-center gap-1 font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-300 font-mono text-[9px]">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  LIVE SYSTEM
-                </span>
-              </div>
-            </button>
+            <div className="relative">
+              {isOwner ? (
+                <button
+                  onClick={() => setShowSchoolSwitcher(!showSchoolSwitcher)}
+                  className="text-left cursor-pointer hover:opacity-90 transition-opacity flex items-center gap-1.5 group"
+                  title="App Owner: Click to view registered schools, switch institution, or manage locks"
+                >
+                  <div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-black text-base tracking-tight text-indigo-700 leading-tight">
+                        ElimuPulse
+                      </span>
+                      <span className="text-slate-300">·</span>
+                      <span className="font-extrabold text-sm tracking-tight text-slate-900 leading-tight truncate max-w-[170px] sm:max-w-none">
+                        {schoolProfile?.name || 'Comprehensive School'}
+                      </span>
+                      <ChevronDown className={`w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 transition-transform ${showSchoolSwitcher ? 'rotate-180' : ''}`} />
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-medium">
+                      <span className="text-emerald-700 font-semibold">{schoolProfile?.primaryWingName || `${schoolProfile?.name || ''} Primary Wing`}</span>
+                      <span>&</span>
+                      <span className="text-indigo-700 font-semibold">{schoolProfile?.juniorWingName || `${schoolProfile?.name || ''} Junior Wing`}</span>
+                      <span className="text-slate-300">·</span>
+                      {schoolProfile?.isLocked ? (
+                        <span className="inline-flex items-center gap-1 font-bold text-rose-800 bg-rose-50 px-1.5 py-0.2 rounded border border-rose-300 font-mono text-[9px]">
+                          <Lock className="w-2.5 h-2.5 text-rose-600" />
+                          LOCKED
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-300 font-mono text-[9px]">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          LIVE SYSTEM
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              ) : (
+                <div className="text-left flex items-center gap-1.5">
+                  <div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-black text-base tracking-tight text-indigo-700 leading-tight">
+                        ElimuPulse
+                      </span>
+                      <span className="text-slate-300">·</span>
+                      <span className="font-extrabold text-sm tracking-tight text-slate-900 leading-tight truncate max-w-[170px] sm:max-w-none">
+                        {schoolProfile?.name || 'Comprehensive School'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-medium">
+                      <span className="text-emerald-700 font-semibold">{schoolProfile?.primaryWingName || `${schoolProfile?.name || ''} Primary Wing`}</span>
+                      <span>&</span>
+                      <span className="text-indigo-700 font-semibold">{schoolProfile?.juniorWingName || `${schoolProfile?.name || ''} Junior Wing`}</span>
+                      <span className="text-slate-300">·</span>
+                      <span className="text-slate-400 font-mono text-[10px]">{schoolProfile?.registrationNumber || schoolProfile?.county}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* School Switcher & Management Dropdown - Owner Access Only */}
+              {isOwner && showSchoolSwitcher && (
+                <div className="absolute left-0 top-full mt-2 w-72 bg-white rounded-xl shadow-2xl border border-slate-200 z-50 p-2 text-xs">
+                  <div className="p-2 border-b border-slate-100 flex items-center justify-between">
+                    <span className="font-bold text-slate-800 uppercase tracking-wider text-[10px]">
+                      Registered Institutions ({registeredSchools?.length || 1})
+                    </span>
+                    <span className="text-[10px] font-mono text-slate-400">Multi-Tenancy</span>
+                  </div>
+
+                  <div className="max-h-56 overflow-y-auto py-1 space-y-1">
+                    {(registeredSchools || []).map((sch) => {
+                      const isCurrent = sch.id === currentSchoolId;
+                      return (
+                        <button
+                          key={sch.id}
+                          onClick={() => {
+                            switchActiveSchool(sch.id);
+                            setShowSchoolSwitcher(false);
+                          }}
+                          className={`w-full text-left px-2.5 py-2 rounded-lg flex items-center justify-between transition-colors cursor-pointer ${
+                            isCurrent
+                              ? 'bg-indigo-50 border border-indigo-200 text-indigo-900 font-semibold'
+                              : 'hover:bg-slate-50 text-slate-700'
+                          }`}
+                        >
+                          <div className="truncate pr-2">
+                            <div className="font-medium truncate">{sch.name}</div>
+                            <div className="text-[10px] text-slate-500 font-mono">
+                              {sch.registrationNumber || sch.county}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            {sch.isLocked ? (
+                              <span className="p-1 rounded bg-rose-100 text-rose-700" title="School is locked (faculty logins blocked)">
+                                <Lock className="w-3 h-3" />
+                              </span>
+                            ) : (
+                              <span className="p-1 rounded bg-emerald-100 text-emerald-700" title="School is unlocked">
+                                <Unlock className="w-3 h-3" />
+                              </span>
+                            )}
+                            {isCurrent && <Check className="w-3.5 h-3.5 text-indigo-600 font-bold" />}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {isOwner && (
+                    <div className="pt-2 border-t border-slate-100 mt-1 space-y-1">
+                      <button
+                        onClick={() => {
+                          setShowSchoolSwitcher(false);
+                          setIsRegisterSchoolOpen(true);
+                        }}
+                        className="w-full flex items-center gap-2 px-2.5 py-1.5 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg font-semibold transition-colors cursor-pointer text-[11px]"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>+ Register New School (Owner Approval)</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setShowSchoolSwitcher(false);
+                          setIsSchoolLockModalOpen(true);
+                        }}
+                        className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg font-semibold transition-colors cursor-pointer text-[11px] ${
+                          schoolProfile.isLocked
+                            ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100'
+                            : 'text-rose-700 bg-rose-50 hover:bg-rose-100'
+                        }`}
+                      >
+                        {schoolProfile.isLocked ? (
+                          <>
+                            <Unlock className="w-3.5 h-3.5" />
+                            <span>Unlock School Portal</span>
+                          </>
+                        ) : (
+                          <>
+                            <Lock className="w-3.5 h-3.5" />
+                            <span>Lock School Portal</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Zone 2: Navigation Links (single-line, clean hover underline) */}
@@ -243,6 +409,42 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Zone 3: Primary Action & Active Role Switcher */}
           <div className="flex items-center gap-2.5 shrink-0">
+            {/* Quick School Register & Lock Buttons for Owner */}
+            {isOwner && (
+              <div className="hidden sm:flex items-center gap-1.5">
+                <button
+                  onClick={() => setIsRegisterSchoolOpen(true)}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1.5 rounded-md border border-emerald-200 transition-colors cursor-pointer shadow-xs"
+                  title="App Owner: Review and approve new school registration"
+                >
+                  <Plus className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>+ Register School (Owner Approval)</span>
+                </button>
+
+                <button
+                  onClick={() => setIsSchoolLockModalOpen(true)}
+                  className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-md border transition-colors cursor-pointer shadow-xs ${
+                    schoolProfile?.isLocked
+                      ? 'text-white bg-rose-600 hover:bg-rose-700 border-rose-700 animate-pulse'
+                      : 'text-slate-700 bg-slate-50 hover:bg-slate-100 border-slate-300'
+                  }`}
+                  title={schoolProfile?.isLocked ? 'School portal is locked. Click to unlock logins.' : 'Click to lock faculty & admin logins for this school.'}
+                >
+                  {schoolProfile?.isLocked ? (
+                    <>
+                      <Lock className="w-3.5 h-3.5 text-white" />
+                      <span>Locked · Unlock</span>
+                    </>
+                  ) : (
+                    <>
+                      <Unlock className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Lock School</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+
             {/* Install PWA Button for Phones, Tablets, and Laptops */}
             <PWAInstallButton variant="navbar" />
 
@@ -315,7 +517,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <span className="font-bold text-slate-900">Owner Responsibility Center</span>
                       </div>
                       <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
-                        As the application owner, switch between your authorized responsibilities across Mwivona Comprehensive:
+                        As the application owner, switch between your authorized responsibilities across {schoolProfile?.name || 'the institution'}:
                       </p>
                     </div>
 
@@ -417,6 +619,25 @@ export const Navbar: React.FC<NavbarProps> = ({
           })}
         </div>
       </div>
+
+      {/* New School Registration Modal (Owner Only) */}
+      {isOwner && (
+        <NewSchoolRegistrationModal
+          isOpen={isRegisterSchoolOpen}
+          onClose={() => setIsRegisterSchoolOpen(false)}
+          onRegister={registerNewSchool}
+        />
+      )}
+
+      {/* School Lock / Unlock Modal (Owner Only) */}
+      {isOwner && (
+        <SchoolLockModal
+          isOpen={isSchoolLockModalOpen}
+          onClose={() => setIsSchoolLockModalOpen(false)}
+          school={schoolProfile}
+          onToggleLock={toggleSchoolLock}
+        />
+      )}
     </header>
   );
 };

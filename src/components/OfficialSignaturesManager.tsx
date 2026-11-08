@@ -78,7 +78,7 @@ const ROLES_CONFIG: RoleConfig[] = [
   {
     role: 'seal',
     label: 'Official Institutional Seal & Stamp',
-    defaultName: 'Mwivona Comprehensive School Official Seal',
+    defaultName: 'Official Institutional Seal',
     defaultTitle: 'MoE / KNEC Certified Institutional Ratification Stamp',
     icon: Stamp,
     badgeColor: 'bg-amber-50 text-amber-900 border-amber-200',

@@ -40,6 +40,7 @@ export const BulkRemindersModal: React.FC<BulkRemindersModalProps> = ({
     sendBulkOverdueReminders,
     currentUser,
     isParentDecrypted,
+    schoolProfile,
   } = useApp();
 
   // Filter accounts with balance > 0 in this term
@@ -123,6 +124,9 @@ export const BulkRemindersModal: React.FC<BulkRemindersModalProps> = ({
     const amountStr = `Ksh ${fee.balance.toLocaleString()}`;
     const dueDateStr = fee.dueDate;
 
+    const pbNumber = schoolProfile?.mpesaPaybill || '522522';
+    const pbAccount = schoolProfile?.mpesaAccountName || 'FEES';
+
     if (urgencyLevel === 'custom') {
       return customTemplate
         .replace(/{ParentName}/g, parent.fullName)
@@ -130,7 +134,7 @@ export const BulkRemindersModal: React.FC<BulkRemindersModalProps> = ({
         .replace(/{Grade}/g, learner.grade)
         .replace(/{AmountDue}/g, amountStr)
         .replace(/{DueDate}/g, dueDateStr)
-        .replace(/{Paybill}/g, `Paybill 28491 (A/C: ${learner.studentId})`);
+        .replace(/{Paybill}/g, `Paybill ${pbNumber} (A/C: ${learner.studentId})`);
     }
 
     if (urgencyLevel === 'final') {
@@ -138,10 +142,10 @@ export const BulkRemindersModal: React.FC<BulkRemindersModalProps> = ({
     }
 
     if (urgencyLevel === 'friendly') {
-      return `Friendly Tuition Reminder: Dear ${parent.fullName}, a tuition balance of ${amountStr} remains for ${learner.firstName} for ${selectedTerm} (due ${dueDateStr}). Settle via Paybill 28491. Thank you.`;
+      return `Friendly Tuition Reminder: Dear ${parent.fullName}, a tuition balance of ${amountStr} remains for ${learner.firstName} for ${selectedTerm} (due ${dueDateStr}). Settle via Paybill ${pbNumber} (A/C: ${learner.studentId}). Thank you.`;
     }
 
-    return `OVERDUE TUITION ALERT: Dear ${parent.fullName}, tuition balance of ${amountStr} for ${learner.firstName} ${learner.lastName} is overdue (was due ${dueDateStr}). Please remit via Paybill 28491 A/C: ${learner.studentId}.`;
+    return `OVERDUE TUITION ALERT: Dear ${parent.fullName}, tuition balance of ${amountStr} for ${learner.firstName} ${learner.lastName} is overdue (was due ${dueDateStr}). Please remit via Paybill ${pbNumber} A/C: ${learner.studentId}.`;
   };
 
   const handleSend = () => {
@@ -264,7 +268,7 @@ export const BulkRemindersModal: React.FC<BulkRemindersModalProps> = ({
                     <span>SMS Direct Dispatch</span>
                   </div>
                   <p className="text-[11px] text-slate-500 mt-0.5">
-                    High-priority automated cellular SMS delivered directly to verified parent phone numbers.
+                    Real cellular SMS gateway routed to Safaricom, Airtel Kenya & Equitel handsets (Africa's Talking API).
                   </p>
                 </div>
               </button>
@@ -437,7 +441,7 @@ export const BulkRemindersModal: React.FC<BulkRemindersModalProps> = ({
                       <p className="text-slate-500 text-[11px]">
                         Kind regards,<br />
                         Bursar Office & Treasury Accounts<br />
-                        Mwivona Comprehensive School
+                        {schoolProfile?.name || 'Comprehensive School'}
                       </p>
                     </div>
                   </div>

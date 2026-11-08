@@ -210,9 +210,28 @@
         "status": { "type": "string" }
       },
       "required": ["grade", "term", "subjectName", "status"]
+    },
+    "School": {
+      "title": "School",
+      "description": "Registered educational institution under Owner governance",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "registrationNumber": { "type": "string" },
+        "county": { "type": "string" },
+        "phone": { "type": "string" },
+        "isLocked": { "type": "boolean" },
+        "approvedByOwner": { "type": "boolean" }
+      },
+      "required": ["name", "registrationNumber", "county"]
     }
   },
   "firestore": {
+    "/schools/{schoolId}": {
+      "schema": "School",
+      "description": "Registered educational institutions"
+    },
     "/learners/{learnerId}": {
       "schema": "Learner",
       "description": "All enrolled learners"

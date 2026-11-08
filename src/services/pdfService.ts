@@ -28,7 +28,7 @@ function drawSchoolHeader(
   doc.rect(0, 0, 210, 8, 'F');
   
   // School / Section Name: Dedicated Junior School or Primary School name on reports
-  const mainHeader = institutionHeader || school.name || 'Mwivona Comprehensive School';
+  const mainHeader = institutionHeader || school.name || 'Comprehensive School';
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(15);
   doc.setTextColor(15, 23, 42); // slate-900
@@ -38,7 +38,7 @@ function drawSchoolHeader(
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(71, 85, 105); // slate-600
-  const umbrella = sectionSubtitle || `${school.name || 'Mwivona Comprehensive School'} · MoE/KNEC Center Code: ${school.registrationNumber}`;
+  const umbrella = sectionSubtitle || `${school.name || 'Comprehensive School'} · MoE/KNEC Center Code: ${school.registrationNumber}`;
   doc.text(umbrella, 105, 22, { align: 'center' });
 
   const metaLine2 = `${school.postalAddress} | Tel: ${school.phone} | Email: ${school.email}`;
@@ -85,8 +85,8 @@ export function exportFeeReceiptPdf(
     gradeStr.toLowerCase().includes('junior');
 
   const wingInstitutionName = isJunior
-    ? (school.juniorWingName || 'Mwivona Junior School')
-    : (school.primaryWingName || 'Mwivona Primary School');
+    ? (school.juniorWingName || `${school.name} Junior Wing`)
+    : (school.primaryWingName || `${school.name} Primary Wing`);
 
   drawSchoolHeader(doc, school, 'Official Tuition Fee & Payment Receipt', wingInstitutionName);
 
@@ -316,14 +316,14 @@ export function drawSingleScoreCardPage(
 
   // Reports for junior bear the name for junior; reports for primary bear the name for primary
   const wingInstitutionName = isJunior
-    ? (school.juniorWingName || 'Mwivona Junior School')
-    : (school.primaryWingName || 'Mwivona Primary School');
+    ? (school.juniorWingName || `${school.name} Junior Wing`)
+    : (school.primaryWingName || `${school.name} Primary Wing`);
 
   const reportTitle = isJunior
     ? 'Junior School Competency-Based Assessment (KJSEA) Form'
     : 'Primary School Competency-Based Progress (KPSEA) Form';
 
-  const umbrellaNotice = `${school.name || 'Mwivona Comprehensive School'} · MoE/KNEC Center Reg: ${school.registrationNumber} · ${school.county}`;
+  const umbrellaNotice = `${school.name || 'Comprehensive School'} · MoE/KNEC Center Reg: ${school.registrationNumber} · ${school.county}`;
 
   // 1. Top Decorative Brand Bar (Slate)
   doc.setFillColor(30, 41, 59);
@@ -719,7 +719,7 @@ export function drawSingleScoreCardPage(
   doc.setTextColor(30, 41, 59);
   doc.text("HEAD OF INSTITUTION / PRINCIPAL'S REMARKS & ENDORSEMENT:", marginLeft + 4, y + 4.2);
 
-  const principalRemarkText = scoreCard.principalRemark || `A commendable term. Continue striving for highest academic excellence and ethical leadership at ${school.name || 'Mwivona'}.`;
+  const principalRemarkText = scoreCard.principalRemark || `A commendable term. Continue striving for highest academic excellence and ethical leadership at ${school.name || 'the institution'}.`;
   doc.setFont('helvetica', 'italic');
   doc.setFontSize(6.6);
   doc.setTextColor(15, 23, 42);
@@ -954,7 +954,7 @@ export function synthesizeLearnerScoreCard(
     classSize: 28,
     attendancePercentage: 97.5,
     classTeacherRemark: 'Disciplined and diligent learner who exhibits solid growth and collaborative leadership across CBC curriculum competencies.',
-    principalRemark: `A highly commendable term of academic achievement and moral integrity. Continue aiming for excellence at ${school.name || 'Mwivona'}.`,
+    principalRemark: `A highly commendable term of academic achievement and moral integrity. Continue aiming for excellence at ${school.name || 'the institution'}.`,
     status: 'published',
   };
 }
@@ -980,8 +980,8 @@ export function exportScoreCardPdf(
     gradeStr.toLowerCase().includes('grade 9');
 
   const wingTitle = isJunior
-    ? (school.juniorWingName || 'Mwivona_Junior_School')
-    : (school.primaryWingName || 'Mwivona_Primary_School');
+    ? (school.juniorWingName || `${school.name}_Junior_Wing`)
+    : (school.primaryWingName || `${school.name}_Primary_Wing`);
 
   const studentName = learner ? `${learner.firstName}_${learner.lastName}` : 'Learner';
   doc.save(`${wingTitle.replace(/\s+/g, '_')}_ScoreCard_${studentName}_${scoreCard.term.replace(/\s+/g, '_')}.pdf`);
@@ -1040,8 +1040,8 @@ export function exportAllGradeScoreCardsBatchPdf(
     grade.toLowerCase().includes('grade 9');
 
   const wingTitle = isJunior
-    ? (school.juniorWingName || 'Mwivona_Junior_School')
-    : (school.primaryWingName || 'Mwivona_Primary_School');
+    ? (school.juniorWingName || `${school.name}_Junior_Wing`)
+    : (school.primaryWingName || `${school.name}_Primary_Wing`);
 
   doc.save(`${wingTitle.replace(/\s+/g, '_')}_${grade.replace(/\s+/g, '_')}_All_ScoreCards_${term.replace(/\s+/g, '_')}.pdf`);
   return doc;
@@ -1407,7 +1407,7 @@ export function exportGradeBroadsheetPdf(
   // A4 Landscape is 297mm x 210mm
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   const isJunior = grade.toLowerCase().includes('grade 7') || grade.toLowerCase().includes('grade 8') || grade.toLowerCase().includes('grade 9');
-  const wingTitle = isJunior ? (school.juniorWingName || 'Mwivona Junior School') : (school.primaryWingName || 'Mwivona Primary School');
+  const wingTitle = isJunior ? (school.juniorWingName || `${school.name} Junior Wing`) : (school.primaryWingName || `${school.name} Primary Wing`);
 
   // Top banner
   doc.setFillColor(30, 41, 59);
@@ -1423,7 +1423,7 @@ export function exportGradeBroadsheetPdf(
   doc.setFontSize(8);
   doc.setTextColor(71, 85, 105);
   doc.text(
-    `${school.name || 'Mwivona Comprehensive School'} · Center Code: ${school.registrationNumber || 'MW-2026-COMP'} · ${school.postalAddress} | Tel: ${school.phone}`,
+    `${school.name || 'Comprehensive School'} · Center Code: ${school.registrationNumber || 'Center'} · ${school.postalAddress} | Tel: ${school.phone}`,
     148.5,
     21,
     { align: 'center' }
@@ -2017,7 +2017,7 @@ export function exportSubjectScoresheetPdf(
 ) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const isJunior = grade.toLowerCase().includes('grade 7') || grade.toLowerCase().includes('grade 8') || grade.toLowerCase().includes('grade 9');
-  const wingTitle = isJunior ? (school.juniorWingName || 'Mwivona Junior School') : (school.primaryWingName || 'Mwivona Primary School');
+  const wingTitle = isJunior ? (school.juniorWingName || `${school.name} Junior Wing`) : (school.primaryWingName || `${school.name} Primary Wing`);
 
   drawSchoolHeader(
     doc,

@@ -14,6 +14,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { usePWAInstall } from '../hooks/usePWAInstall';
+import { useApp } from '../context/AppContext';
 
 interface InstallAppModalProps {
   isOpen: boolean;
@@ -22,6 +23,7 @@ interface InstallAppModalProps {
 
 export const InstallAppModal: React.FC<InstallAppModalProps> = ({ isOpen, onClose }) => {
   const { isInstallable, isInstalled, isIOS, isAndroid, isDesktop, install } = usePWAInstall();
+  const { schoolProfile } = useApp();
   const [activeTab, setActiveTab] = useState<'auto' | 'android' | 'ios' | 'desktop'>('auto');
   const [installSuccess, setInstallSuccess] = useState(false);
 
@@ -53,7 +55,7 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({ isOpen, onClos
           <div className="flex items-center gap-3">
             <img
               src="/pwa-192x192.png"
-              alt="Mwivona Crest"
+              alt={`${schoolProfile?.name || 'School'} Crest`}
               className="w-12 h-12 rounded-xl bg-white p-1 shadow-md object-contain shrink-0"
             />
             <div>
@@ -82,7 +84,7 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({ isOpen, onClos
             <div>
               <p className="font-bold">Installation Initiated!</p>
               <p className="text-[11px] text-emerald-700">
-                ElimuPulse (Mwivona Comprehensive School Portal) is being added to your device home screen / apps.
+                ElimuPulse ({schoolProfile?.name || 'School Portal'}) is being added to your device home screen / apps.
               </p>
             </div>
           </div>

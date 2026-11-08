@@ -24,6 +24,7 @@ const MainLayout: React.FC = () => {
     resetToDefault,
     isAuthenticated,
     logout,
+    schoolProfile,
     isCloudConnected,
     isCloudLoaded,
     isSyncingToCloud,
@@ -117,7 +118,7 @@ const MainLayout: React.FC = () => {
             <button
               onClick={() => setIsProductionCenterOpen(true)}
               className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold bg-indigo-50 text-indigo-900 border border-indigo-200 hover:bg-indigo-100 transition-colors cursor-pointer shadow-xs"
-              title="Application Launch Status: Fully Operational in Production (Mwivona Comprehensive School)"
+              title={`Application Launch Status: Fully Operational in Production (${schoolProfile?.name || 'Comprehensive School'})`}
             >
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               <span>🚀 Production: Live &amp; Operational</span>
@@ -238,9 +239,11 @@ const MainLayout: React.FC = () => {
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-black text-indigo-950 tracking-tight">ElimuPulse</span>
             <span>·</span>
-            <span className="font-bold text-slate-900">Mwivona Comprehensive School</span>
+            <span className="font-bold text-slate-900">{schoolProfile?.name || 'Comprehensive School'}</span>
             <span>·</span>
-            <span className="text-slate-600">Primary &amp; Junior School Management Portal</span>
+            <span className="text-slate-600">
+              {schoolProfile?.primaryWingName || `${schoolProfile?.name || ''} Primary`} &amp; {schoolProfile?.juniorWingName || `${schoolProfile?.name || ''} Junior`} Management Portal
+            </span>
             <span>·</span>
             <span className="inline-flex items-center gap-1 font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-300 font-mono text-[10px]">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />

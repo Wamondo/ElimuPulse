@@ -27,6 +27,7 @@ export interface UserSession {
   teacherType?: TeacherType; // If role is teacher, class_teacher or subject_teacher
   teacherGrade?: string; // If class teacher, assigned represented grade (e.g. 'Grade 7A')
   registeredSubjects?: string[]; // Registered subjects taught by this teacher
+  schoolId?: string; // Associated institution/school ID
 }
 
 export interface TeacherRecord {
@@ -39,6 +40,7 @@ export interface TeacherRecord {
   assignedGrade?: string; // If class teacher
   registeredSubjects: string[];
   department: string;
+  schoolId?: string;
 }
 
 export interface ParentRecord {
@@ -53,6 +55,7 @@ export interface ParentRecord {
   occupation: string;
   preferredChannel: 'sms' | 'email' | 'call';
   encryptedPayload?: string; // AES-GCM ciphertext representation
+  schoolId?: string;
 }
 
 export interface LearnerRecord {
@@ -69,6 +72,7 @@ export interface LearnerRecord {
   status: 'active' | 'graduated' | 'inactive';
   photoPlaceholderColor: string;
   previousTermAverageScore?: number; // Previous term baseline % for calculating academic improvement
+  schoolId?: string;
 }
 
 export interface FeePayment {
@@ -84,6 +88,7 @@ export interface FeePayment {
   status: 'completed' | 'pending_verification' | 'reversed';
   recordedBy: string;
   notes?: string;
+  schoolId?: string;
 }
 
 export interface FeeStructure {
@@ -99,6 +104,7 @@ export interface FeeStructure {
   balance: number;
   dueDate: string;
   status: 'paid' | 'partial' | 'pending' | 'overdue';
+  schoolId?: string;
 }
 
 export interface PaymentReminder {
@@ -114,6 +120,7 @@ export interface PaymentReminder {
   scheduledDate: string;
   sentDate?: string;
   messagePreview: string;
+  schoolId?: string;
 }
 
 export type CompetencyGrade = 'EE1' | 'EE2' | 'ME1' | 'ME2' | 'AE1' | 'AE2' | 'BE1' | 'BE2';
@@ -152,6 +159,7 @@ export interface ScoreCard {
   classTeacherRemark: string;
   principalRemark: string;
   status: 'draft' | 'published';
+  schoolId?: string;
 }
 
 export type AttendanceSession = 'morning' | 'afternoon';
@@ -165,6 +173,7 @@ export interface AttendanceRecord {
   status: AttendanceStatus;
   reason?: string;
   markedBy: string;
+  schoolId?: string;
 }
 
 export interface AssessmentRecord {
@@ -183,6 +192,7 @@ export interface AssessmentRecord {
   absentReasons?: Record<string, string>;
   requestedAt?: string;
   requestedBy?: string;
+  schoolId?: string;
 }
 
 export interface SubjectMarksSubmission {
@@ -204,6 +214,7 @@ export interface SubjectMarksSubmission {
   recordedLearners?: number | string[];
   isComplete?: boolean;
   notes?: string;
+  schoolId?: string;
 }
 
 export interface AuditLogEntry {
@@ -214,6 +225,7 @@ export interface AuditLogEntry {
   action: string;
   details: string;
   securityFlag?: boolean;
+  schoolId?: string;
 }
 
 export interface DigitalSignatureRecord {
@@ -250,6 +262,13 @@ export interface SchoolProfile {
   academicYear: string;
   currentTerm: string;
   signatures?: Record<string, DigitalSignatureRecord>;
+  isLocked?: boolean; // Whether the school is locked (faculty & admin login suspended)
+  lockedAt?: string; // Timestamp when locked
+  lockReason?: string; // Reason for lock
+  registeredAt?: string; // Registration timestamp
+  approvedByOwner?: boolean; // Explicitly approved by the App Owner
+  approvedByOwnerPhone?: string; // App Owner phone (0716235185)
+  approvedAt?: string; // Timestamp when approved by owner
 }
 
 export interface GradeLevel {
@@ -262,6 +281,7 @@ export interface GradeLevel {
   classTeacherId?: string; // Associated TeacherRecord ID
   roomNumber?: string;
   capacity?: number;
+  schoolId?: string;
 }
 
 export interface SubjectDefinition {
@@ -272,6 +292,7 @@ export interface SubjectDefinition {
   applicableGrades: number[]; // e.g. [7, 8, 9] for Junior School, [1, 2, 3] for Lower Primary
   assignedTeacherId?: string;
   description?: string;
+  schoolId?: string;
 }
 
 export interface AdminAccount {
@@ -283,6 +304,7 @@ export interface AdminAccount {
   title: string;
   email: string;
   assignedDate: string;
+  schoolId?: string;
 }
 
 export interface OwnerOtpChallenge {

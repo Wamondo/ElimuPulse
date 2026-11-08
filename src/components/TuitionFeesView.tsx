@@ -26,6 +26,7 @@ import {
 import crestImage from '../assets/images/school_crest_emblem_1792317813141.jpg';
 import { BulkRemindersModal } from './BulkRemindersModal';
 import { MpesaPaymentModal } from './MpesaPaymentModal';
+import { SmsGatewaySettingsModal } from './SmsGatewaySettingsModal';
 
 interface TuitionFeesViewProps {
   onOpenRecordPaymentModal: (learnerId?: string) => void;
@@ -58,6 +59,9 @@ export const TuitionFeesView: React.FC<TuitionFeesViewProps> = ({
   // Lipa Na M-Pesa STK Push modal states
   const [isMpesaModalOpen, setIsMpesaModalOpen] = useState(false);
   const [mpesaLearnerId, setMpesaLearnerId] = useState<string | undefined>(undefined);
+
+  // SMS Gateway Settings modal state
+  const [isSmsGatewayModalOpen, setIsSmsGatewayModalOpen] = useState(false);
 
   const terms = ['Term 1 - 2026', 'Term 2 - 2026', 'Term 3 - 2026'];
 
@@ -162,6 +166,15 @@ export const TuitionFeesView: React.FC<TuitionFeesViewProps> = ({
 
         {(currentUser.role === 'admin' || currentUser.role === 'bursar') && (
           <div className="flex items-center gap-2.5 self-start md:self-auto flex-wrap">
+            <button
+              onClick={() => setIsSmsGatewayModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg transition-colors cursor-pointer shadow-xs"
+              title="SMS Gateway & Direct Cellular Dispatch Settings"
+            >
+              <Smartphone className="w-3.5 h-3.5 text-indigo-600" />
+              <span>SMS Gateway</span>
+            </button>
+
             <button
               onClick={() => handleOpenReminders()}
               className="flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-lg transition-colors cursor-pointer shadow-xs"
@@ -571,8 +584,8 @@ export const TuitionFeesView: React.FC<TuitionFeesViewProps> = ({
                   receiptLearner.grade.toLowerCase().includes('junior')
                 ) : false;
                 const wingTitle = isJun 
-                  ? (schoolProfile?.juniorWingName || 'Mwivona Junior School') 
-                  : (schoolProfile?.primaryWingName || 'Mwivona Primary School');
+                  ? (schoolProfile?.juniorWingName || `${schoolProfile?.name || 'School'} Junior Wing`) 
+                  : (schoolProfile?.primaryWingName || `${schoolProfile?.name || 'School'} Primary Wing`);
 
                 return (
                   <div className="flex items-center justify-between border-b border-slate-200 pb-4">
@@ -588,7 +601,7 @@ export const TuitionFeesView: React.FC<TuitionFeesViewProps> = ({
                           {wingTitle}
                         </h2>
                         <p className="text-[11px] text-indigo-700 font-semibold">
-                          {schoolProfile?.name || 'Mwivona Comprehensive School'} · Bursar Treasury Office
+                          {schoolProfile?.name || 'Comprehensive School'} · Bursar Treasury Office
                         </p>
                         <p className="text-[10px] text-slate-500">
                           {schoolProfile?.postalAddress || 'P.O. Box 120 - 50307, Luanda, Kenya'} · Phone: {schoolProfile?.phone || '0711002233'}
@@ -746,6 +759,12 @@ export const TuitionFeesView: React.FC<TuitionFeesViewProps> = ({
           setBulkReminderNotice(`M-Pesa payment cleared! Receipt #${recNum} issued for transaction ${txnCode}.`);
           setTimeout(() => setBulkReminderNotice(null), 8000);
         }}
+      />
+
+      {/* SMS Gateway & Cellular Dispatch Modal */}
+      <SmsGatewaySettingsModal
+        isOpen={isSmsGatewayModalOpen}
+        onClose={() => setIsSmsGatewayModalOpen(false)}
       />
     </div>
   );

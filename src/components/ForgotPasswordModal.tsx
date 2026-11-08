@@ -33,7 +33,7 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
   onClose,
   onSuccessLoginPrefill,
 }) => {
-  const { requestPasswordResetLink, resetPasswordForUser } = useApp();
+  const { requestPasswordResetLink, resetPasswordForUser, schoolProfile } = useApp();
 
   const [step, setStep] = useState<ResetStep>('enter_phone');
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -395,14 +395,14 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
                 <div className="flex items-center justify-between text-[11px] text-slate-500 pb-2 border-b border-slate-300/60 mb-2.5">
                   <div className="flex items-center gap-1.5 font-semibold text-slate-700">
                     <MessageSquare className="w-3.5 h-3.5 text-indigo-600" />
-                    <span>Incoming SMS: MWIVONA-PORTAL</span>
+                    <span>Incoming SMS: {schoolProfile?.name ? schoolProfile.name.slice(0, 15).toUpperCase() : 'PORTAL'}</span>
                   </div>
                   <span className="font-mono text-[10px]">Just Now · Delivered</span>
                 </div>
 
                 <div className="bg-white rounded-xl p-3.5 shadow-sm border border-slate-200/80 space-y-2">
                   <p className="text-xs text-slate-800 leading-relaxed">
-                    <strong>Mwivona Comprehensive School:</strong> Hi {targetAccount?.name}, tap the secure link below to reset your password for mobile <strong>{targetAccount?.phone}</strong>:
+                    <strong>{schoolProfile?.name || 'Comprehensive School'}:</strong> Hi {targetAccount?.name}, tap the secure link below to reset your password for mobile <strong>{targetAccount?.phone}</strong>:
                   </p>
 
                   <div className="p-2.5 bg-indigo-50/80 rounded-lg border border-indigo-200 flex items-center justify-between">
