@@ -113,6 +113,9 @@ export const GradeBroadsheetView: React.FC<GradeBroadsheetViewProps> = ({
   // State for editing assessment details
   const [assessmentNameInput, setAssessmentNameInput] = useState(activeAssessment.name);
   const [deadlineInput, setDeadlineInput] = useState(activeAssessment.deadline || '2026-04-05');
+  const [test1NameInput, setTest1NameInput] = useState(activeAssessment.test1Name || 'Assessment 1');
+  const [test2NameInput, setTest2NameInput] = useState(activeAssessment.test2Name || 'Assessment 2');
+  const [test3NameInput, setTest3NameInput] = useState(activeAssessment.test3Name || 'End-Term Exam');
   const [isRequestingMarks, setIsRequestingMarks] = useState(false);
   const [workflowSuccessMsg, setWorkflowSuccessMsg] = useState<string | null>(null);
   const [absentReasonInput, setAbsentReasonInput] = useState<Record<string, string>>({});
@@ -121,6 +124,9 @@ export const GradeBroadsheetView: React.FC<GradeBroadsheetViewProps> = ({
   useEffect(() => {
     setAssessmentNameInput(activeAssessment.name);
     setDeadlineInput(activeAssessment.deadline || '2026-04-05');
+    setTest1NameInput(activeAssessment.test1Name || 'Assessment 1');
+    setTest2NameInput(activeAssessment.test2Name || 'Assessment 2');
+    setTest3NameInput(activeAssessment.test3Name || 'End-Term Exam');
   }, [activeAssessment]);
 
   // Set of absent learner IDs
@@ -253,6 +259,9 @@ export const GradeBroadsheetView: React.FC<GradeBroadsheetViewProps> = ({
         ...activeAssessment,
         name: assessmentNameInput.trim() || activeAssessment.name,
         deadline: deadlineInput,
+        test1Name: test1NameInput.trim() || 'Assessment 1',
+        test2Name: test2NameInput.trim() || 'Assessment 2',
+        test3Name: test3NameInput.trim() || 'End-Term Exam',
         status: 'requested' as const,
         requestedAt: new Date().toISOString(),
       };
@@ -1030,6 +1039,54 @@ export const GradeBroadsheetView: React.FC<GradeBroadsheetViewProps> = ({
                 <p className="text-[11px] text-slate-500 mt-1">
                   Deadline signaled to all subject teachers.
                 </p>
+              </div>
+            </div>
+
+            {/* Assessment Test Component Names (Configured by Class Teacher) */}
+            <div className="mt-4 pt-4 border-t border-slate-100">
+              <label className="block text-xs font-bold text-slate-800 mb-1">
+                Assessment Test Component Names (Class Teacher Configuration)
+              </label>
+              <p className="text-[11px] text-slate-500 mb-2.5">
+                Learners sit for tests either randomly or under specific titles. Class teachers define these test names; subject teachers then configure the maximum marks ('Out of') per subject.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="text-[10px] font-semibold text-slate-600 block mb-1">
+                    Test 1 Name
+                  </label>
+                  <input
+                    type="text"
+                    value={test1NameInput}
+                    onChange={(e) => setTest1NameInput(e.target.value)}
+                    placeholder="e.g. Assessment 1, Random Quiz, Opener Exam"
+                    className="w-full bg-slate-50 border border-slate-300 rounded px-2.5 py-1.5 text-xs font-semibold text-slate-900 focus:outline-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-semibold text-slate-600 block mb-1">
+                    Test 2 Name
+                  </label>
+                  <input
+                    type="text"
+                    value={test2NameInput}
+                    onChange={(e) => setTest2NameInput(e.target.value)}
+                    placeholder="e.g. Assessment 2, Progress Test"
+                    className="w-full bg-slate-50 border border-slate-300 rounded px-2.5 py-1.5 text-xs font-semibold text-slate-900 focus:outline-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-semibold text-slate-600 block mb-1">
+                    Test 3 Name (Final Assessment)
+                  </label>
+                  <input
+                    type="text"
+                    value={test3NameInput}
+                    onChange={(e) => setTest3NameInput(e.target.value)}
+                    placeholder="e.g. End-Term Exam, Main Test"
+                    className="w-full bg-slate-50 border border-slate-300 rounded px-2.5 py-1.5 text-xs font-semibold text-slate-900 focus:outline-indigo-500"
+                  />
+                </div>
               </div>
             </div>
 
@@ -1904,7 +1961,7 @@ export const GradeBroadsheetView: React.FC<GradeBroadsheetViewProps> = ({
               </h3>
             </div>
             <span className="text-[11px] text-slate-500 italic">
-              Tip: Click on any score cell to inspect or edit CAT/Mid/Final marks
+              Tip: Click on any score cell to inspect or edit test marks
             </span>
           </div>
 
@@ -2186,58 +2243,78 @@ export const GradeBroadsheetView: React.FC<GradeBroadsheetViewProps> = ({
             </div>
 
             <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">CAT (/30)</label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={30}
-                    value={editingLearnerSubject.cat}
-                    onChange={(e) =>
-                      setEditingLearnerSubject({
-                        ...editingLearnerSubject,
-                        cat: Math.min(30, Math.max(0, Number(e.target.value) || 0)),
-                      })
-                    }
-                    className="w-full bg-slate-50 border border-slate-300 rounded px-2.5 py-1.5 font-bold text-slate-900 text-center"
-                  />
-                </div>
+              {(() => {
+                const subWeight = activeAssessment?.subjectMaxScores?.[editingLearnerSubject.subjectName];
+                const t1Name = subWeight?.test1Name || activeAssessment?.test1Name || 'Test 1';
+                const t2Name = subWeight?.test2Name || activeAssessment?.test2Name || 'Test 2';
+                const t3Name = subWeight?.test3Name || activeAssessment?.test3Name || 'End-Term Exam';
+                const t1Max = subWeight?.test1Max ?? 30;
+                const t2Max = subWeight?.test2Max ?? 20;
+                const t3Max = subWeight?.test3Max ?? 50;
 
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Midterm (/20)</label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={20}
-                    value={editingLearnerSubject.mid}
-                    onChange={(e) =>
-                      setEditingLearnerSubject({
-                        ...editingLearnerSubject,
-                        mid: Math.min(20, Math.max(0, Number(e.target.value) || 0)),
-                      })
-                    }
-                    className="w-full bg-slate-50 border border-slate-300 rounded px-2.5 py-1.5 font-bold text-slate-900 text-center"
-                  />
-                </div>
+                return (
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="font-bold text-slate-700 block mb-1">
+                        {t1Name} (/{t1Max})
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={t1Max}
+                        value={editingLearnerSubject.cat}
+                        onChange={(e) =>
+                          setEditingLearnerSubject({
+                            ...editingLearnerSubject,
+                            cat: Math.min(t1Max, Math.max(0, Number(e.target.value) || 0)),
+                          })
+                        }
+                        className="w-full bg-slate-50 border border-slate-300 rounded px-2.5 py-1.5 font-bold text-slate-900 text-center"
+                      />
+                    </div>
 
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Final Exam (/50)</label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={50}
-                    value={editingLearnerSubject.fin}
-                    onChange={(e) =>
-                      setEditingLearnerSubject({
-                        ...editingLearnerSubject,
-                        fin: Math.min(50, Math.max(0, Number(e.target.value) || 0)),
-                      })
-                    }
-                    className="w-full bg-slate-50 border border-slate-300 rounded px-2.5 py-1.5 font-bold text-slate-900 text-center"
-                  />
-                </div>
-              </div>
+                    <div>
+                      <label className="font-bold text-slate-700 block mb-1">
+                        {t2Name} (/{t2Max})
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={t2Max}
+                        disabled={t2Max === 0}
+                        value={editingLearnerSubject.mid}
+                        onChange={(e) =>
+                          setEditingLearnerSubject({
+                            ...editingLearnerSubject,
+                            mid: Math.min(t2Max, Math.max(0, Number(e.target.value) || 0)),
+                          })
+                        }
+                        className="w-full bg-slate-50 border border-slate-300 rounded px-2.5 py-1.5 font-bold text-slate-900 text-center disabled:opacity-40"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-bold text-slate-700 block mb-1">
+                        {t3Name} (/{t3Max})
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={t3Max}
+                        disabled={t3Max === 0}
+                        value={editingLearnerSubject.fin}
+                        onChange={(e) =>
+                          setEditingLearnerSubject({
+                            ...editingLearnerSubject,
+                            fin: Math.min(t3Max, Math.max(0, Number(e.target.value) || 0)),
+                          })
+                        }
+                        className="w-full bg-slate-50 border border-slate-300 rounded px-2.5 py-1.5 font-bold text-slate-900 text-center disabled:opacity-40"
+                      />
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Calculated Total Banner */}
               {(() => {

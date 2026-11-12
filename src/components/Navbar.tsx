@@ -16,13 +16,15 @@ import {
   Building,
   Lock,
   Unlock,
-  Plus
+  Plus,
+  Trash2
 } from 'lucide-react';
 import crestImage from '../assets/images/school_crest_emblem_1792317813141.jpg';
-import { UserSession, OwnerDesignation } from '../types';
+import { UserSession, OwnerDesignation, SchoolProfile } from '../types';
 import { PWAInstallButton } from './PWAInstallButton';
 import { NewSchoolRegistrationModal } from './NewSchoolRegistrationModal';
 import { SchoolLockModal } from './SchoolLockModal';
+import { DeleteSchoolModal } from './DeleteSchoolModal';
 
 interface NavbarProps {
   activeTab: string;
@@ -55,6 +57,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [showSchoolSwitcher, setShowSchoolSwitcher] = useState(false);
   const [isRegisterSchoolOpen, setIsRegisterSchoolOpen] = useState(false);
   const [isSchoolLockModalOpen, setIsSchoolLockModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [schoolToDelete, setSchoolToDelete] = useState<SchoolProfile | null>(null);
 
   // Dynamic Navigation Links based on logged-in role
   const getNavLinks = () => {
@@ -309,24 +313,27 @@ export const Navbar: React.FC<NavbarProps> = ({
                     {(registeredSchools || []).map((sch) => {
                       const isCurrent = sch.id === currentSchoolId;
                       return (
-                        <button
+                        <div
                           key={sch.id}
-                          onClick={() => {
-                            switchActiveSchool(sch.id);
-                            setShowSchoolSwitcher(false);
-                          }}
-                          className={`w-full text-left px-2.5 py-2 rounded-lg flex items-center justify-between transition-colors cursor-pointer ${
+                          className={`w-full px-2.5 py-1.5 rounded-lg flex items-center justify-between transition-colors ${
                             isCurrent
                               ? 'bg-indigo-50 border border-indigo-200 text-indigo-900 font-semibold'
                               : 'hover:bg-slate-50 text-slate-700'
                           }`}
                         >
-                          <div className="truncate pr-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              switchActiveSchool(sch.id);
+                              setShowSchoolSwitcher(false);
+                            }}
+                            className="flex-1 text-left truncate pr-2 cursor-pointer"
+                          >
                             <div className="font-medium truncate">{sch.name}</div>
                             <div className="text-[10px] text-slate-500 font-mono">
                               {sch.registrationNumber || sch.county}
                             </div>
-                          </div>
+                          </button>
                           <div className="flex items-center gap-1 shrink-0">
                             {sch.isLocked ? (
                               <span className="p-1 rounded bg-rose-100 text-rose-700" title="School is locked (faculty logins blocked)">
@@ -338,8 +345,25 @@ export const Navbar: React.FC<NavbarProps> = ({
                               </span>
                             )}
                             {isCurrent && <Check className="w-3.5 h-3.5 text-indigo-600 font-bold" />}
+
+                            {/* Owner Delete Button */}
+                            {isOwner && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShowSchoolSwitcher(false);
+                                  setSchoolToDelete(sch);
+                                  setIsDeleteModalOpen(true);
+                                }}
+                                className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-100 rounded transition-colors cursor-pointer ml-0.5"
+                                title={`Delete ${sch.name} (Owner Only)`}
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            )}
                           </div>
-                        </button>
+                        </div>
                       );
                     })}
                   </div>
@@ -379,6 +403,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                             <span>Lock School Portal</span>
                           </>
                         )}
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setShowSchoolSwitcher(false);
+                          setSchoolToDelete(schoolProfile);
+                          setIsDeleteModalOpen(true);
+                        }}
+                        className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg font-semibold transition-colors cursor-pointer text-[11px] text-rose-700 bg-rose-50 hover:bg-rose-100"
+                        title="Permanently delete current school (Owner Only)"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Delete Current School (Owner Only)</span>
                       </button>
                     </div>
                   )}
@@ -636,6 +673,15 @@ export const Navbar: React.FC<NavbarProps> = ({
           onClose={() => setIsSchoolLockModalOpen(false)}
           school={schoolProfile}
           onToggleLock={toggleSchoolLock}
+        />
+      )}
+
+      {/* Delete School Modal (Owner Only) */}
+      {isOwner && (
+        <DeleteSchoolModal
+          isOpen={isDeleteModalOpen}
+          onClose={() => setIsDeleteModalOpen(false)}
+          targetSchool={schoolToDelete}
         />
       )}
     </header>

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { ScoreCard, SubjectScore, LearnerRecord, SubjectMarksSubmission } from '../types';
+import { ScoreCard, SubjectScore, LearnerRecord, SubjectMarksSubmission, AssessmentRecord } from '../types';
 import { calculateCompetencyGrade, calculateGradeFromPoints, COMPETENCY_SCALE } from '../services/gradingService';
 import { exportSubjectScoresheetPdf, SubjectScoresheetRow, SubjectPerformanceSummary } from '../services/pdfService';
 import { getSubjectsForGrade } from './GradeBroadsheetView';
@@ -24,7 +24,10 @@ import {
   Send,
   Clock,
   UserX,
-  AlertTriangle
+  AlertTriangle,
+  Sliders,
+  Settings2,
+  Edit3
 } from 'lucide-react';
 
 interface RowBuffer {
@@ -53,6 +56,7 @@ export const SubjectScoresheetView: React.FC = () => {
     grades,
     addAuditLog,
     assessments,
+    saveAssessment,
     subjectSubmissions,
     saveSubjectSubmission,
   } = useApp();
@@ -148,6 +152,45 @@ export const SubjectScoresheetView: React.FC = () => {
 
   const isSubmitted = currentSubjectSubmission?.status === 'submitted';
 
+  // Test names (Class Teacher configuration) and Max Marks (Subject Teacher configuration)
+  const [test1Name, setTest1Name] = useState('Assessment 1');
+  const [test2Name, setTest2Name] = useState('Assessment 2');
+  const [test3Name, setTest3Name] = useState('End-Term Exam');
+
+  const [test1Max, setTest1Max] = useState<number>(30);
+  const [test2Max, setTest2Max] = useState<number>(20);
+  const [test3Max, setTest3Max] = useState<number>(50);
+  const [isSetupOpen, setIsSetupOpen] = useState(false);
+
+  // Sync test names and max marks when grade, term, or subject changes
+  useEffect(() => {
+    const subWeight = activeAssessment?.subjectMaxScores?.[selectedSubject];
+    const subm = currentSubjectSubmission;
+
+    const t1Name = subWeight?.test1Name || subm?.test1Name || activeAssessment?.test1Name || 'Assessment 1';
+    const t2Name = subWeight?.test2Name || subm?.test2Name || activeAssessment?.test2Name || 'Assessment 2';
+    const t3Name = subWeight?.test3Name || subm?.test3Name || activeAssessment?.test3Name || 'End-Term Exam';
+
+    const t1Max = subWeight?.test1Max ?? subm?.test1Max ?? 30;
+    const t2Max = subWeight?.test2Max ?? subm?.test2Max ?? 20;
+    const t3Max = subWeight?.test3Max ?? subm?.test3Max ?? 50;
+
+    setTest1Name(t1Name);
+    setTest2Name(t2Name);
+    setTest3Name(t3Name);
+    setTest1Max(t1Max);
+    setTest2Max(t2Max);
+    setTest3Max(t3Max);
+  }, [selectedGrade, selectedTerm, selectedSubject, activeAssessment, currentSubjectSubmission]);
+
+  // Total possible maximum marks (e.g. 100, 70, etc.)
+  const totalMaxPossible = useMemo(() => {
+    const m1 = test1Max > 0 ? test1Max : 0;
+    const m2 = test2Max > 0 ? test2Max : 0;
+    const m3 = test3Max > 0 ? test3Max : 0;
+    return m1 + m2 + m3 || 100;
+  }, [test1Max, test2Max, test3Max]);
+
   // Local editable buffer for all learners in this grade & subject
   const [rowsBuffer, setRowsBuffer] = useState<RowBuffer[]>([]);
 
@@ -186,9 +229,9 @@ export const SubjectScoresheetView: React.FC = () => {
           studentId: learner.studentId,
           studentName: `${learner.firstName} ${learner.lastName}`,
           gender: learner.gender || 'Male',
-          catScore: subjectMatch.catScore,
-          midTermScore: subjectMatch.midTermScore,
-          finalExamScore: subjectMatch.finalExamScore,
+          catScore: Math.min(test1Max > 0 ? test1Max : 100, subjectMatch.catScore),
+          midTermScore: Math.min(test2Max > 0 ? test2Max : 100, subjectMatch.midTermScore),
+          finalExamScore: Math.min(test3Max > 0 ? test3Max : 100, subjectMatch.finalExamScore),
           totalScore: subjectMatch.totalScore,
           letterGrade: subjectMatch.letterGrade,
           points: subjectMatch.points,
@@ -197,12 +240,25 @@ export const SubjectScoresheetView: React.FC = () => {
         };
       }
 
-      // Default deterministic marks if none recorded yet
+      // Default deterministic marks scaled to configured max marks
       const seed = (learner.id.charCodeAt(learner.id.length - 1) + idx * 5) % 20;
-      const cat = 22 + (seed % 8);
-      const mid = 15 + (seed % 5);
-      const fin = 39 + (seed % 11);
-      const total = cat + mid + fin;
+      let cat = 0;
+      let mid = 0;
+      let fin = 0;
+      if (test1Max > 0 && test2Max === 0 && test3Max === 0) {
+        cat = Math.min(test1Max, Math.round((test1Max * (68 + (seed % 28))) / 100));
+      } else if (test1Max > 0 && test2Max > 0 && test3Max === 0) {
+        cat = Math.min(test1Max, Math.round((test1Max * (70 + (seed % 25))) / 100));
+        mid = Math.min(test2Max, Math.round((test2Max * (72 + (seed % 24))) / 100));
+      } else {
+        cat = Math.min(test1Max, Math.round((test1Max * (72 + (seed % 24))) / 100));
+        mid = Math.min(test2Max, Math.round((test2Max * (74 + (seed % 22))) / 100));
+        fin = Math.min(test3Max, Math.round((test3Max * (70 + (seed % 25))) / 100));
+      }
+
+      const rawTotal = (test1Max > 0 ? cat : 0) + (test2Max > 0 ? mid : 0) + (test3Max > 0 ? fin : 0);
+      const effectiveTotalMax = (test1Max > 0 ? test1Max : 0) + (test2Max > 0 ? test2Max : 0) + (test3Max > 0 ? test3Max : 0) || 100;
+      const total = effectiveTotalMax === 100 ? rawTotal : Math.min(100, Math.round((rawTotal / effectiveTotalMax) * 100));
       const gradeResult = calculateCompetencyGrade(total);
 
       return {
@@ -222,9 +278,9 @@ export const SubjectScoresheetView: React.FC = () => {
     });
 
     setRowsBuffer(initialRows);
-  }, [gradeLearners, selectedSubject, selectedTerm, scoreCards, absentLearnerIds]);
+  }, [gradeLearners, selectedSubject, selectedTerm, scoreCards, absentLearnerIds, test1Max, test2Max, test3Max]);
 
-  // Handle cell edit in row buffer
+  // Handle cell edit in row buffer with dynamic max marks
   const handleScoreChange = (
     index: number,
     field: 'catScore' | 'midTermScore' | 'finalExamScore' | 'teacherRemarks',
@@ -238,13 +294,25 @@ export const SubjectScoresheetView: React.FC = () => {
         target.teacherRemarks = String(value);
       } else {
         const numVal = Math.max(0, Number(value) || 0);
-        if (field === 'catScore') target.catScore = Math.min(30, numVal);
-        if (field === 'midTermScore') target.midTermScore = Math.min(20, numVal);
-        if (field === 'finalExamScore') target.finalExamScore = Math.min(50, numVal);
+        if (field === 'catScore') target.catScore = Math.min(test1Max > 0 ? test1Max : 100, numVal);
+        if (field === 'midTermScore') target.midTermScore = Math.min(test2Max > 0 ? test2Max : 100, numVal);
+        if (field === 'finalExamScore') target.finalExamScore = Math.min(test3Max > 0 ? test3Max : 100, numVal);
 
-        const total = target.catScore + target.midTermScore + target.finalExamScore;
-        const gradeResult = calculateCompetencyGrade(total);
-        target.totalScore = total;
+        const raw1 = test1Max > 0 ? target.catScore : 0;
+        const raw2 = test2Max > 0 ? target.midTermScore : 0;
+        const raw3 = test3Max > 0 ? target.finalExamScore : 0;
+        const rawTotal = raw1 + raw2 + raw3;
+
+        const effectiveTotalMax = (test1Max > 0 ? test1Max : 0) +
+                                  (test2Max > 0 ? test2Max : 0) +
+                                  (test3Max > 0 ? test3Max : 0) || 100;
+
+        const evaluatedTotal = effectiveTotalMax === 100
+          ? rawTotal
+          : Math.min(100, Math.round((rawTotal / effectiveTotalMax) * 100));
+
+        const gradeResult = calculateCompetencyGrade(evaluatedTotal);
+        target.totalScore = evaluatedTotal;
         target.letterGrade = gradeResult.grade;
         target.points = gradeResult.points;
       }
@@ -252,6 +320,130 @@ export const SubjectScoresheetView: React.FC = () => {
       updated[index] = target;
       return updated;
     });
+  };
+
+  // Save Test Names & Maximum Marks Weighting (Subject & Class Teacher Configuration)
+  const handleSaveWeighting = async (
+    newT1Max: number,
+    newT2Max: number,
+    newT3Max: number,
+    newT1Name?: string,
+    newT2Name?: string,
+    newT3Name?: string
+  ) => {
+    const finalT1Name = (newT1Name ?? test1Name).trim() || 'Assessment 1';
+    const finalT2Name = (newT2Name ?? test2Name).trim() || 'Assessment 2';
+    const finalT3Name = (newT3Name ?? test3Name).trim() || 'End-Term Exam';
+
+    setTest1Max(newT1Max);
+    setTest2Max(newT2Max);
+    setTest3Max(newT3Max);
+    setTest1Name(finalT1Name);
+    setTest2Name(finalT2Name);
+    setTest3Name(finalT3Name);
+
+    const newTotalMax = (newT1Max > 0 ? newT1Max : 0) + (newT2Max > 0 ? newT2Max : 0) + (newT3Max > 0 ? newT3Max : 0) || 100;
+
+    // Recalculate all row buffers with the new weights
+    setRowsBuffer((prev) =>
+      prev.map((r) => {
+        const raw1 = Math.min(newT1Max > 0 ? newT1Max : 0, r.catScore);
+        const raw2 = Math.min(newT2Max > 0 ? newT2Max : 0, r.midTermScore);
+        const raw3 = Math.min(newT3Max > 0 ? newT3Max : 0, r.finalExamScore);
+        const rawTotal = raw1 + raw2 + raw3;
+        const evaluatedTotal = newTotalMax === 100 ? rawTotal : Math.min(100, Math.round((rawTotal / newTotalMax) * 100));
+        const gradeResult = calculateCompetencyGrade(evaluatedTotal);
+        return {
+          ...r,
+          catScore: raw1,
+          midTermScore: raw2,
+          finalExamScore: raw3,
+          totalScore: evaluatedTotal,
+          letterGrade: r.letterGrade === 'DNS' ? 'DNS' : gradeResult.grade,
+          points: r.letterGrade === 'DNS' ? 0 : gradeResult.points,
+        };
+      })
+    );
+
+    // Save into active assessment
+    const baseAssessment: AssessmentRecord = activeAssessment || {
+      id: `assess-${selectedGrade.replace(/\s+/g, '_')}-${selectedTerm.replace(/\s+/g, '_')}`,
+      name: `${selectedTerm} Summative Assessment`,
+      grade: selectedGrade,
+      term: selectedTerm,
+      academicYear: '2025/2026',
+      type: 'End of Term Exam',
+      dateAdministered: '2026-04-01',
+      deadline: '2026-04-05',
+      status: 'in_progress',
+      absentLearnerIds: [],
+    };
+
+    const updatedAssessment: AssessmentRecord = {
+      ...baseAssessment,
+      test1Name: finalT1Name,
+      test2Name: finalT2Name,
+      test3Name: finalT3Name,
+      subjectMaxScores: {
+        ...(baseAssessment.subjectMaxScores || {}),
+        [selectedSubject]: {
+          test1Max: newT1Max,
+          test2Max: newT2Max,
+          test3Max: newT3Max,
+          test1Name: finalT1Name,
+          test2Name: finalT2Name,
+          test3Name: finalT3Name,
+        },
+      },
+    };
+
+    await saveAssessment(updatedAssessment);
+
+    // Also update subject submission if exists
+    if (currentSubjectSubmission) {
+      await saveSubjectSubmission({
+        ...currentSubjectSubmission,
+        test1Name: finalT1Name,
+        test1Max: newT1Max,
+        test2Name: finalT2Name,
+        test2Max: newT2Max,
+        test3Name: finalT3Name,
+        test3Max: newT3Max,
+        totalMax: newTotalMax,
+      });
+    }
+
+    addAuditLog(
+      'Assessment Max Scores & Test Names Configured',
+      `Configured evaluation weights for ${selectedSubject} in ${selectedGrade}: ${finalT1Name} (/${newT1Max}), ${finalT2Name} (/${newT2Max}), ${finalT3Name} (/${newT3Max}) = Total /${newTotalMax}`
+    );
+
+    setSaveSuccessMsg(`Assessment weights for ${selectedSubject} configured! (Total: /${newTotalMax})`);
+    setTimeout(() => setSaveSuccessMsg(null), 4000);
+  };
+
+  // Quick Preset Handlers
+  const applyPreset = (presetKey: 'single_100' | 'main_70_30' | 'cat_30_70' | 'two_50' | 'three_30_20_50' | 'single_70') => {
+    switch (presetKey) {
+      case 'single_100':
+        handleSaveWeighting(100, 0, 0, 'Main Exam', 'Assessment 2', 'Assessment 3');
+        break;
+      case 'main_70_30':
+        handleSaveWeighting(70, 30, 0, 'Main Exam', 'Continuous Assessment', 'Test 3');
+        break;
+      case 'cat_30_70':
+        handleSaveWeighting(30, 70, 0, 'Continuous Assessment', 'Main Exam', 'Test 3');
+        break;
+      case 'two_50':
+        handleSaveWeighting(50, 50, 0, 'Assessment 1', 'Assessment 2', 'Test 3');
+        break;
+      case 'three_30_20_50':
+        handleSaveWeighting(30, 20, 50, 'Assessment 1', 'Assessment 2', 'End-Term Exam');
+        break;
+      case 'single_70':
+        handleSaveWeighting(70, 0, 0, 'Main Assessment', 'Test 2', 'Test 3');
+        break;
+    }
   };
 
   // Sorted rows by totalScore descending with position
@@ -379,12 +571,16 @@ export const SubjectScoresheetView: React.FC = () => {
     return rowsBuffer.filter((r) => !absentLearnerIds.has(r.learnerId));
   }, [rowsBuffer, absentLearnerIds]);
 
-  // Missing marks count for eligible learners (where totalScore is 0 or all assessments are 0)
+  // Missing marks count for eligible learners (where totalScore is 0 or all active tests are 0)
   const missingMarksRows = useMemo(() => {
-    return eligibleRows.filter(
-      (r) => r.catScore === 0 && r.midTermScore === 0 && r.finalExamScore === 0
-    );
-  }, [eligibleRows]);
+    return eligibleRows.filter((r) => {
+      if (r.totalScore > 0) return false;
+      const t1Zero = test1Max > 0 ? r.catScore === 0 : true;
+      const t2Zero = test2Max > 0 ? r.midTermScore === 0 : true;
+      const t3Zero = test3Max > 0 ? r.finalExamScore === 0 : true;
+      return t1Zero && t2Zero && t3Zero;
+    });
+  }, [eligibleRows, test1Max, test2Max, test3Max]);
 
   const isAllEligibleMarksRecorded = eligibleRows.length > 0 && missingMarksRows.length === 0;
 
@@ -408,6 +604,12 @@ export const SubjectScoresheetView: React.FC = () => {
         catScore: isAbsent ? 0 : item.catScore,
         midTermScore: isAbsent ? 0 : item.midTermScore,
         finalExamScore: isAbsent ? 0 : item.finalExamScore,
+        test1Score: isAbsent ? 0 : item.catScore,
+        test2Score: isAbsent ? 0 : item.midTermScore,
+        test3Score: isAbsent ? 0 : item.finalExamScore,
+        test1Max,
+        test2Max,
+        test3Max,
         totalScore: isAbsent ? 0 : item.totalScore,
         letterGrade: (isAbsent ? 'DNS' : item.letterGrade) as any,
         points: isAbsent ? 0 : item.points,
@@ -489,6 +691,13 @@ export const SubjectScoresheetView: React.FC = () => {
       eligibleLearners: eligibleRows.length,
       recordedLearners: eligibleRows.length,
       isComplete: true,
+      test1Name,
+      test1Max,
+      test2Name,
+      test2Max,
+      test3Name,
+      test3Max,
+      totalMax: totalMaxPossible,
     };
 
     await saveSubjectSubmission(submissionRecord);
@@ -542,7 +751,13 @@ export const SubjectScoresheetView: React.FC = () => {
       evaluatorName,
       pdfRows,
       subjectStats.mean,
-      performanceSummary
+      performanceSummary,
+      {
+        test1Header: `${test1Name}/${test1Max}`,
+        test2Header: test2Max > 0 ? `${test2Name}/${test2Max}` : undefined,
+        test3Header: test3Max > 0 ? `${test3Name}/${test3Max}` : undefined,
+        totalHeader: `Tot/${totalMaxPossible}`,
+      }
     );
   };
 
@@ -553,10 +768,10 @@ export const SubjectScoresheetView: React.FC = () => {
       'Admission Number',
       'Learner Name',
       'Gender',
-      'CAT (/30)',
-      'Midterm (/20)',
-      'Final Exam (/50)',
-      'Total Score (/100)',
+      `${test1Name} (/${test1Max})`,
+      ...(test2Max > 0 ? [`${test2Name} (/${test2Max})`] : []),
+      ...(test3Max > 0 ? [`${test3Name} (/${test3Max})`] : []),
+      `Total Score (/${totalMaxPossible})`,
       'CBC Level',
       'Points (/8)',
       'Teacher Remarks',
@@ -568,8 +783,8 @@ export const SubjectScoresheetView: React.FC = () => {
       `"${r.studentName}"`,
       r.gender,
       r.catScore,
-      r.midTermScore,
-      r.finalExamScore,
+      ...(test2Max > 0 ? [r.midTermScore] : []),
+      ...(test3Max > 0 ? [r.finalExamScore] : []),
       r.totalScore,
       r.letterGrade,
       r.points,
@@ -654,7 +869,12 @@ export const SubjectScoresheetView: React.FC = () => {
               {activeAssessment?.name || 'Single-Subject Assessment'}
             </span>
             <span aria-hidden="true">·</span>
-            <span>CAT (/30) + Midterm (/20) + Exam (/50)</span>
+            <span className="font-medium text-slate-700">
+              {test1Name} (/{test1Max})
+              {test2Max > 0 ? ` + ${test2Name} (/${test2Max})` : ''}
+              {test3Max > 0 ? ` + ${test3Name} (/${test3Max})` : ''}
+              {' '}· Total /{totalMaxPossible}
+            </span>
             <span aria-hidden="true">·</span>
             <span className={isSubmitted ? 'text-emerald-700 font-bold' : 'text-amber-700 font-bold'}>
               {isSubmitted ? '✓ Marks Submitted to Broadsheet' : '⏳ Marks Pending Submission'}
@@ -854,6 +1074,220 @@ export const SubjectScoresheetView: React.FC = () => {
           <span className="font-bold text-slate-800">{rowsBuffer.length}</span>
           <span>Learners Registered in Roster</span>
         </div>
+      </div>
+
+      {/* Test Configuration Bar: Test names filled by Class Teacher, Max Marks filled by Subject Teacher */}
+      <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Settings2 className="w-4 h-4 text-indigo-600" />
+              <h3 className="font-bold text-xs text-slate-900 uppercase tracking-wide">
+                Assessment &amp; Marks Weighting Configuration
+              </h3>
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                {selectedSubject} · Active Structure: {test1Name} (/{test1Max}){test2Max > 0 ? ` + ${test2Name} (/${test2Max})` : ''}{test3Max > 0 ? ` + ${test3Name} (/${test3Max})` : ''} = /{totalMaxPossible}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Test names specified by <strong>Class Teacher</strong> · Maximum marks ('Out of 100, 70, 50, etc.') filled by <strong>Subject Teacher</strong>.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsSetupOpen(!isSetupOpen)}
+            className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer self-start sm:self-auto px-2.5 py-1 rounded bg-indigo-50/70 border border-indigo-200"
+          >
+            <Sliders className="w-3.5 h-3.5" />
+            <span>{isSetupOpen ? 'Collapse Setup ▲' : 'Customize Tests & Out-Of Marks ▼'}</span>
+          </button>
+        </div>
+
+        {/* Quick Presets Bar */}
+        <div className="flex flex-wrap items-center gap-2 pt-0.5">
+          <span className="text-[11px] font-bold text-slate-600">Quick Subject Presets:</span>
+          <button
+            type="button"
+            onClick={() => applyPreset('single_100')}
+            className={`px-2.5 py-1 rounded text-xs font-semibold border transition-all cursor-pointer ${
+              test1Max === 100 && test2Max === 0 && test3Max === 0
+                ? 'bg-indigo-700 text-white border-indigo-700 shadow-xs'
+                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+            }`}
+          >
+            Single Test (/100)
+          </button>
+
+          <button
+            type="button"
+            onClick={() => applyPreset('main_70_30')}
+            className={`px-2.5 py-1 rounded text-xs font-semibold border transition-all cursor-pointer ${
+              test1Max === 70 && test2Max === 30 && test3Max === 0
+                ? 'bg-indigo-700 text-white border-indigo-700 shadow-xs'
+                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+            }`}
+          >
+            Main Exam (/70) + Test (/30)
+          </button>
+
+          <button
+            type="button"
+            onClick={() => applyPreset('cat_30_70')}
+            className={`px-2.5 py-1 rounded text-xs font-semibold border transition-all cursor-pointer ${
+              test1Max === 30 && test2Max === 70 && test3Max === 0
+                ? 'bg-indigo-700 text-white border-indigo-700 shadow-xs'
+                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+            }`}
+          >
+            Continuous (/30) + Main (/70)
+          </button>
+
+          <button
+            type="button"
+            onClick={() => applyPreset('two_50')}
+            className={`px-2.5 py-1 rounded text-xs font-semibold border transition-all cursor-pointer ${
+              test1Max === 50 && test2Max === 50 && test3Max === 0
+                ? 'bg-indigo-700 text-white border-indigo-700 shadow-xs'
+                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+            }`}
+          >
+            Two Tests (/50 + /50)
+          </button>
+
+          <button
+            type="button"
+            onClick={() => applyPreset('three_30_20_50')}
+            className={`px-2.5 py-1 rounded text-xs font-semibold border transition-all cursor-pointer ${
+              test1Max === 30 && test2Max === 20 && test3Max === 50
+                ? 'bg-indigo-700 text-white border-indigo-700 shadow-xs'
+                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+            }`}
+          >
+            Three Tests (/30 + /20 + /50)
+          </button>
+
+          <button
+            type="button"
+            onClick={() => applyPreset('single_70')}
+            className={`px-2.5 py-1 rounded text-xs font-semibold border transition-all cursor-pointer ${
+              test1Max === 70 && test2Max === 0 && test3Max === 0
+                ? 'bg-indigo-700 text-white border-indigo-700 shadow-xs'
+                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+            }`}
+          >
+            Single Assessment (/70)
+          </button>
+        </div>
+
+        {/* Expanded Configuration Form */}
+        {isSetupOpen && (
+          <div className="pt-3 border-t border-slate-100 grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50/70 p-3.5 rounded-lg">
+            {/* Test 1 */}
+            <div className="bg-white p-3 rounded-lg border border-slate-200 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-indigo-700">Test Slot 1</span>
+                <span className="text-[10px] text-slate-400">Class &amp; Subject Teacher</span>
+              </div>
+              <div>
+                <label className="text-[10px] font-semibold text-slate-600 block mb-0.5">Test Name (Filled by Class Teacher)</label>
+                <input
+                  type="text"
+                  value={test1Name}
+                  onChange={(e) => setTest1Name(e.target.value)}
+                  placeholder="e.g. Assessment 1, Random Quiz, Opener"
+                  className="w-full bg-slate-50 border border-slate-300 rounded px-2 py-1 text-xs font-semibold text-slate-800"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-slate-700 block mb-0.5">Maximum Marks / Out Of (Subject Teacher)</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={test1Max}
+                  onChange={(e) => setTest1Max(Math.max(0, Number(e.target.value) || 0))}
+                  className="w-full bg-slate-50 border border-slate-300 rounded px-2 py-1 text-xs font-bold text-slate-900"
+                />
+              </div>
+            </div>
+
+            {/* Test 2 */}
+            <div className="bg-white p-3 rounded-lg border border-slate-200 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-indigo-700">Test Slot 2</span>
+                <span className="text-[10px] text-slate-400">Set 0 to disable</span>
+              </div>
+              <div>
+                <label className="text-[10px] font-semibold text-slate-600 block mb-0.5">Test Name (Filled by Class Teacher)</label>
+                <input
+                  type="text"
+                  value={test2Name}
+                  onChange={(e) => setTest2Name(e.target.value)}
+                  placeholder="e.g. Assessment 2, Progress Test"
+                  className="w-full bg-slate-50 border border-slate-300 rounded px-2 py-1 text-xs font-semibold text-slate-800"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-slate-700 block mb-0.5">Maximum Marks / Out Of (Subject Teacher)</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={test2Max}
+                  onChange={(e) => setTest2Max(Math.max(0, Number(e.target.value) || 0))}
+                  className="w-full bg-slate-50 border border-slate-300 rounded px-2 py-1 text-xs font-bold text-slate-900"
+                />
+              </div>
+            </div>
+
+            {/* Test 3 */}
+            <div className="bg-white p-3 rounded-lg border border-slate-200 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-indigo-700">Test Slot 3 (Exam)</span>
+                <span className="text-[10px] text-slate-400">Set 0 to disable</span>
+              </div>
+              <div>
+                <label className="text-[10px] font-semibold text-slate-600 block mb-0.5">Test Name (Filled by Class Teacher)</label>
+                <input
+                  type="text"
+                  value={test3Name}
+                  onChange={(e) => setTest3Name(e.target.value)}
+                  placeholder="e.g. End-Term Exam, Main Test"
+                  className="w-full bg-slate-50 border border-slate-300 rounded px-2 py-1 text-xs font-semibold text-slate-800"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-slate-700 block mb-0.5">Maximum Marks / Out Of (Subject Teacher)</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={test3Max}
+                  onChange={(e) => setTest3Max(Math.max(0, Number(e.target.value) || 0))}
+                  className="w-full bg-slate-50 border border-slate-300 rounded px-2 py-1 text-xs font-bold text-slate-900"
+                />
+              </div>
+            </div>
+
+            <div className="md:col-span-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-slate-200/60">
+              <div className="text-xs text-slate-600">
+                Structure: <strong>{test1Name} (/{test1Max})</strong>
+                {test2Max > 0 && <> + <strong>{test2Name} (/{test2Max})</strong></>}
+                {test3Max > 0 && <> + <strong>{test3Name} (/{test3Max})</strong></>}
+                {' '}· <strong>Total: /{totalMaxPossible} Marks</strong>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleSaveWeighting(test1Max, test2Max, test3Max, test1Name, test2Name, test3Name)}
+                className="flex items-center gap-1.5 px-4 py-2 bg-indigo-700 hover:bg-indigo-800 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer self-start sm:self-auto"
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>Apply &amp; Save Configuration</span>
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Sub-Tab Navigation for Scoresheet */}
@@ -1242,7 +1676,10 @@ export const SubjectScoresheetView: React.FC = () => {
               </h3>
             </div>
             <span className="text-[11px] text-slate-500 italic">
-              Weights: CAT max 30, Midterm max 20, Final Exam max 50 = Total 100
+              Weights: {test1Name} max {test1Max}
+              {test2Max > 0 ? `, ${test2Name} max ${test2Max}` : ''}
+              {test3Max > 0 ? `, ${test3Name} max ${test3Max}` : ''}
+              {' '}= Total {totalMaxPossible}
             </span>
           </div>
 
@@ -1260,10 +1697,20 @@ export const SubjectScoresheetView: React.FC = () => {
                     <th className="py-2.5 px-3">Adm No</th>
                     <th className="py-2.5 px-3 min-w-[150px]">Learner Name</th>
                     <th className="py-2.5 px-2 text-center w-8">Sex</th>
-                    <th className="py-2.5 px-2 text-center w-24 bg-slate-800">CAT (/30)</th>
-                    <th className="py-2.5 px-2 text-center w-24 bg-slate-800">Mid (/20)</th>
-                    <th className="py-2.5 px-2 text-center w-24 bg-slate-800">Exam (/50)</th>
-                    <th className="py-2.5 px-2.5 text-center w-20 bg-indigo-950 font-bold">Tot (/100)</th>
+                    <th className="py-2.5 px-2 text-center w-24 bg-slate-800">{test1Name} (/{test1Max})</th>
+                    {test2Max > 0 ? (
+                      <th className="py-2.5 px-2 text-center w-24 bg-slate-800">{test2Name} (/{test2Max})</th>
+                    ) : (
+                      <th className="py-2.5 px-2 text-center w-16 bg-slate-800/60 text-slate-400 font-normal">{test2Name} (N/A)</th>
+                    )}
+                    {test3Max > 0 ? (
+                      <th className="py-2.5 px-2 text-center w-24 bg-slate-800">{test3Name} (/{test3Max})</th>
+                    ) : (
+                      <th className="py-2.5 px-2 text-center w-16 bg-slate-800/60 text-slate-400 font-normal">{test3Name} (N/A)</th>
+                    )}
+                    <th className="py-2.5 px-2.5 text-center w-20 bg-indigo-950 font-bold">
+                      {totalMaxPossible === 100 ? 'Tot (/100)' : `Tot (/${totalMaxPossible})`}
+                    </th>
                     <th className="py-2.5 px-2 text-center w-16 bg-indigo-950 font-bold">Level</th>
                     <th className="py-2.5 px-2 text-center w-14 bg-indigo-950 font-bold">Pts</th>
                     <th className="py-2.5 px-3 min-w-[200px]">Teacher Evaluator Remarks</th>
@@ -1321,7 +1768,7 @@ export const SubjectScoresheetView: React.FC = () => {
                           </span>
                         </td>
 
-                        {/* CAT Input */}
+                        {/* Test 1 Input */}
                         <td className="py-1.5 px-2 text-center bg-slate-50/30">
                           {isAbsent ? (
                             <span className="text-[10px] font-mono text-rose-400 font-bold">DNS</span>
@@ -1329,7 +1776,7 @@ export const SubjectScoresheetView: React.FC = () => {
                             <input
                               type="number"
                               min={0}
-                              max={30}
+                              max={test1Max}
                               value={row.catScore}
                               onChange={(e) =>
                                 handleScoreChange(originalIndex, 'catScore', e.target.value)
@@ -1339,41 +1786,53 @@ export const SubjectScoresheetView: React.FC = () => {
                           )}
                         </td>
 
-                        {/* Midterm Input */}
-                        <td className="py-1.5 px-2 text-center bg-slate-50/30">
-                          {isAbsent ? (
-                            <span className="text-[10px] font-mono text-rose-400 font-bold">DNS</span>
-                          ) : (
-                            <input
-                              type="number"
-                              min={0}
-                              max={20}
-                              value={row.midTermScore}
-                              onChange={(e) =>
-                                handleScoreChange(originalIndex, 'midTermScore', e.target.value)
-                              }
-                              className="w-16 text-center font-bold text-slate-900 bg-white border border-slate-300 rounded px-1 py-1 focus:ring-1 focus:ring-indigo-500 focus:outline-hidden"
-                            />
-                          )}
-                        </td>
+                        {/* Test 2 Input */}
+                        {test2Max > 0 ? (
+                          <td className="py-1.5 px-2 text-center bg-slate-50/30">
+                            {isAbsent ? (
+                              <span className="text-[10px] font-mono text-rose-400 font-bold">DNS</span>
+                            ) : (
+                              <input
+                                type="number"
+                                min={0}
+                                max={test2Max}
+                                value={row.midTermScore}
+                                onChange={(e) =>
+                                  handleScoreChange(originalIndex, 'midTermScore', e.target.value)
+                                }
+                                className="w-16 text-center font-bold text-slate-900 bg-white border border-slate-300 rounded px-1 py-1 focus:ring-1 focus:ring-indigo-500 focus:outline-hidden"
+                              />
+                            )}
+                          </td>
+                        ) : (
+                          <td className="py-1.5 px-2 text-center bg-slate-50/10 text-slate-400 font-mono text-xs">
+                            -
+                          </td>
+                        )}
 
-                        {/* Final Exam Input */}
-                        <td className="py-1.5 px-2 text-center bg-slate-50/30">
-                          {isAbsent ? (
-                            <span className="text-[10px] font-mono text-rose-400 font-bold">DNS</span>
-                          ) : (
-                            <input
-                              type="number"
-                              min={0}
-                              max={50}
-                              value={row.finalExamScore}
-                              onChange={(e) =>
-                                handleScoreChange(originalIndex, 'finalExamScore', e.target.value)
-                              }
-                              className="w-16 text-center font-bold text-slate-900 bg-white border border-slate-300 rounded px-1 py-1 focus:ring-1 focus:ring-indigo-500 focus:outline-hidden"
-                            />
-                          )}
-                        </td>
+                        {/* Test 3 Input */}
+                        {test3Max > 0 ? (
+                          <td className="py-1.5 px-2 text-center bg-slate-50/30">
+                            {isAbsent ? (
+                              <span className="text-[10px] font-mono text-rose-400 font-bold">DNS</span>
+                            ) : (
+                              <input
+                                type="number"
+                                min={0}
+                                max={test3Max}
+                                value={row.finalExamScore}
+                                onChange={(e) =>
+                                  handleScoreChange(originalIndex, 'finalExamScore', e.target.value)
+                                }
+                                className="w-16 text-center font-bold text-slate-900 bg-white border border-slate-300 rounded px-1 py-1 focus:ring-1 focus:ring-indigo-500 focus:outline-hidden"
+                              />
+                            )}
+                          </td>
+                        ) : (
+                          <td className="py-1.5 px-2 text-center bg-slate-50/10 text-slate-400 font-mono text-xs">
+                            -
+                          </td>
+                        )}
 
                         {/* Total Score */}
                         <td className="py-2 px-2.5 text-center font-extrabold text-indigo-700 bg-indigo-50/40 text-sm">

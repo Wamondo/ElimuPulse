@@ -2134,7 +2134,7 @@ export const INITIAL_ASSESSMENTS: AssessmentRecord[] = [
     dateAdministered: '2026-06-25',
     marksDeadline: '2026-07-05 17:00',
     status: 'requested',
-    instructions: 'All subject teachers: Please record CAT (30%), Mid-Term (20%) and Final Exam (50%) marks and submit before the deadline.',
+    instructions: 'All subject teachers: Please configure your subject test maximum marks and submit learner marks before the deadline.',
     absentLearnerIds: [],
     requestedAt: '2026-06-20 09:00',
     requestedBy: 'Mr. Marcus Thorne (Class Teacher)',

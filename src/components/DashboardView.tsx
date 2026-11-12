@@ -232,9 +232,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-100">
                   <tr>
                     <th className="py-2.5 px-4">Subject</th>
-                    <th className="py-2.5 px-3 text-right">CAT (/30)</th>
-                    <th className="py-2.5 px-3 text-right">Midterm (/20)</th>
-                    <th className="py-2.5 px-3 text-right">Exam (/50)</th>
+                    <th className="py-2.5 px-3 text-right">Test 1</th>
+                    <th className="py-2.5 px-3 text-right">Test 2</th>
+                    <th className="py-2.5 px-3 text-right">Exam</th>
                     <th className="py-2.5 px-3 text-right">Total (/100)</th>
                     <th className="py-2.5 px-3 text-center">Grade</th>
                     <th className="py-2.5 px-4">Teacher Remark</th>
@@ -646,9 +646,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <tr>
                   <th className="py-2.5 px-4">Student</th>
                   <th className="py-2.5 px-3">Grade</th>
-                  <th className="py-2.5 px-3 text-right">CAT (/30)</th>
-                  <th className="py-2.5 px-3 text-right">Midterm (/20)</th>
-                  <th className="py-2.5 px-3 text-right">Exam (/50)</th>
+                  <th className="py-2.5 px-3 text-right">Test 1</th>
+                  <th className="py-2.5 px-3 text-right">Test 2</th>
+                  <th className="py-2.5 px-3 text-right">Exam</th>
                   <th className="py-2.5 px-3 text-right">Total (/100)</th>
                   <th className="py-2.5 px-3 text-center">Competency Grade</th>
                   <th className="py-2.5 px-4 text-right">Action</th>

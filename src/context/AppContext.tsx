@@ -142,6 +142,7 @@ interface AppContextType {
   registerNewSchool: (schoolData: Omit<SchoolProfile, 'id'>) => Promise<SchoolProfile>;
   toggleSchoolLock: (schoolId?: string, reason?: string) => Promise<{ success: boolean; isLocked: boolean; schoolName: string }>;
   switchActiveSchool: (schoolId: string, isSystemRouting?: boolean) => void;
+  deleteSchool: (schoolId: string) => Promise<{ success: boolean; message: string }>;
 
   grades: GradeLevel[];
   addGrade: (grade: Omit<GradeLevel, 'id'>) => void;
@@ -2304,6 +2305,53 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     );
   };
 
+  const deleteSchool = async (schoolId: string): Promise<{ success: boolean; message: string }> => {
+    // Strictly accessible by App Owner alone
+    if (!isOwner) {
+      throw new Error("Access Denied: Only the App Owner can delete registered educational institutions.");
+    }
+
+    if (registeredSchools.length <= 1) {
+      throw new Error("Cannot delete the only registered institution in the system. At least one school must remain active.");
+    }
+
+    const targetSchool = registeredSchools.find((s) => s.id === schoolId);
+    if (!targetSchool) {
+      throw new Error("Institution not found or already deleted.");
+    }
+
+    const schoolName = targetSchool.name;
+    const remainingSchools = registeredSchools.filter((s) => s.id !== schoolId);
+
+    // Update state and persistence
+    setRegisteredSchools(remainingSchools);
+    localStorage.setItem(`${STORAGE_KEY_PREFIX}registered_schools`, JSON.stringify(remainingSchools));
+
+    // If the active school is being deleted, switch immediately to a remaining school
+    if (currentSchoolId === schoolId) {
+      const nextActive = remainingSchools[0];
+      setCurrentSchoolId(nextActive.id);
+      setSchoolProfile(nextActive);
+      localStorage.setItem(`${STORAGE_KEY_PREFIX}active_school_id`, nextActive.id);
+      localStorage.setItem(`${STORAGE_KEY_PREFIX}school_profile`, JSON.stringify(nextActive));
+    }
+
+    // Delete school document from Firestore
+    deleteDocumentFromFirestore('schools', schoolId).catch((err) =>
+      console.warn('Firestore school delete error:', err)
+    );
+
+    addAuditLog(
+      'School Deletion Executed by App Owner',
+      `App Owner formally deleted registered institution: ${schoolName} (Code: ${targetSchool.registrationNumber || targetSchool.county}). Institution removed from multi-tenancy.`
+    );
+
+    return {
+      success: true,
+      message: `Institution "${schoolName}" has been permanently deleted.`,
+    };
+  };
+
   const addGrade = (grade: Omit<GradeLevel, 'id'>) => {
     const newGrade: GradeLevel = {
       ...grade,
@@ -2560,6 +2608,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         registerNewSchool,
         toggleSchoolLock,
         switchActiveSchool,
+        deleteSchool,
         grades: activeGrades,
         addGrade,
         updateGrade,

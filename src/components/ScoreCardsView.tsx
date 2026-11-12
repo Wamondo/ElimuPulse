@@ -1330,9 +1330,9 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
             <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-100">
               <tr>
                 <th className="py-2.5 px-4">Subject</th>
-                <th className="py-2.5 px-3 text-right">CAT (/30)</th>
-                <th className="py-2.5 px-3 text-right">Midterm (/20)</th>
-                <th className="py-2.5 px-3 text-right">Final Exam (/50)</th>
+                <th className="py-2.5 px-3 text-right">{activeAssessment?.test1Name || 'Test 1'}</th>
+                <th className="py-2.5 px-3 text-right">{activeAssessment?.test2Name || 'Test 2'}</th>
+                <th className="py-2.5 px-3 text-right">{activeAssessment?.test3Name || 'Exam'}</th>
                 <th className="py-2.5 px-3 text-right">Total (/100)</th>
                 <th className="py-2.5 px-3 text-left">Score Visual Trend</th>
                 <th className="py-2.5 px-3 text-center">Competency Grade</th>
@@ -1757,9 +1757,9 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
                   <thead className="bg-slate-100 text-[10px] uppercase font-semibold text-slate-700">
                     <tr>
                       <th className="py-1.5 px-3">Subject / Academic Area</th>
-                      <th className="py-1.5 px-2 text-right">CAT (30)</th>
-                      <th className="py-1.5 px-2 text-right">Mid (20)</th>
-                      <th className="py-1.5 px-2 text-right">Exam (50)</th>
+                      <th className="py-1.5 px-2 text-right">{activeAssessment?.test1Name || 'Test 1'}</th>
+                      <th className="py-1.5 px-2 text-right">{activeAssessment?.test2Name || 'Test 2'}</th>
+                      <th className="py-1.5 px-2 text-right">{activeAssessment?.test3Name || 'Exam'}</th>
                       <th className="py-1.5 px-2 text-right">Total (100)</th>
                       <th className="py-1.5 px-2 text-left">Score Visual Trend</th>
                       <th className="py-1.5 px-2 text-center">Grade</th>

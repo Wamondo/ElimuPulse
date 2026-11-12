@@ -128,10 +128,16 @@ export type CompetencyGrade = 'EE1' | 'EE2' | 'ME1' | 'ME2' | 'AE1' | 'AE2' | 'B
 export interface SubjectScore {
   id: string;
   subjectName: string;
-  catScore: number; // max 30
-  midTermScore: number; // max 20
-  finalExamScore: number; // max 50
-  totalScore: number; // max 100
+  catScore: number; // Test 1 Score
+  midTermScore: number; // Test 2 Score
+  finalExamScore: number; // Test 3 Score
+  test1Score?: number;
+  test2Score?: number;
+  test3Score?: number;
+  test1Max?: number;
+  test2Max?: number;
+  test3Max?: number;
+  totalScore: number; // Evaluated total score (max 100 or normalized to 100%)
   letterGrade: CompetencyGrade;
   points: number; // 8-point scale (8, 7, 6, 5, 4, 3, 2, 1)
   teacherRemarks: string;
@@ -145,7 +151,7 @@ export interface ScoreCard {
   academicYear: string;
   issueDate: string;
   assessmentName?: string; // Specific assessment e.g. "Term 1 Summative Assessment 2026"
-  assessmentType?: string; // e.g. "End of Term Exam", "Mid-Term Evaluation", etc.
+  assessmentType?: string; // e.g. "End of Term Exam", "Evaluation", etc.
   isExamAbsent?: boolean; // If class teacher marked student absent for this assessment
   examAbsentReason?: string;
   subjects: SubjectScore[];
@@ -176,6 +182,15 @@ export interface AttendanceRecord {
   schoolId?: string;
 }
 
+export interface SubjectAssessmentWeighting {
+  test1Max: number;
+  test2Max: number;
+  test3Max: number;
+  test1Name?: string;
+  test2Name?: string;
+  test3Name?: string;
+}
+
 export interface AssessmentRecord {
   id: string;
   grade: string;
@@ -193,6 +208,12 @@ export interface AssessmentRecord {
   requestedAt?: string;
   requestedBy?: string;
   schoolId?: string;
+  // Test names configured by class teacher (e.g. "Assessment 1", "Random Test 1", "Test 2", "Main Exam")
+  test1Name?: string;
+  test2Name?: string;
+  test3Name?: string;
+  // Subject teacher test weighting / maximum marks per subject (e.g. out of 100, 70, 50, etc.)
+  subjectMaxScores?: Record<string, SubjectAssessmentWeighting>;
 }
 
 export interface SubjectMarksSubmission {
@@ -215,6 +236,14 @@ export interface SubjectMarksSubmission {
   isComplete?: boolean;
   notes?: string;
   schoolId?: string;
+  // Custom test names and subject teacher maximum marks
+  test1Name?: string;
+  test1Max?: number;
+  test2Name?: string;
+  test2Max?: number;
+  test3Name?: string;
+  test3Max?: number;
+  totalMax?: number;
 }
 
 export interface AuditLogEntry {

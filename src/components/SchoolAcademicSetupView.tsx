@@ -31,6 +31,7 @@ import { INITIAL_SUBJECTS } from '../data/mockData';
 import { validateKenyanPhoneNumber } from '../services/cryptoService';
 import { NewSchoolRegistrationModal } from './NewSchoolRegistrationModal';
 import { SchoolLockModal } from './SchoolLockModal';
+import { DeleteSchoolModal } from './DeleteSchoolModal';
 
 type TabKey = 'school' | 'admins' | 'teachers' | 'grades' | 'subjects' | 'guide';
 
@@ -69,6 +70,7 @@ export const SchoolAcademicSetupView: React.FC = () => {
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
   const [isRegisterSchoolOpen, setIsRegisterSchoolOpen] = useState(false);
   const [isSchoolLockModalOpen, setIsSchoolLockModalOpen] = useState(false);
+  const [isDeleteSchoolModalOpen, setIsDeleteSchoolModalOpen] = useState(false);
 
   const showNotification = (msg: string) => {
     setSuccessNotice(msg);
@@ -623,6 +625,18 @@ export const SchoolAcademicSetupView: React.FC = () => {
                       <span>Lock School Portal</span>
                     </>
                   )}
+                </button>
+              )}
+
+              {isOwner && (
+                <button
+                  type="button"
+                  onClick={() => setIsDeleteSchoolModalOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 font-semibold rounded-lg text-xs transition-colors cursor-pointer shadow-xs bg-rose-900/50 hover:bg-rose-900/80 text-rose-200 border border-rose-700/60"
+                  title="App Owner: Permanently delete this educational institution"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-rose-300" />
+                  <span>Delete Institution (Owner Only)</span>
                 </button>
               )}
             </div>
@@ -2192,6 +2206,16 @@ export const SchoolAcademicSetupView: React.FC = () => {
           onClose={() => setIsSchoolLockModalOpen(false)}
           school={schoolProfile}
           onToggleLock={toggleSchoolLock}
+        />
+      )}
+
+      {/* Delete School Modal (Owner Only) */}
+      {isOwner && (
+        <DeleteSchoolModal
+          isOpen={isDeleteSchoolModalOpen}
+          onClose={() => setIsDeleteSchoolModalOpen(false)}
+          targetSchool={schoolProfile}
+          onSuccess={(msg) => showNotification(msg)}
         />
       )}
     </div>

@@ -518,9 +518,9 @@ export function drawSingleScoreCardPage(
   doc.setFontSize(7.2);
   doc.setTextColor(255, 255, 255);
   doc.text('Learning Area / Subject', marginLeft + 4, y + 4.5);
-  doc.text('CAT /30', marginLeft + 62, y + 4.5, { align: 'right' });
-  doc.text('Mid /20', marginLeft + 75, y + 4.5, { align: 'right' });
-  doc.text('Exam /50', marginLeft + 90, y + 4.5, { align: 'right' });
+  doc.text('Test 1', marginLeft + 62, y + 4.5, { align: 'right' });
+  doc.text('Test 2', marginLeft + 75, y + 4.5, { align: 'right' });
+  doc.text('Exam', marginLeft + 90, y + 4.5, { align: 'right' });
   doc.text('Total /100', marginLeft + 107, y + 4.5, { align: 'right' });
   doc.text('Visual Score Trend Bar', marginLeft + 114, y + 4.5);
   doc.text('Level', marginLeft + 148, y + 4.5, { align: 'center' });
@@ -757,7 +757,7 @@ export function drawSingleScoreCardPage(
     y + 10.2
   );
   doc.text(
-    'Assessment Modality: Continuous Assessment Tests (CAT 30%) + Midterm Evaluation (20%) + End-Term Summative Assessment (50%).',
+    'Assessment Modality: Continuous Learner Evaluations + Summative Assessments under Kenyan CBC Framework.',
     marginLeft + 4,
     y + 13.4
   );
@@ -2013,7 +2013,13 @@ export function exportSubjectScoresheetPdf(
   teacherName: string,
   rows: SubjectScoresheetRow[],
   subjectMean: number,
-  summary?: SubjectPerformanceSummary
+  summary?: SubjectPerformanceSummary,
+  testHeaders?: {
+    test1Header?: string;
+    test2Header?: string;
+    test3Header?: string;
+    totalHeader?: string;
+  }
 ) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const isJunior = grade.toLowerCase().includes('grade 7') || grade.toLowerCase().includes('grade 8') || grade.toLowerCase().includes('grade 9');
@@ -2037,10 +2043,16 @@ export function exportSubjectScoresheetPdf(
   doc.text('#', 17, y + 4.8);
   doc.text('Adm No', 23, y + 4.8);
   doc.text('Learner Name', 46, y + 4.8);
-  doc.text('CAT/30', 88, y + 4.8, { align: 'center' });
-  doc.text('Mid/20', 104, y + 4.8, { align: 'center' });
-  doc.text('Exam/50', 122, y + 4.8, { align: 'center' });
-  doc.text('Tot/100', 140, y + 4.8, { align: 'center' });
+
+  const h1 = testHeaders?.test1Header || 'Test 1';
+  const h2 = testHeaders?.test2Header || 'Test 2';
+  const h3 = testHeaders?.test3Header || 'Exam';
+  const hTot = testHeaders?.totalHeader || 'Tot/100';
+
+  doc.text(h1, 88, y + 4.8, { align: 'center' });
+  doc.text(h2, 104, y + 4.8, { align: 'center' });
+  doc.text(h3, 122, y + 4.8, { align: 'center' });
+  doc.text(hTot, 140, y + 4.8, { align: 'center' });
   doc.text('Level', 156, y + 4.8, { align: 'center' });
   doc.text('Pts', 170, y + 4.8, { align: 'center' });
   doc.text('Remarks', 178, y + 4.8);
