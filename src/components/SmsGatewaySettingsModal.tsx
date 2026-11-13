@@ -1,26 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import {
   MessageSquare,
-  Key,
-  ShieldCheck,
   CheckCircle2,
   AlertCircle,
   X,
   Send,
-  Smartphone,
-  Sparkles,
   ExternalLink,
   RefreshCw,
-  Sliders,
-  DollarSign,
-  Info,
-  Radio
+  Radio,
+  Server,
+  ShieldAlert
 } from 'lucide-react';
 import {
   getSmsGatewayConfig,
   saveSmsGatewayConfig,
   dispatchRealSms,
   fetchLiveGatewayBalance,
+  fetchGatewayServerStatus,
+  GatewayServerStatus,
   SmsGatewayConfig
 } from '../services/smsGatewayService';
 import { validateKenyanPhoneNumber } from '../services/cryptoService';
@@ -36,31 +33,45 @@ export const SmsGatewaySettingsModal: React.FC<SmsGatewaySettingsModalProps> = (
   onClose,
 }) => {
   const { schoolProfile } = useApp();
+  const schoolName = schoolProfile?.name || 'School Portal';
+
   const [config, setConfig] = useState<SmsGatewayConfig>(getSmsGatewayConfig());
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [showAdvancedProxy, setShowAdvancedProxy] = useState(false);
 
   // Live balance check state
   const [isCheckingBalance, setIsCheckingBalance] = useState(false);
   const [liveBalanceNotice, setLiveBalanceNotice] = useState<string | null>(null);
+  const [liveBalanceIsError, setLiveBalanceIsError] = useState(false);
 
   // Live test SMS dispatch state
   const [testPhone, setTestPhone] = useState('0716235185');
   const [testMessage, setTestMessage] = useState(
-    `ElimuPulse (${schoolProfile?.name || 'School Portal'}): Live SMS gateway test. Student tuition fee statements and CBC score cards are active.`
+    `ElimuPulse (${schoolName}): Live SMS gateway test. Student tuition fee statements and CBC score cards are active.`
   );
   const [isSendingTest, setIsSendingTest] = useState(false);
   const [testResult, setTestResult] = useState<any>(null);
   const [testError, setTestError] = useState<string | null>(null);
 
   // Server gateway status
-  const [serverStatus, setServerStatus] = useState<any>(null);
+  const [serverStatus, setServerStatus] = useState<GatewayServerStatus | null>(null);
+
+  useEffect(() => {
+    setTestMessage(
+      `ElimuPulse (${schoolName}): Live SMS gateway test. Student tuition fee statements and CBC score cards are active.`
+    );
+  }, [schoolName]);
 
   useEffect(() => {
     if (isOpen) {
-      fetch('/api/sms/status')
-        .then((res) => res.json())
-        .then((data) => setServerStatus(data))
-        .catch(() => {});
+      const latestConfig = getSmsGatewayConfig();
+      setConfig(latestConfig);
+      fetchGatewayServerStatus().then((status) => {
+        setServerStatus(status);
+        if (status.htmlFallbackDetected) {
+          setShowAdvancedProxy(true);
+        }
+      });
     }
   }, [isOpen]);
 
@@ -71,18 +82,23 @@ export const SmsGatewaySettingsModal: React.FC<SmsGatewaySettingsModalProps> = (
     const updated = saveSmsGatewayConfig(config);
     setConfig(updated);
     setSavedSuccess(true);
+    fetchGatewayServerStatus().then(setServerStatus);
     setTimeout(() => setSavedSuccess(false), 4000);
   };
 
   const handleQueryLiveBalance = async () => {
+    // Persist current form fields so balance check uses what is currently typed
+    saveSmsGatewayConfig(config);
     setIsCheckingBalance(true);
     setLiveBalanceNotice(null);
+    setLiveBalanceIsError(false);
     const result = await fetchLiveGatewayBalance();
     setIsCheckingBalance(false);
     if (result.success) {
       setLiveBalanceNotice(`Live Gateway Balance: ${result.balanceText}`);
     } else {
-      setLiveBalanceNotice(`Notice: ${result.error}`);
+      setLiveBalanceIsError(true);
+      setLiveBalanceNotice(result.error || 'Unable to query balance.');
     }
   };
 
@@ -99,17 +115,25 @@ export const SmsGatewaySettingsModal: React.FC<SmsGatewaySettingsModalProps> = (
       return;
     }
 
+    // Persist current form fields immediately so typed keys/usernames are used right away
+    saveSmsGatewayConfig(config);
+
     setIsSendingTest(true);
     const res = await dispatchRealSms(validation.cleanPhone!, testMessage);
     setIsSendingTest(false);
 
     if (res.success) {
       setTestResult(res);
-      setConfig(getSmsGatewayConfig()); // refresh balance
+      setConfig(getSmsGatewayConfig());
     } else {
       setTestError(res.error || 'Failed to dispatch real SMS through the gateway.');
+      if (res.error?.includes('HTML web page')) {
+        setShowAdvancedProxy(true);
+      }
     }
   };
+
+  const isSandboxMode = config.environment === 'sandbox';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto animate-in fade-in">
@@ -122,12 +146,18 @@ export const SmsGatewaySettingsModal: React.FC<SmsGatewaySettingsModalProps> = (
               <MessageSquare className="w-5 h-5" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="text-base font-bold text-slate-900">
                   Live Cellular SMS Gateway Integration
                 </h3>
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                  REAL SMS ACTIVE
+                <span
+                  className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold border ${
+                    isSandboxMode
+                      ? 'bg-amber-100 text-amber-800 border-amber-300'
+                      : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                  }`}
+                >
+                  {isSandboxMode ? 'SANDBOX SIMULATOR' : 'LIVE CELLULAR MODE'}
                 </span>
               </div>
               <p className="text-xs text-slate-500">
@@ -151,27 +181,39 @@ export const SmsGatewaySettingsModal: React.FC<SmsGatewaySettingsModalProps> = (
             <div className="flex items-start gap-2.5">
               <Radio className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
               <div>
-                <p className="font-bold text-xs">Africa's Talking &amp; Cellular Aggregators</p>
+                <p className="font-bold text-xs">Real Cellular Network Routing (Non-Simulated)</p>
                 <p className="text-[11px] text-blue-800 leading-relaxed mt-0.5">
-                  ElimuPulse proxies SMS dispatches directly through the server route (<code className="font-mono bg-blue-100 px-1 py-0.2 rounded text-[10px]">/api/sms/dispatch</code>) to bypass browser CORS constraints and deliver real SMS to parents' mobile handsets.
+                  For actual SMS delivery to mobile handsets, select <strong>Production</strong> and enter your funded <strong>Live App Username &amp; Live API Key</strong> from Africa's Talking (not Sandbox), Twilio, or a Kenyan Bulk SMS aggregator.
                 </p>
               </div>
             </div>
             <a
-              href="https://dashboard.africastalking.com"
+              href="https://account.africastalking.com"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] shrink-0 transition-colors cursor-pointer shadow-2xs"
             >
-              <span>Africa's Talking Console</span>
+              <span>Africa's Talking</span>
               <ExternalLink className="w-3 h-3" />
             </a>
           </div>
 
+          {serverStatus?.htmlFallbackDetected && (
+            <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-xl text-amber-900 flex items-start gap-2.5">
+              <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-xs">Static Host / Proxy Fallback Detected</p>
+                <p className="text-[11px] text-amber-800 leading-relaxed mt-0.5">
+                  This origin returned HTML for <code className="font-mono">/api/sms/status</code>. If deployed as a static site without serverless functions, set your <strong>Gateway Backend Proxy URL</strong> below (e.g. your full-stack Cloud Run / Node server URL).
+                </p>
+              </div>
+            </div>
+          )}
+
           {savedSuccess && (
             <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>SMS Gateway settings successfully saved to institutional configuration.</span>
+              <span>SMS Gateway settings saved for {schoolName}.</span>
             </div>
           )}
 
@@ -192,7 +234,7 @@ export const SmsGatewaySettingsModal: React.FC<SmsGatewaySettingsModalProps> = (
                   <option value="africastalking">Africa's Talking (Kenya &amp; East Africa)</option>
                   <option value="twilio">Twilio Global Cellular SMS</option>
                   <option value="safaricom_bulk">Safaricom Bulk SMS Enterprise Gateway</option>
-                  <option value="local_aggregator">Custom CAK Bulk SMS Aggregator / Webhook</option>
+                  <option value="local_aggregator">Custom Kenyan Bulk SMS Aggregator (Advanta / TextSMS / Celcom)</option>
                 </select>
               </div>
 
@@ -203,43 +245,67 @@ export const SmsGatewaySettingsModal: React.FC<SmsGatewaySettingsModalProps> = (
                 </label>
                 <select
                   value={config.environment}
-                  onChange={(e) => setConfig({ ...config, environment: e.target.value as any })}
+                  onChange={(e) => {
+                    const nextEnv = e.target.value as 'production' | 'sandbox';
+                    setConfig({
+                      ...config,
+                      environment: nextEnv,
+                      usernameOrPartnerId:
+                        nextEnv === 'sandbox'
+                          ? 'sandbox'
+                          : config.usernameOrPartnerId === 'sandbox'
+                          ? ''
+                          : config.usernameOrPartnerId,
+                    });
+                  }}
                   className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                 >
                   <option value="production">Production (Real Cellular Handset Delivery)</option>
-                  <option value="sandbox">Sandbox Testing (Africa's Talking Simulator)</option>
+                  <option value="sandbox">Sandbox Testing (Simulator Only - No Real Phone)</option>
                 </select>
               </div>
 
               {/* Official Sender ID */}
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">
-                  Registered Alphanumeric Sender ID (Max 11 Chars)
+                  Sender ID (Optional — Leave Blank for Shared ID)
                 </label>
                 <input
                   type="text"
                   maxLength={11}
-                  required
                   value={config.senderId}
                   onChange={(e) => setConfig({ ...config, senderId: e.target.value.toUpperCase() })}
                   className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-mono font-bold text-slate-900 uppercase focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="e.g. ELIMUPULSE"
+                  placeholder="Blank = Shared Verified ID"
                 />
                 <p className="text-[10px] text-slate-500 mt-1">
-                  Appears as the Sender Name on parents' phones instead of a random number.
+                  Custom alphanumeric names require CAK approval. Leave blank to send immediately via shared verified ID.
                 </p>
               </div>
 
               {/* API Username / Partner ID / Account SID */}
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">
-                  {config.provider === 'twilio' ? 'Twilio Account SID' : 'Africa\'s Talking Username / App Name'}
+                  {config.provider === 'twilio'
+                    ? 'Twilio Account SID *'
+                    : config.provider === 'africastalking'
+                    ? isSandboxMode
+                      ? "Africa's Talking Sandbox Username"
+                      : "Africa's Talking Live App Username *"
+                    : 'Partner ID / Account Username'}
                 </label>
                 <input
                   type="text"
-                  required
-                  placeholder={config.provider === 'africastalking' ? 'e.g. sandbox or your_app_username' : 'e.g. ACxxxxxxxx'}
                   value={config.usernameOrPartnerId}
+                  placeholder={
+                    config.provider === 'twilio'
+                      ? 'ACxxxxxxxxxxxxxxxx'
+                      : isSandboxMode
+                      ? 'sandbox'
+                      : serverStatus?.username && serverStatus.username !== 'sandbox'
+                      ? `Server default: ${serverStatus.username}`
+                      : 'Enter your Live App Username'
+                  }
                   onChange={(e) => setConfig({ ...config, usernameOrPartnerId: e.target.value })}
                   className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
@@ -253,7 +319,11 @@ export const SmsGatewaySettingsModal: React.FC<SmsGatewaySettingsModalProps> = (
                 <input
                   type="password"
                   value={config.apiKey}
-                  placeholder="Enter your live API Key (e.g. atsk_live_...)"
+                  placeholder={
+                    serverStatus?.isServerKeyConfigured
+                      ? 'Server key detected — paste here to override with a Live App API Key'
+                      : 'Paste your Live API Key (from Live App Settings -> API Key)'
+                  }
                   onChange={(e) => setConfig({ ...config, apiKey: e.target.value })}
                   className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
@@ -266,17 +336,40 @@ export const SmsGatewaySettingsModal: React.FC<SmsGatewaySettingsModalProps> = (
               {(config.provider === 'safaricom_bulk' || config.provider === 'local_aggregator') && (
                 <div className="sm:col-span-2">
                   <label className="block font-semibold text-slate-700 mb-1">
-                    Custom Aggregator HTTP API Endpoint
+                    Custom Aggregator HTTP API Endpoint *
                   </label>
                   <input
                     type="url"
                     value={config.customEndpoint || ''}
-                    placeholder="https://api.smsaggregator.co.ke/v1/send"
+                    placeholder="https://quicksms.advantasms.com/api/services/sendsms/"
                     onChange={(e) => setConfig({ ...config, customEndpoint: e.target.value })}
                     className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
               )}
+
+              {/* Optional Remote Backend Proxy URL toggle */}
+              <div className="sm:col-span-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAdvancedProxy((prev) => !prev)}
+                  className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 cursor-pointer"
+                >
+                  <Server className="w-3.5 h-3.5" />
+                  <span>{showAdvancedProxy ? 'Hide Backend Proxy URL' : 'Configure Remote Backend Proxy URL (for static deployments)'}</span>
+                </button>
+                {showAdvancedProxy && (
+                  <div className="mt-2">
+                    <input
+                      type="url"
+                      value={config.backendProxyUrl || ''}
+                      placeholder="https://your-elimupulse-server.run.app (leave blank for same-origin /api/sms)"
+                      onChange={(e) => setConfig({ ...config, backendProxyUrl: e.target.value })}
+                      className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Balance Badge & Actions */}
@@ -286,9 +379,9 @@ export const SmsGatewaySettingsModal: React.FC<SmsGatewaySettingsModalProps> = (
                   {config.smsBalanceUnits.toLocaleString()}
                 </div>
                 <div>
-                  <div className="font-bold text-slate-900">Prepaid SMS Units Available</div>
+                  <div className="font-bold text-slate-900">SMS Units Tracker</div>
                   <div className="text-[11px] text-slate-500">
-                    Sufficient for ~{config.smsBalanceUnits.toLocaleString()} direct parent fee reminders
+                    Click Check Balance to query live gateway wallet
                   </div>
                 </div>
               </div>
@@ -315,7 +408,13 @@ export const SmsGatewaySettingsModal: React.FC<SmsGatewaySettingsModalProps> = (
             </div>
 
             {liveBalanceNotice && (
-              <div className="p-2.5 bg-indigo-50 border border-indigo-200 rounded-lg text-indigo-900 text-xs font-mono">
+              <div
+                className={`p-3 rounded-lg text-xs border ${
+                  liveBalanceIsError
+                    ? 'bg-rose-50 border-rose-200 text-rose-800'
+                    : 'bg-indigo-50 border-indigo-200 text-indigo-900 font-mono'
+                }`}
+              >
                 {liveBalanceNotice}
               </div>
             )}
@@ -328,7 +427,9 @@ export const SmsGatewaySettingsModal: React.FC<SmsGatewaySettingsModalProps> = (
                 <Send className="w-4 h-4 text-emerald-600" />
                 <span>Live Test Dispatch Tool</span>
               </h4>
-              <span className="text-[11px] text-slate-500">Dispatches real SMS to any phone number</span>
+              <span className="text-[11px] text-slate-500">
+                {isSandboxMode ? 'Routes to Africa\'s Talking Simulator' : 'Dispatches real SMS to phone handset'}
+              </span>
             </div>
 
             {testError && (
@@ -346,7 +447,11 @@ export const SmsGatewaySettingsModal: React.FC<SmsGatewaySettingsModalProps> = (
                 <div className="flex items-center justify-between font-bold">
                   <span className="flex items-center gap-1.5 text-emerald-800">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    <span>Real SMS Dispatched Successfully!</span>
+                    <span>
+                      {testResult.isSimulated
+                        ? 'Sandbox Simulator Accepted Test SMS'
+                        : 'Real SMS Sent to Cellular Network!'}
+                    </span>
                   </span>
                   <span className="font-mono text-[10px] bg-emerald-200/80 text-emerald-950 px-2 py-0.5 rounded font-bold">
                     Carrier: {testResult.networkCarrier}

@@ -2077,7 +2077,7 @@ export const GradeBroadsheetView: React.FC<GradeBroadsheetViewProps> = ({
                               }
                             }}
                             className="py-2 px-1 text-center cursor-pointer hover:bg-indigo-50/70 transition-colors"
-                            title={`Click to edit marks for ${sub.name}: CAT ${item?.cat || 0}/30, Mid ${item?.mid || 0}/20, Final ${item?.fin || 0}/50`}
+                            title={`Click to edit marks for ${sub.name}: Total ${item?.total || 0}% (${item?.letterGrade || '-'})`}
                           >
                             {item ? (
                               <div className="flex flex-col items-center">

@@ -20,10 +20,10 @@ export default defineConfig(() => {
         ],
         manifest: {
           id: '/',
-          name: 'ElimuPulse - Mwivona Comprehensive School Portal',
+          name: 'ElimuPulse - School Management Portal',
           short_name: 'ElimuPulse',
           description:
-            'ElimuPulse school management platform for Mwivona Comprehensive School: student records, parent portal, CBC grading, attendance, tuition ledgers, and automated reminders.',
+            'ElimuPulse institutional management platform: student records, parent portal, CBC grading, attendance, tuition ledgers, and automated SMS reminders.',
           theme_color: '#4f46e5',
           background_color: '#f8fafc',
           display: 'standalone',
@@ -53,6 +53,7 @@ export default defineConfig(() => {
           ],
         },
         workbox: {
+          navigateFallbackDenylist: [/^\/api/],
           maximumFileSizeToCacheInBytes: 8 * 1024 * 1024, // 8 MiB to accommodate full application bundle
           globPatterns: ['**/*.{js,css,html,ico,png,svg,jpg,jpeg,woff,woff2}'],
           runtimeCaching: [

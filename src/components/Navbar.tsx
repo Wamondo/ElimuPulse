@@ -152,7 +152,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     {
       id: 'subject_teacher',
       label: 'Teacher / Subject Teacher',
-      description: 'Enter subject CATs, midterms, final scores & CBC rubrics',
+      description: 'Enter subject assessments, custom test marks & CBC rubrics',
       icon: BookOpen,
       badge: 'Subject Teacher',
     },

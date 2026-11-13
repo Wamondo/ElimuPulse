@@ -628,7 +628,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 Enrolled Students in {registeredSubjects[0]}
               </h2>
               <p className="text-xs text-slate-500">
-                Enter CAT marks (/30), Midterms (/20), Exam marks (/50), and Subject Teacher remarks
+                Enter custom assessment marks (configurable out-of totals) and Subject Teacher remarks
               </p>
             </div>
             <button

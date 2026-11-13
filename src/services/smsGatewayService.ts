@@ -8,10 +8,11 @@ import { validateKenyanPhoneNumber } from './cryptoService';
 
 export interface SmsGatewayConfig {
   provider: 'africastalking' | 'twilio' | 'safaricom_bulk' | 'local_aggregator';
-  senderId: string; // e.g. "ELIMUPULSE" (Max 11 alphanumeric chars)
+  senderId: string; // e.g. "ELIMUPULSE" (Max 11 alphanumeric chars) or blank for shared verified ID
   apiKey: string;
   usernameOrPartnerId: string;
   customEndpoint?: string;
+  backendProxyUrl?: string; // Optional external Node/Cloud Run backend base URL when hosted on a static host
   shortCode?: string;
   smsBalanceUnits: number;
   environment: 'production' | 'sandbox';
@@ -19,9 +20,10 @@ export interface SmsGatewayConfig {
 
 const DEFAULT_CONFIG: SmsGatewayConfig = {
   provider: 'africastalking',
-  senderId: 'ELIMUPULSE',
+  senderId: '',
   apiKey: '',
-  usernameOrPartnerId: 'sandbox',
+  usernameOrPartnerId: '',
+  backendProxyUrl: '',
   shortCode: '28491',
   smsBalanceUnits: 3450,
   environment: 'production',
@@ -56,11 +58,96 @@ export interface SmsDispatchResult {
   networkCarrier: 'Safaricom' | 'Airtel Kenya' | 'Equitel' | 'Unknown';
   costUnits: number;
   remainingBalance: number;
-  deliveryStatus: 'Sent' | 'Delivered' | 'Failed';
+  deliveryStatus: string;
+  isSimulated?: boolean;
+  environment?: 'production' | 'sandbox';
   timestamp: string;
   gatewayMessage?: string;
   error?: string;
   rawResponse?: any;
+}
+
+export interface GatewayServerStatus {
+  gateway?: string;
+  provider?: string;
+  isServerKeyConfigured?: boolean;
+  username?: string;
+  senderId?: string;
+  environment?: string;
+  reachable: boolean;
+  htmlFallbackDetected?: boolean;
+}
+
+function buildApiUrl(path: string, backendProxyUrl?: string): string {
+  const base = (backendProxyUrl || '').trim().replace(/\/+$/, '');
+  if (!base) return path;
+  return `${base}${path}`;
+}
+
+async function safeParseApiResponse(response: Response): Promise<{
+  ok: boolean;
+  data: any;
+  isHtmlFallback: boolean;
+  errorMessage?: string;
+}> {
+  const rawText = await response.text();
+  const trimmed = rawText.trim();
+  const looksLikeHtml =
+    trimmed.startsWith('<!DOCTYPE') ||
+    trimmed.startsWith('<!doctype') ||
+    trimmed.startsWith('<html') ||
+    trimmed.startsWith('<');
+
+  if (looksLikeHtml) {
+    return {
+      ok: false,
+      data: null,
+      isHtmlFallback: true,
+      errorMessage:
+        'Gateway API (/api/sms/dispatch) returned an HTML web page instead of JSON. If you installed this app as a PWA or deployed it to static hosting (e.g. Netlify without serverless functions), clear site cache or configure a Live Gateway Proxy Server URL below.',
+    };
+  }
+
+  try {
+    const parsed = trimmed ? JSON.parse(trimmed) : {};
+    return {
+      ok: response.ok,
+      data: parsed,
+      isHtmlFallback: false,
+      errorMessage: parsed?.error || (!response.ok ? `HTTP ${response.status} from SMS Gateway` : undefined),
+    };
+  } catch {
+    return {
+      ok: false,
+      data: null,
+      isHtmlFallback: false,
+      errorMessage: `Unexpected non-JSON response (${response.status}): ${trimmed.slice(0, 140)}`,
+    };
+  }
+}
+
+export async function fetchGatewayServerStatus(): Promise<GatewayServerStatus> {
+  const config = getSmsGatewayConfig();
+  try {
+    const res = await fetch(buildApiUrl('/api/sms/status', config.backendProxyUrl), {
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+    });
+    const parsed = await safeParseApiResponse(res);
+    if (parsed.isHtmlFallback || !parsed.ok || !parsed.data) {
+      return {
+        reachable: false,
+        htmlFallbackDetected: parsed.isHtmlFallback,
+      };
+    }
+    return {
+      ...parsed.data,
+      reachable: true,
+      htmlFallbackDetected: false,
+    };
+  } catch {
+    return { reachable: false };
+  }
 }
 
 /**
@@ -98,11 +185,14 @@ export async function dispatchRealSms(
   }
 
   try {
-    const response = await fetch('/api/sms/dispatch', {
+    const url = buildApiUrl('/api/sms/dispatch', config.backendProxyUrl);
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        Accept: 'application/json',
       },
+      cache: 'no-store',
       body: JSON.stringify({
         to: cleanPhone,
         message: messageText,
@@ -115,25 +205,26 @@ export async function dispatchRealSms(
       }),
     });
 
-    const data = await response.json();
+    const parsed = await safeParseApiResponse(response);
 
-    if (!response.ok || !data.success) {
+    if (parsed.isHtmlFallback || !parsed.ok || !parsed.data?.success) {
       return {
         success: false,
-        messageId: data.messageId || `err-${Date.now()}`,
+        messageId: parsed.data?.messageId || `err-${Date.now()}`,
         recipientPhone: cleanPhone,
-        senderId: config.senderId || 'ELIMUPULSE',
-        networkCarrier: data.networkCarrier || networkCarrier,
+        senderId: config.senderId || 'SHARED',
+        networkCarrier: parsed.data?.networkCarrier || networkCarrier,
         costUnits: 0,
         remainingBalance: config.smsBalanceUnits,
         deliveryStatus: 'Failed',
+        environment: config.environment,
         timestamp: new Date().toISOString(),
-        error: data.error || 'The SMS Gateway failed to dispatch the message.',
-        rawResponse: data,
+        error: parsed.errorMessage || parsed.data?.error || 'The SMS Gateway failed to dispatch the message.',
+        rawResponse: parsed.data,
       };
     }
 
-    // Deduct credit
+    const data = parsed.data;
     const newBalance = Math.max(0, config.smsBalanceUnits - 1);
     saveSmsGatewayConfig({ smsBalanceUnits: newBalance });
 
@@ -144,11 +235,13 @@ export async function dispatchRealSms(
       success: true,
       messageId: data.messageId,
       recipientPhone: cleanPhone,
-      senderId: data.senderId || config.senderId,
+      senderId: data.senderId || config.senderId || 'SHARED',
       networkCarrier: data.networkCarrier || networkCarrier,
       costUnits: 1,
       remainingBalance: newBalance,
-      deliveryStatus: data.deliveryStatus || 'Delivered',
+      deliveryStatus: data.deliveryStatus || 'Sent to Cellular Network',
+      isSimulated: Boolean(data.isSimulated),
+      environment: data.environment || config.environment,
       gatewayMessage: data.gatewayMessage,
       timestamp: `${now.toISOString().slice(0, 10)} ${formattedTime}`,
       rawResponse: data.rawResponse,
@@ -158,11 +251,12 @@ export async function dispatchRealSms(
       success: false,
       messageId: `err-${Date.now()}`,
       recipientPhone: cleanPhone,
-      senderId: config.senderId || 'ELIMUPULSE',
+      senderId: config.senderId || 'SHARED',
       networkCarrier,
       costUnits: 0,
       remainingBalance: config.smsBalanceUnits,
       deliveryStatus: 'Failed',
+      environment: config.environment,
       timestamp: new Date().toISOString(),
       error: error?.message || 'Failed to connect to SMS Gateway server endpoint.',
     };
@@ -179,27 +273,33 @@ export async function fetchLiveGatewayBalance(): Promise<{
 }> {
   const config = getSmsGatewayConfig();
   try {
-    const res = await fetch('/api/sms/balance', {
+    const res = await fetch(buildApiUrl('/api/sms/balance', config.backendProxyUrl), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      cache: 'no-store',
       body: JSON.stringify({
         username: config.usernameOrPartnerId,
         apiKey: config.apiKey,
+        environment: config.environment,
       }),
     });
 
-    const data = await res.json();
-    if (!res.ok || !data.success) {
+    const parsed = await safeParseApiResponse(res);
+    if (parsed.isHtmlFallback || !parsed.ok || !parsed.data?.success) {
       return {
         success: false,
         balanceText: '',
-        error: data.error || 'Unable to retrieve wallet balance.',
+        error: parsed.errorMessage || parsed.data?.error || 'Unable to retrieve wallet balance.',
       };
     }
 
+    const data = parsed.data;
     return {
       success: true,
-      balanceText: data.balanceRaw || `${data.balance} units`,
+      balanceText: `${data.balanceRaw || `${data.balance} units`} (${data.environment === 'sandbox' ? 'Sandbox Simulator' : 'Live Production'})`,
     };
   } catch (error: any) {
     return {
