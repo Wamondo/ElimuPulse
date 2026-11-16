@@ -16,6 +16,14 @@ import {
   BroadsheetPerformanceSummary,
 } from '../services/pdfService';
 import {
+  resolveClassTeacherForGrade,
+  resolvePrincipalName,
+  resolveSubjectTeacherName,
+  resolveWingSeal,
+  KNEC_SEAL_URL,
+} from '../utils/schoolResolvers';
+import crestImage from '../assets/images/school_crest_emblem_1792317813141.jpg';
+import {
   Table,
   FileDown,
   Printer,
@@ -158,17 +166,15 @@ export const GradeBroadsheetView: React.FC<GradeBroadsheetViewProps> = ({
     return learners.filter((l) => l.grade === selectedGrade);
   }, [learners, selectedGrade]);
 
-  // Assigned Class Teacher for this grade
+  // Assigned Class Teacher for this grade (prioritizes grades.classTeacherId -> teachers -> fallback)
   const assignedClassTeacher = useMemo(() => {
-    const foundTeacher = teachers.find(
-      (t) => t.teacherType === 'class_teacher' && t.assignedGrade === selectedGrade
-    );
-    if (foundTeacher) return foundTeacher.name;
+    const resolved = resolveClassTeacherForGrade(selectedGrade, grades, teachers, schoolProfile);
+    if (resolved !== 'Class Teacher') return resolved;
     if (currentUser.role === 'teacher' && currentUser.teacherGrade === selectedGrade) {
       return currentUser.name;
     }
-    return 'Mr. Marcus Thorne';
-  }, [teachers, selectedGrade, currentUser]);
+    return resolved;
+  }, [grades, teachers, selectedGrade, currentUser, schoolProfile]);
 
   // Coordinator / Exam Council Lead
   const coordinatorName = useMemo(() => {
@@ -177,7 +183,10 @@ export const GradeBroadsheetView: React.FC<GradeBroadsheetViewProps> = ({
   }, [currentUser]);
 
   // Head of Institution
-  const hoiName = schoolProfile?.principalName || 'Dr. Evelyn Vance';
+  const hoiName = useMemo(
+    () => resolvePrincipalName(schoolProfile, teachers),
+    [schoolProfile, teachers]
+  );
 
   // Helper to get or build scores for a student in this term
   const getLearnerSubjectScores = (learner: LearnerRecord) => {
@@ -272,9 +281,7 @@ export const GradeBroadsheetView: React.FC<GradeBroadsheetViewProps> = ({
         const existingSub = subjectSubmissions.find(
           (s) => s.assessmentId === updatedAssessment.id && s.subjectName === sub.name
         );
-        const subTeacher = teachers.find(
-          (t) => (t.registeredSubjects || []).includes(sub.name) && t.assignedGrade === selectedGrade
-        )?.name || sub.teacher;
+        const subTeacher = resolveSubjectTeacherName(sub.name, selectedGrade, teachers, sub.teacher);
 
         const eligibleCount = gradeLearners.filter((l) => !absentLearnerIds.has(l.id)).length;
 
@@ -584,7 +591,11 @@ export const GradeBroadsheetView: React.FC<GradeBroadsheetViewProps> = ({
           (cur, tot) => {
             setBatchProgress({ current: cur, total: tot });
           },
-          activeAssessment
+          activeAssessment,
+          {
+            classTeacherName: assignedClassTeacher,
+            principalName: hoiName,
+          }
         );
       } finally {
         setTimeout(() => {
@@ -784,23 +795,31 @@ export const GradeBroadsheetView: React.FC<GradeBroadsheetViewProps> = ({
 
       {/* Top Header Card */}
       <div className="bg-white rounded-xl p-6 border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 text-xs text-slate-500 mb-1 flex-wrap">
-            <span className="font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
-              Official CBC Grade Broadsheet
-            </span>
-            <span aria-hidden="true">·</span>
-            <span className="font-bold text-slate-800">{activeAssessment.name}</span>
-            <span aria-hidden="true">·</span>
-            <span className="text-emerald-700 font-medium">Includes Gender Breakdown &amp; Academic Honours</span>
+        <div className="flex items-start gap-3.5">
+          <img
+            src={resolveWingSeal(selectedGrade, schoolProfile, crestImage)}
+            alt={`${selectedGrade} Official Wing Seal`}
+            className="w-14 h-14 object-contain rounded-full border border-amber-200 bg-white p-0.5 shrink-0 shadow-2xs"
+            referrerPolicy="no-referrer"
+          />
+          <div>
+            <div className="flex items-center gap-2 text-xs text-slate-500 mb-1 flex-wrap">
+              <span className="font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+                Official CBC Grade Broadsheet
+              </span>
+              <span aria-hidden="true">·</span>
+              <span className="font-bold text-slate-800">{activeAssessment.name}</span>
+              <span aria-hidden="true">·</span>
+              <span className="text-emerald-700 font-medium">Includes Gender Breakdown &amp; Academic Honours</span>
+            </div>
+            <h1 className="text-xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
+              <Table className="w-6 h-6 text-indigo-600" />
+              <span>{selectedGrade} · {activeAssessment.name} Broadsheet</span>
+            </h1>
+            <p className="text-xs text-slate-600 mt-1">
+              Class Tutor: <strong className="text-slate-800">{assignedClassTeacher}</strong> · Active Assessment: <strong className="text-indigo-700">{activeAssessment.name}</strong> · Submission Deadline: <strong className="text-slate-800">{activeAssessment.deadline || '2026-04-05'}</strong>
+            </p>
           </div>
-          <h1 className="text-xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
-            <Table className="w-6 h-6 text-indigo-600" />
-            <span>{selectedGrade} · {activeAssessment.name} Broadsheet</span>
-          </h1>
-          <p className="text-xs text-slate-600 mt-1">
-            Class Tutor: <strong className="text-slate-800">{assignedClassTeacher}</strong> · Active Assessment: <strong className="text-indigo-700">{activeAssessment.name}</strong> · Submission Deadline: <strong className="text-slate-800">{activeAssessment.deadline || '2026-04-05'}</strong>
-          </p>
         </div>
 
         {/* Action Buttons */}
@@ -1253,9 +1272,7 @@ export const GradeBroadsheetView: React.FC<GradeBroadsheetViewProps> = ({
 
             <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {subjectList.map((sub) => {
-                const subTeacher = teachers.find(
-                  (t) => (t.registeredSubjects || []).includes(sub.name) && t.assignedGrade === selectedGrade
-                )?.name || sub.teacher;
+                const subTeacher = resolveSubjectTeacherName(sub.name, selectedGrade, teachers, sub.teacher);
 
                 const matchSubm = subjectSubmissions.find(
                   (s) => s.assessmentId === activeAssessment.id && s.subjectName === sub.name
@@ -2200,23 +2217,40 @@ export const GradeBroadsheetView: React.FC<GradeBroadsheetViewProps> = ({
                 </p>
               </div>
 
-              <div className="p-3 bg-white border border-slate-200 rounded-lg">
-                <p className="text-[10px] uppercase font-bold text-slate-400">Coordinator / Exam Council Ratification</p>
-                <p className="font-semibold text-slate-900 mt-1">{coordinatorName}</p>
-                <p className="text-[11px] text-indigo-700 flex items-center gap-1 mt-1">
-                  <Award className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>CBC Rubric Verified &amp; Standardized</span>
-                </p>
+              <div className="p-3 bg-white border border-slate-200 rounded-lg flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-slate-400">Coordinator / Exam Council Ratification</p>
+                  <p className="font-semibold text-slate-900 mt-1">{coordinatorName}</p>
+                  <p className="text-[11px] text-indigo-700 flex items-center gap-1 mt-1">
+                    <Award className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>CBC Rubric Verified &amp; Standardized</span>
+                  </p>
+                </div>
+                <img
+                  src={KNEC_SEAL_URL}
+                  alt="KNEC Mitihani Seal"
+                  title="Kenya National Examinations Council (KNEC)"
+                  className="w-12 h-12 object-contain shrink-0"
+                  referrerPolicy="no-referrer"
+                />
               </div>
 
-              <div className="p-3 bg-white border border-slate-200 rounded-lg">
-                <p className="text-[10px] uppercase font-bold text-slate-400">Head of Institution (HOI) Approval</p>
-                <p className="font-semibold text-slate-900 mt-1">{hoiName}</p>
-                <p className="text-[11px] text-slate-600 flex items-center gap-1 mt-1">
-                  <span className="font-mono text-[10px] font-bold text-indigo-900 uppercase">
-                    Official Seal: Validated
-                  </span>
-                </p>
+              <div className="p-3 bg-white border border-slate-200 rounded-lg flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-slate-400">Head of Institution (HOI) Approval</p>
+                  <p className="font-semibold text-slate-900 mt-1">{hoiName}</p>
+                  <p className="text-[11px] text-slate-600 flex items-center gap-1 mt-1">
+                    <span className="font-mono text-[10px] font-bold text-indigo-900 uppercase">
+                      Official Seal: Validated
+                    </span>
+                  </p>
+                </div>
+                <img
+                  src={resolveWingSeal(selectedGrade, schoolProfile, crestImage)}
+                  alt={`${selectedGrade} Official Seal`}
+                  className="w-14 h-14 object-contain rounded-full shrink-0 border border-amber-200"
+                  referrerPolicy="no-referrer"
+                />
               </div>
             </div>
           </div>

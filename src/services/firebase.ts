@@ -2,8 +2,12 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import {
   getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
   doc,
   getDoc,
+  getDocFromCache,
   getDocFromServer,
   getDocs,
   collection,
@@ -11,6 +15,7 @@ import {
   deleteDoc,
   writeBatch,
   DocumentData,
+  Firestore,
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
@@ -20,14 +25,34 @@ export const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getA
 // Initialize Auth
 export const auth = getAuth(app);
 
-// Initialize Firestore with custom databaseId if configured
-export const db =
-  firebaseConfig.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== '(default)'
-    ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
-    : getFirestore(app);
-
 export const firestoreDatabaseId = firebaseConfig.firestoreDatabaseId || '(default)';
 export const firebaseProjectId = firebaseConfig.projectId;
+
+// Initialize Firestore with auto-detected long polling + persistent local cache for resilience
+function createResilientFirestore(): Firestore {
+  const customDbId =
+    firebaseConfig.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== '(default)'
+      ? firebaseConfig.firestoreDatabaseId
+      : undefined;
+
+  try {
+    return initializeFirestore(
+      app,
+      {
+        experimentalAutoDetectLongPolling: true,
+        localCache: persistentLocalCache({
+          tabManager: persistentMultipleTabManager(),
+        }),
+      },
+      customDbId
+    );
+  } catch {
+    // Already initialized (e.g., module re-evaluated) — reuse existing instance
+    return customDbId ? getFirestore(app, customDbId) : getFirestore(app);
+  }
+}
+
+export const db: Firestore = createResilientFirestore();
 
 // Mandatory Error Handling per Firestore Integration Skill
 export enum OperationType {
@@ -54,6 +79,18 @@ export interface FirestoreErrorInfo {
       email?: string | null;
     }[];
   };
+}
+
+export function isFirestoreOfflineError(error: unknown): boolean {
+  const code = typeof error === 'object' && error !== null && 'code' in error ? String((error as any).code) : '';
+  const msg = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  return (
+    code === 'unavailable' ||
+    msg.includes('client is offline') ||
+    msg.includes('failed to get document because the client is offline') ||
+    msg.includes('network error') ||
+    (typeof navigator !== 'undefined' && navigator.onLine === false)
+  );
 }
 
 export function handleFirestoreError(
@@ -84,11 +121,14 @@ export function handleFirestoreError(
 
 // Check connection to Firestore (CRITICAL per Skill Step 2.1)
 export async function testFirestoreConnection(): Promise<boolean> {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    return false;
+  }
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
     return true;
   } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
+    if (isFirestoreOfflineError(error)) {
       console.warn('Firestore offline or connecting...');
       return false;
     }
@@ -135,24 +175,48 @@ export async function saveDocumentToFirestore<T extends { id: string }>(
     const sanitizedData = sanitizeForFirestore(data);
     await setDoc(docRef, sanitizedData as DocumentData, { merge: true });
   } catch (err) {
+    if (isFirestoreOfflineError(err)) {
+      console.warn(`Firestore offline while saving ${path}; retained in local cache.`);
+      return;
+    }
     handleFirestoreError(err, OperationType.WRITE, path);
   }
 }
 
-// Fetch a single document from Firestore
+// Fetch a single document from Firestore (with offline cache fallback)
 export async function fetchDocumentFromFirestore<T>(
   collectionName: string,
   id: string
 ): Promise<T | null> {
   const path = `${collectionName}/${id}`;
+  const docRef = doc(db, collectionName, id);
+
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    try {
+      const cachedSnap = await getDocFromCache(docRef);
+      return cachedSnap.exists() ? (cachedSnap.data() as T) : null;
+    } catch {
+      return null;
+    }
+  }
+
   try {
-    const docRef = doc(db, collectionName, id);
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
       return docSnap.data() as T;
     }
     return null;
   } catch (err) {
+    if (isFirestoreOfflineError(err)) {
+      try {
+        const cachedSnap = await getDocFromCache(docRef);
+        if (cachedSnap.exists()) return cachedSnap.data() as T;
+      } catch {
+        /* ignore cache miss */
+      }
+      console.warn(`Firestore offline while fetching ${path}; falling back to local cache.`);
+      return null;
+    }
     handleFirestoreError(err, OperationType.GET, path);
   }
 }
@@ -161,6 +225,9 @@ export async function fetchDocumentFromFirestore<T>(
 export async function fetchCollectionFromFirestore<T>(
   collectionName: string
 ): Promise<T[]> {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    return [];
+  }
   try {
     const querySnapshot = await getDocs(collection(db, collectionName));
     const items: T[] = [];
@@ -169,6 +236,10 @@ export async function fetchCollectionFromFirestore<T>(
     });
     return items;
   } catch (err) {
+    if (isFirestoreOfflineError(err)) {
+      console.warn(`Firestore offline while listing ${collectionName}; using local storage.`);
+      return [];
+    }
     handleFirestoreError(err, OperationType.LIST, collectionName);
   }
 }
@@ -188,6 +259,10 @@ export async function batchSyncToFirestore<T extends { id: string }>(
     });
     await batch.commit();
   } catch (err) {
+    if (isFirestoreOfflineError(err)) {
+      console.warn(`Firestore offline during batch sync of ${collectionName}.`);
+      return;
+    }
     handleFirestoreError(err, OperationType.WRITE, collectionName);
   }
 }
@@ -202,6 +277,10 @@ export async function deleteDocumentFromFirestore(
     const docRef = doc(db, collectionName, id);
     await deleteDoc(docRef);
   } catch (err) {
+    if (isFirestoreOfflineError(err)) {
+      console.warn(`Firestore offline while deleting ${path}.`);
+      return;
+    }
     handleFirestoreError(err, OperationType.DELETE, path);
   }
 }

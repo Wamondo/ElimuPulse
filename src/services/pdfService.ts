@@ -9,6 +9,38 @@ import {
   COMPETENCY_SCALE,
   calculateGradeFromPoints,
 } from './gradingService';
+import {
+  KNEC_SEAL_URL,
+  getCachedSealDataUrl,
+  preloadOfficialSeals,
+  resolveComprehensiveSeal,
+  resolvePrincipalName,
+  resolveWingSeal,
+  sanitizeInstitutionalRemark,
+} from '../utils/schoolResolvers';
+
+if (typeof window !== 'undefined') {
+  preloadOfficialSeals();
+}
+
+function drawSealInPdf(
+  doc: jsPDF,
+  rawUrlOrDataUrl: string | undefined | null,
+  x: number,
+  y: number,
+  w: number,
+  h: number
+): boolean {
+  const dataUrl = getCachedSealDataUrl(rawUrlOrDataUrl);
+  if (!dataUrl) return false;
+  try {
+    const format = dataUrl.includes('image/png') ? 'PNG' : 'JPEG';
+    doc.addImage(dataUrl, format, x, y, w, h);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * PDF Generation Service for ElimuPulse
@@ -21,16 +53,26 @@ function drawSchoolHeader(
   school: SchoolProfile,
   title: string,
   institutionHeader?: string,
-  sectionSubtitle?: string
+  sectionSubtitle?: string,
+  leftSealUrl?: string,
+  rightSealUrl?: string
 ) {
   // Brand color banner top bar
   doc.setFillColor(30, 41, 59); // slate-800
   doc.rect(0, 0, 210, 8, 'F');
+
+  // Optional flanking institutional & examination council seals
+  if (leftSealUrl) {
+    drawSealInPdf(doc, leftSealUrl, 14, 10, 17, 17);
+  }
+  if (rightSealUrl) {
+    drawSealInPdf(doc, rightSealUrl, 179, 10, 17, 17);
+  }
   
   // School / Section Name: Dedicated Junior School or Primary School name on reports
   const mainHeader = institutionHeader || school.name || 'Comprehensive School';
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(15);
+  doc.setFontSize(14);
   doc.setTextColor(15, 23, 42); // slate-900
   doc.text(mainHeader.toUpperCase(), 105, 17, { align: 'center' });
 
@@ -88,7 +130,8 @@ export function exportFeeReceiptPdf(
     ? (school.juniorWingName || `${school.name} Junior Wing`)
     : (school.primaryWingName || `${school.name} Primary Wing`);
 
-  drawSchoolHeader(doc, school, 'Official Tuition Fee & Payment Receipt', wingInstitutionName);
+  const comprehensiveSeal = resolveComprehensiveSeal(school);
+  drawSchoolHeader(doc, school, 'Official Tuition Fee & Payment Receipt', wingInstitutionName, undefined, comprehensiveSeal);
 
   // Receipt Number & Date Box
   doc.setFillColor(248, 250, 252);
@@ -256,10 +299,9 @@ export function exportFeeReceiptPdf(
     } catch { /* ignore */ }
   }
 
-  if (receiptSealSig?.signatureDataUrl) {
-    try {
-      doc.addImage(receiptSealSig.signatureDataUrl, 'PNG', 145, y + 1, 16, 16);
-    } catch { /* ignore */ }
+  const resolvedReceiptSeal = resolveComprehensiveSeal(school, receiptSealSig?.signatureDataUrl);
+  if (resolvedReceiptSeal) {
+    drawSealInPdf(doc, resolvedReceiptSeal, 155, y - 3, 16, 16);
   }
 
   doc.setDrawColor(148, 163, 184);
@@ -294,7 +336,8 @@ export function drawSingleScoreCardPage(
   learner: LearnerRecord | undefined,
   school: SchoolProfile,
   pageNum?: number,
-  totalPages?: number
+  totalPages?: number,
+  resolvedSignatories?: { classTeacherName?: string; principalName?: string }
 ) {
   // A4 dimensions: 210mm x 297mm
   // 0.2 inch margins on both sides: 0.2 * 25.4mm = 5.08mm
@@ -325,9 +368,15 @@ export function drawSingleScoreCardPage(
 
   const umbrellaNotice = `${school.name || 'Comprehensive School'} · MoE/KNEC Center Reg: ${school.registrationNumber} · ${school.county}`;
 
+  const wingSealUrl = resolveWingSeal(gradeStr, school);
+
   // 1. Top Decorative Brand Bar (Slate)
   doc.setFillColor(30, 41, 59);
   doc.rect(0, 0, pageWidth, 7, 'F');
+
+  // Official Wing Seal (Top-Left) & KNEC Exam Council Seal (Top-Right)
+  drawSealInPdf(doc, wingSealUrl, marginLeft + 2, 9, 17, 17);
+  drawSealInPdf(doc, KNEC_SEAL_URL, rightEdge - 19, 9, 17, 17);
 
   // 2. School Header (Spanning centered with full institution particulars)
   doc.setFont('helvetica', 'bold');
@@ -703,10 +752,21 @@ export function drawSingleScoreCardPage(
   const teacherLines = doc.splitTextToSize(`"${teacherRemarkText}"`, remarkBoxW - 8);
   doc.text(teacherLines, marginLeft + 4, y + 8.2);
 
+  const teacherSig = school.signatures?.['class_teacher'];
+  const principalSig = school.signatures?.['hoi'];
+  const sealSig = school.signatures?.['seal'];
+  const effectiveClassTeacherName =
+    resolvedSignatories?.classTeacherName ||
+    (teacherSig?.signatoryName && teacherSig.signatoryName !== 'Mr. Marcus Thorne'
+      ? teacherSig.signatoryName
+      : 'Assigned Class Teacher');
+  const effectivePrincipalName =
+    resolvedSignatories?.principalName || resolvePrincipalName(school);
+
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(5.8);
   doc.setTextColor(100, 116, 139);
-  doc.text('— Evaluated by Mr. Marcus Thorne, Class Tutor', marginLeft + 4, y + 15.5);
+  doc.text(`— Evaluated by ${effectiveClassTeacherName}, Class Tutor`, marginLeft + 4, y + 15.5);
 
   y += remarkBoxH + 2.5;
 
@@ -719,7 +779,7 @@ export function drawSingleScoreCardPage(
   doc.setTextColor(30, 41, 59);
   doc.text("HEAD OF INSTITUTION / PRINCIPAL'S REMARKS & ENDORSEMENT:", marginLeft + 4, y + 4.2);
 
-  const principalRemarkText = scoreCard.principalRemark || `A commendable term. Continue striving for highest academic excellence and ethical leadership at ${school.name || 'the institution'}.`;
+  const principalRemarkText = sanitizeInstitutionalRemark(scoreCard.principalRemark, school, learner?.grade);
   doc.setFont('helvetica', 'italic');
   doc.setFontSize(6.6);
   doc.setTextColor(15, 23, 42);
@@ -729,7 +789,7 @@ export function drawSingleScoreCardPage(
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(5.8);
   doc.setTextColor(100, 116, 139);
-  doc.text(`— Endorsed by Dr. Evelyn Vance, Head of Institution (${wingInstitutionName})`, marginLeft + 4, y + 15.5);
+  doc.text(`— Endorsed by ${effectivePrincipalName}, Head of Institution (${wingInstitutionName})`, marginLeft + 4, y + 15.5);
 
   y += remarkBoxH + 2.5;
 
@@ -765,14 +825,9 @@ export function drawSingleScoreCardPage(
   y += legendH + 3.0;
 
   // 10. OFFICIAL SIGNATURES & INSTITUTION SEAL
-  doc.setDrawColor(148, 163, 184);
-  // 10. OFFICIAL SIGNATURES & INSTITUTION SEAL
-  // Render digital signatures if available
-  const teacherSig = school.signatures?.['class_teacher'];
-  const principalSig = school.signatures?.['hoi'];
-  const sealSig = school.signatures?.['seal'];
+  // Render digital signatures when signatory matches or falls back cleanly
 
-  if (teacherSig?.signatureDataUrl) {
+  if (teacherSig?.signatureDataUrl && (!resolvedSignatories?.classTeacherName || teacherSig.signatoryName === effectiveClassTeacherName)) {
     try {
       doc.addImage(teacherSig.signatureDataUrl, 'PNG', marginLeft + 8, y + 0.5, 42, 9);
     } catch { /* ignore fallback */ }
@@ -794,7 +849,7 @@ export function drawSingleScoreCardPage(
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(5.8);
   doc.setTextColor(100, 116, 139);
-  doc.text(`${teacherSig?.signatoryName || 'Mr. Marcus Thorne'} · ${teacherSig?.roleTitle || 'Class Tutor'}`, marginLeft + 8, y + 17.5);
+  doc.text(`${effectiveClassTeacherName} · ${teacherSig?.roleTitle || 'Class Tutor'}`, marginLeft + 8, y + 17.5);
 
   // Principal line
   doc.line(marginLeft + 76, y + 10, marginLeft + 138, y + 10);
@@ -805,28 +860,28 @@ export function drawSingleScoreCardPage(
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(5.8);
   doc.setTextColor(100, 116, 139);
-  doc.text(`${principalSig?.signatoryName || 'Dr. Evelyn Vance'} · ${principalSig?.roleTitle || 'Chief Principal'}`, marginLeft + 78, y + 17.5);
+  doc.text(`${effectivePrincipalName} · ${principalSig?.roleTitle || 'Chief Principal'}`, marginLeft + 78, y + 17.5);
 
   // Official Seal Stamp Box
   doc.setDrawColor(99, 102, 241);
   doc.roundedRect(marginLeft + 146, y, 50, 21, 1, 1, 'D');
 
-  if (sealSig?.signatureDataUrl) {
-    try {
-      doc.addImage(sealSig.signatureDataUrl, 'PNG', marginLeft + 162, y + 1.5, 18, 18);
-    } catch { /* ignore fallback */ }
-  }
+  const resolvedCardSeal = resolveWingSeal(gradeStr, school, sealSig?.signatureDataUrl);
+  drawSealInPdf(doc, resolvedCardSeal, marginLeft + 148, y + 2.5, 16, 16);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.4);
+  doc.setFontSize(6.2);
   doc.setTextColor(67, 56, 202);
-  doc.text('OFFICIAL INSTITUTION SEAL', marginLeft + 171, y + 5.5, { align: 'center' });
+  doc.text('OFFICIAL SEAL', marginLeft + 180, y + 6.0, { align: 'center' });
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(5.0);
+  doc.setTextColor(30, 41, 59);
+  doc.text(isJunior ? 'JUNIOR WING' : 'PRIMARY WING', marginLeft + 180, y + 10.2, { align: 'center' });
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(5.2);
+  doc.setFontSize(4.9);
   doc.setTextColor(100, 116, 139);
-  doc.text(wingInstitutionName.toUpperCase(), marginLeft + 171, y + 9.2, { align: 'center' });
-  doc.text('VERIFIED & RATIFIED', marginLeft + 171, y + 13.0, { align: 'center' });
-  doc.text('ACADEMIC YEAR 2025/2026', marginLeft + 171, y + 17.0, { align: 'center' });
+  doc.text('VERIFIED & RATIFIED', marginLeft + 180, y + 14.2, { align: 'center' });
+  doc.text('2025/2026', marginLeft + 180, y + 18.0, { align: 'center' });
 
   y += 24;
 
@@ -963,7 +1018,8 @@ export function synthesizeLearnerScoreCard(
 export function exportScoreCardPdf(
   scoreCard: ScoreCard,
   learner: LearnerRecord | undefined,
-  school: SchoolProfile
+  school: SchoolProfile,
+  resolvedSignatories?: { classTeacherName?: string; principalName?: string }
 ) {
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -971,7 +1027,7 @@ export function exportScoreCardPdf(
     format: 'a4',
   });
 
-  drawSingleScoreCardPage(doc, scoreCard, learner, school, 1, 1);
+  drawSingleScoreCardPage(doc, scoreCard, learner, school, 1, 1, resolvedSignatories);
 
   const gradeStr = learner?.grade || '';
   const isJunior =
@@ -995,7 +1051,8 @@ export function exportAllGradeScoreCardsBatchPdf(
   learnersInGrade: LearnerRecord[],
   savedScoreCards: ScoreCard[],
   onProgress?: (current: number, total: number) => void,
-  activeAssessment?: AssessmentRecord
+  activeAssessment?: AssessmentRecord,
+  resolvedSignatories?: { classTeacherName?: string; principalName?: string }
 ): jsPDF {
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -1027,7 +1084,7 @@ export function exportAllGradeScoreCardsBatchPdf(
       }
     }
 
-    drawSingleScoreCardPage(doc, scoreCard, learner, school, idx + 1, total);
+    drawSingleScoreCardPage(doc, scoreCard, learner, school, idx + 1, total, resolvedSignatories);
 
     if (onProgress) {
       onProgress(idx + 1, total);
@@ -1068,7 +1125,14 @@ export function exportMonthlyFinancialReportPdf(
     format: 'a4',
   });
 
-  drawSchoolHeader(doc, school, 'Official Monthly Bursar Treasury & Collections Statement');
+  drawSchoolHeader(
+    doc,
+    school,
+    'Official Monthly Bursar Treasury & Collections Statement',
+    undefined,
+    undefined,
+    resolveComprehensiveSeal(school)
+  );
 
   // Summary Grid
   doc.setFillColor(248, 250, 252);
@@ -1214,6 +1278,15 @@ export function exportMonthlyFinancialReportPdf(
     } catch { /* ignore */ }
   }
 
+  // Official Comprehensive Institution Seal centered between Bursar and Principal
+  const monthlyReportSeal = resolveComprehensiveSeal(school, school.signatures?.['seal']?.signatureDataUrl);
+  if (drawSealInPdf(doc, monthlyReportSeal, 96, y - 1, 18, 18)) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6);
+    doc.setTextColor(67, 56, 202);
+    doc.text('OFFICIAL SCHOOL SEAL', 105, y + 20, { align: 'center' });
+  }
+
   if (principalSig?.signatureDataUrl) {
     try {
       doc.addImage(principalSig.signatureDataUrl, 'PNG', 138, y + 0.5, 42, 9);
@@ -1226,8 +1299,8 @@ export function exportMonthlyFinancialReportPdf(
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   doc.setTextColor(30, 41, 59);
-  doc.text(`PREPARED: ${bursarSig?.signatoryName || 'Sarah Kimani, CPA'}`, 20, y + 14);
-  doc.text(`CERTIFIED: ${principalSig?.signatoryName || 'Dr. Evelyn Vance'}`, 138, y + 14);
+  doc.text(`PREPARED: ${bursarSig?.signatoryName || 'Bursar & Treasury Office'}`, 20, y + 14);
+  doc.text(`CERTIFIED: ${resolvePrincipalName(school)}`, 138, y + 14);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(6.2);
@@ -1259,7 +1332,12 @@ export function exportLearnerRosterPdf(
     ? `${gradeFilter} Student & Guardian Enrollment Register`
     : 'School-Wide Student & Guardian Enrollment Register';
 
-  drawSchoolHeader(doc, school, title);
+  const rosterSeal =
+    gradeFilter && gradeFilter !== 'all'
+      ? resolveWingSeal(gradeFilter, school)
+      : resolveComprehensiveSeal(school);
+
+  drawSchoolHeader(doc, school, title, undefined, undefined, rosterSeal);
 
   let y = 48;
   doc.setFillColor(30, 41, 59);
@@ -1278,7 +1356,7 @@ export function exportLearnerRosterPdf(
   learners.forEach((l, idx) => {
     if (y > 275) {
       doc.addPage();
-      drawSchoolHeader(doc, school, title);
+      drawSchoolHeader(doc, school, title, undefined, undefined, rosterSeal);
       y = 48;
       doc.setFillColor(30, 41, 59);
       doc.rect(14, y, 182, 7, 'F');
@@ -1409,9 +1487,15 @@ export function exportGradeBroadsheetPdf(
   const isJunior = grade.toLowerCase().includes('grade 7') || grade.toLowerCase().includes('grade 8') || grade.toLowerCase().includes('grade 9');
   const wingTitle = isJunior ? (school.juniorWingName || `${school.name} Junior Wing`) : (school.primaryWingName || `${school.name} Primary Wing`);
 
+  const broadsheetWingSeal = resolveWingSeal(grade, school);
+
   // Top banner
   doc.setFillColor(30, 41, 59);
   doc.rect(0, 0, 297, 8, 'F');
+
+  // Official Wing Seal (Top-Left) & KNEC Seal (Top-Right)
+  drawSealInPdf(doc, broadsheetWingSeal, 12, 9, 14, 14);
+  drawSealInPdf(doc, KNEC_SEAL_URL, 271, 9, 14, 14);
 
   // Header Title
   doc.setFont('helvetica', 'bold');
@@ -1618,20 +1702,24 @@ export function exportGradeBroadsheetPdf(
   if (bsCoordSig?.signatureDataUrl) {
     try { doc.addImage(bsCoordSig.signatureDataUrl, 'PNG', 112, sigY - 4, 38, 9); } catch {}
   }
+  drawSealInPdf(doc, KNEC_SEAL_URL, 166, sigY - 6, 12, 12);
+
   if (bsHoiSig?.signatureDataUrl) {
     try { doc.addImage(bsHoiSig.signatureDataUrl, 'PNG', 208, sigY - 4, 38, 9); } catch {}
   }
+  const broadsheetFooterSeal = resolveWingSeal(grade, school, school.signatures?.['seal']?.signatureDataUrl);
+  drawSealInPdf(doc, broadsheetFooterSeal, 260, sigY - 7, 13, 13);
 
   doc.line(15, sigY + 6, 85, sigY + 6);
-  doc.text(`Class Teacher: ${bsTeacherSig?.signatoryName || signatories?.classTeacher || 'Assigned Class Teacher'}`, 15, sigY + 10);
+  doc.text(`Class Teacher: ${signatories?.classTeacher || bsTeacherSig?.signatoryName || 'Assigned Class Teacher'}`, 15, sigY + 10);
   doc.text('Signature & Date: Digitally Ratified', 15, sigY + 14);
 
   doc.line(110, sigY + 6, 180, sigY + 6);
-  doc.text(`Coordinator / Exam Council: ${bsCoordSig?.signatoryName || signatories?.coordinator || 'Examination Council Chair'}`, 110, sigY + 10);
+  doc.text(`Coordinator / Exam Council: ${signatories?.coordinator || bsCoordSig?.signatoryName || 'Examination Council Chair'}`, 110, sigY + 10);
   doc.text('Verified & Ratified: Authenticated', 110, sigY + 14);
 
   doc.line(205, sigY + 6, 275, sigY + 6);
-  doc.text(`Head of Institution (HOI): ${bsHoiSig?.signatoryName || signatories?.principal || 'Dr. Evelyn Vance'}`, 205, sigY + 10);
+  doc.text(`Head of Institution (HOI): ${signatories?.principal || resolvePrincipalName(school)}`, 205, sigY + 10);
   doc.text('Official Seal & Approval: Ratified', 205, sigY + 14);
 
   // ==========================================
@@ -1643,6 +1731,9 @@ export function exportGradeBroadsheetPdf(
     // Header on Page 2
     doc.setFillColor(30, 41, 59);
     doc.rect(0, 0, 297, 8, 'F');
+
+    drawSealInPdf(doc, broadsheetWingSeal, 12, 9.5, 14, 14);
+    drawSealInPdf(doc, KNEC_SEAL_URL, 271, 9.5, 14, 14);
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(13);
@@ -2025,12 +2116,16 @@ export function exportSubjectScoresheetPdf(
   const isJunior = grade.toLowerCase().includes('grade 7') || grade.toLowerCase().includes('grade 8') || grade.toLowerCase().includes('grade 9');
   const wingTitle = isJunior ? (school.juniorWingName || `${school.name} Junior Wing`) : (school.primaryWingName || `${school.name} Primary Wing`);
 
+  const scoresheetWingSeal = resolveWingSeal(grade, school);
+
   drawSchoolHeader(
     doc,
     school,
     `SUBJECT EVALUATION SCORESHEET - ${subjectName.toUpperCase()}`,
     wingTitle,
-    `${grade} · ${term} · Evaluator: ${teacherName}`
+    `${grade} · ${term} · Evaluator: ${teacherName}`,
+    scoresheetWingSeal,
+    KNEC_SEAL_URL
   );
 
   let y = 46;
@@ -2183,6 +2278,9 @@ export function exportSubjectScoresheetPdf(
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(30, 41, 59);
+
+  drawSealInPdf(doc, scoresheetWingSeal, 93, y - 1, 14, 14);
+  drawSealInPdf(doc, KNEC_SEAL_URL, 173, y - 6, 11, 11);
 
   doc.line(18, y + 6, 85, y + 6);
   doc.text(`Subject Teacher: ${teacherName}`, 18, y + 10);

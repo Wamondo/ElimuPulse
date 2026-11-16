@@ -4,6 +4,8 @@ import { ScoreCard, SubjectScore, LearnerRecord, SubjectMarksSubmission, Assessm
 import { calculateCompetencyGrade, calculateGradeFromPoints, COMPETENCY_SCALE } from '../services/gradingService';
 import { exportSubjectScoresheetPdf, SubjectScoresheetRow, SubjectPerformanceSummary } from '../services/pdfService';
 import { getSubjectsForGrade } from './GradeBroadsheetView';
+import { resolveSubjectTeacherName, resolveWingSeal, KNEC_SEAL_URL } from '../utils/schoolResolvers';
+import crestImage from '../assets/images/school_crest_emblem_1792317813141.jpg';
 import {
   BookOpen,
   FileDown,
@@ -123,12 +125,12 @@ export const SubjectScoresheetView: React.FC = () => {
     return learners.filter((l) => l.grade === selectedGrade);
   }, [learners, selectedGrade]);
 
-  // Evaluator teacher name
+  // Evaluator teacher name (live lookup from registered faculty first, then curriculum fallback)
   const evaluatorName = useMemo(() => {
     if (isSubjectTeacherOnly) return currentUser.name;
     const subObj = gradeSubjects.find((s) => s.name === selectedSubject);
-    return subObj?.teacher || currentUser.name || 'Subject Teacher';
-  }, [isSubjectTeacherOnly, currentUser, gradeSubjects, selectedSubject]);
+    return resolveSubjectTeacherName(selectedSubject, selectedGrade, teachers, subObj?.teacher || currentUser.name);
+  }, [isSubjectTeacherOnly, currentUser, gradeSubjects, selectedSubject, selectedGrade, teachers]);
 
   // Active Assessment configuration for this Grade & Term
   const activeAssessment = useMemo(() => {
@@ -863,30 +865,38 @@ export const SubjectScoresheetView: React.FC = () => {
 
       {/* Top Header Card */}
       <div className="bg-white rounded-xl p-6 border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 text-xs text-slate-500 mb-1 flex-wrap">
-            <span className="font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
-              {activeAssessment?.name || 'Single-Subject Assessment'}
-            </span>
-            <span aria-hidden="true">·</span>
-            <span className="font-medium text-slate-700">
-              {test1Name} (/{test1Max})
-              {test2Max > 0 ? ` + ${test2Name} (/${test2Max})` : ''}
-              {test3Max > 0 ? ` + ${test3Name} (/${test3Max})` : ''}
-              {' '}· Total /{totalMaxPossible}
-            </span>
-            <span aria-hidden="true">·</span>
-            <span className={isSubmitted ? 'text-emerald-700 font-bold' : 'text-amber-700 font-bold'}>
-              {isSubmitted ? '✓ Marks Submitted to Broadsheet' : '⏳ Marks Pending Submission'}
-            </span>
+        <div className="flex items-start gap-3.5">
+          <img
+            src={resolveWingSeal(selectedGrade, schoolProfile, crestImage)}
+            alt={`${selectedGrade} Official Seal`}
+            className="w-13 h-13 object-contain rounded-full border border-amber-200 bg-white p-0.5 shrink-0 shadow-2xs"
+            referrerPolicy="no-referrer"
+          />
+          <div>
+            <div className="flex items-center gap-2 text-xs text-slate-500 mb-1 flex-wrap">
+              <span className="font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+                {activeAssessment?.name || 'Single-Subject Assessment'}
+              </span>
+              <span aria-hidden="true">·</span>
+              <span className="font-medium text-slate-700">
+                {test1Name} (/{test1Max})
+                {test2Max > 0 ? ` + ${test2Name} (/${test2Max})` : ''}
+                {test3Max > 0 ? ` + ${test3Name} (/${test3Max})` : ''}
+                {' '}· Total /{totalMaxPossible}
+              </span>
+              <span aria-hidden="true">·</span>
+              <span className={isSubmitted ? 'text-emerald-700 font-bold' : 'text-amber-700 font-bold'}>
+                {isSubmitted ? '✓ Marks Submitted to Broadsheet' : '⏳ Marks Pending Submission'}
+              </span>
+            </div>
+            <h1 className="text-xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
+              <BookOpen className="w-6 h-6 text-indigo-600" />
+              <span>{selectedSubject} · Scoresheet ({selectedGrade})</span>
+            </h1>
+            <p className="text-xs text-slate-600 mt-1">
+              Evaluator: <strong className="text-slate-800">{evaluatorName}</strong> · Assessment: <strong className="text-indigo-700">{activeAssessment?.name || 'Term 1 Summative Assessment 2026'}</strong> · Deadline: <strong className="text-slate-800">{activeAssessment?.deadline || '2026-04-05'}</strong>
+            </p>
           </div>
-          <h1 className="text-xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
-            <BookOpen className="w-6 h-6 text-indigo-600" />
-            <span>{selectedSubject} · Scoresheet ({selectedGrade})</span>
-          </h1>
-          <p className="text-xs text-slate-600 mt-1">
-            Evaluator: <strong className="text-slate-800">{evaluatorName}</strong> · Assessment: <strong className="text-indigo-700">{activeAssessment?.name || 'Term 1 Summative Assessment 2026'}</strong> · Deadline: <strong className="text-slate-800">{activeAssessment?.deadline || '2026-04-05'}</strong>
-          </p>
         </div>
 
         {/* Action Buttons */}
@@ -1932,11 +1942,20 @@ export const SubjectScoresheetView: React.FC = () => {
 
           {/* Footer with Save & Submit Actions */}
           <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-            <div className="text-slate-600">
-              <span>Policy: Marks should only be submitted when all eligible learners have recorded scores. </span>
-              {absentLearnerIds.size > 0 && (
-                <strong className="text-rose-700">({absentLearnerIds.size} absent learners are excluded).</strong>
-              )}
+            <div className="flex items-center gap-2.5 text-slate-600">
+              <img
+                src={KNEC_SEAL_URL}
+                alt="KNEC Seal"
+                title="KNEC CBC Assessment Standard"
+                className="w-8 h-8 object-contain shrink-0"
+                referrerPolicy="no-referrer"
+              />
+              <div>
+                <span>Policy: Marks should only be submitted when all eligible learners have recorded scores. </span>
+                {absentLearnerIds.size > 0 && (
+                  <strong className="text-rose-700">({absentLearnerIds.size} absent learners are excluded).</strong>
+                )}
+              </div>
             </div>
 
             <div className="flex items-center gap-2.5">

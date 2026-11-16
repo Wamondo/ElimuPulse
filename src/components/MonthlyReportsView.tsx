@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { calculateCompetencyGrade, COMPETENCY_SCALE } from '../services/gradingService';
 import { OfficialSignaturesManager } from './OfficialSignaturesManager';
+import { resolvePrincipalName, resolveComprehensiveSeal, KNEC_SEAL_URL } from '../utils/schoolResolvers';
 import {
   FileText,
   Printer,
@@ -393,9 +394,9 @@ export const MonthlyReportsView: React.FC = () => {
         <div className="hidden print:flex items-center justify-between border-b-2 border-slate-900 pb-4">
           <div className="flex items-center gap-4">
             <img
-              src={crestImage}
-              alt="Crest"
-              className="w-14 h-14 object-contain"
+              src={resolveComprehensiveSeal(schoolProfile, crestImage)}
+              alt={`${schoolProfile?.name || 'School'} Official Seal`}
+              className="w-16 h-16 object-contain rounded-full"
               referrerPolicy="no-referrer"
             />
             <div>
@@ -656,7 +657,7 @@ export const MonthlyReportsView: React.FC = () => {
               </div>
               <div className="border-t border-slate-300 pt-1.5 mt-1">
                 <p className="font-bold text-slate-900">
-                  {principalSig?.signatoryName || 'Dr. Evelyn Vance'}
+                  {resolvePrincipalName(schoolProfile)}
                 </p>
                 <p className="text-[11px] text-slate-500">
                   {principalSig?.roleTitle || 'Head of School & Chief Principal'}
@@ -674,26 +675,29 @@ export const MonthlyReportsView: React.FC = () => {
               <p className="text-[10px] uppercase font-bold text-slate-500 mb-1 text-left">
                 Official School Seal &amp; Stamp:
               </p>
-              <div className="h-16 flex items-center justify-center py-1">
-                {sealSig?.signatureDataUrl ? (
-                  <img
-                    src={sealSig.signatureDataUrl}
-                    alt="Official Seal"
-                    className="max-h-16 max-w-full object-contain"
-                  />
-                ) : (
-                  <div className="inline-block p-2 border-2 border-indigo-700 rounded text-indigo-900 font-mono font-bold text-[10px] uppercase">
-                    Official Institutional Seal
-                  </div>
-                )}
+              <div className="h-20 flex items-center justify-center gap-3 py-1">
+                <img
+                  src={resolveComprehensiveSeal(schoolProfile, sealSig?.signatureDataUrl || crestImage)}
+                  alt={`${schoolProfile.name} Official Seal`}
+                  className="max-h-20 w-20 object-contain rounded-full"
+                  referrerPolicy="no-referrer"
+                />
               </div>
               <div className="border-t border-slate-300 pt-1.5 mt-1">
                 <p className="font-bold text-slate-900 text-[11px]">
                   {schoolProfile.name}
                 </p>
-                <p className="text-[10px] text-slate-500">
-                  MoE / KNEC Center Reg: {schoolProfile.registrationNumber}
-                </p>
+                <div className="flex items-center justify-center gap-1.5 mt-0.5">
+                  <img
+                    src={KNEC_SEAL_URL}
+                    alt="KNEC Seal"
+                    className="w-4 h-4 object-contain"
+                    referrerPolicy="no-referrer"
+                  />
+                  <p className="text-[10px] text-slate-500">
+                    MoE / KNEC Center Reg: {schoolProfile.registrationNumber}
+                  </p>
+                </div>
               </div>
             </div>
           </div>

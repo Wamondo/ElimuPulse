@@ -16,6 +16,8 @@ import {
   Sparkles
 } from 'lucide-react';
 import crestImage from '../assets/images/school_crest_emblem_1792317813141.jpg';
+import { useApp } from '../context/AppContext';
+import { resolveComprehensiveSeal } from '../utils/schoolResolvers';
 import { getMpesaConfig } from '../services/mpesaDarajaService';
 import { getSmsGatewayConfig } from '../services/smsGatewayService';
 
@@ -32,6 +34,7 @@ export const OfficialProductionCenterModal: React.FC<OfficialProductionCenterMod
   onOpenSmsConfig,
   onOpenMpesaConfig,
 }) => {
+  const { schoolProfile } = useApp();
   const mpesaConfig = getMpesaConfig();
   const smsConfig = getSmsGatewayConfig();
 
@@ -54,9 +57,9 @@ export const OfficialProductionCenterModal: React.FC<OfficialProductionCenterMod
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-900 text-white">
           <div className="flex items-center gap-3">
             <img
-              src={crestImage}
-              alt="Crest"
-              className="w-10 h-10 object-contain rounded-lg bg-white/10 p-1"
+              src={resolveComprehensiveSeal(schoolProfile, crestImage)}
+              alt={`${schoolProfile?.name || 'School'} Official Seal`}
+              className="w-11 h-11 object-contain rounded-full bg-white p-0.5 border border-amber-300/60"
             />
             <div>
               <div className="flex items-center gap-2">

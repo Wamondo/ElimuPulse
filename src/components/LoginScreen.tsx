@@ -28,6 +28,7 @@ import {
   Unlock,
 } from 'lucide-react';
 import crestImage from '../assets/images/school_crest_emblem_1792317813141.jpg';
+import { resolveComprehensiveSeal } from '../utils/schoolResolvers';
 import { ForgotPasswordModal } from './ForgotPasswordModal';
 import { validateKenyanPhoneNumber } from '../services/cryptoService';
 import { OwnerDesignation } from '../types';
@@ -194,12 +195,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   return (
     <div className="min-h-screen bg-linear-to-br from-slate-900 via-indigo-950 to-slate-900 text-slate-100 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-        {/* Emblem Crest */}
-        <div className="inline-flex p-3 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 shadow-xl mb-4">
+        {/* Official Institutional Seal */}
+        <div className="inline-flex p-2.5 rounded-full bg-white/10 backdrop-blur-md border border-amber-300/30 shadow-2xl mb-4">
           <img
-            src={crestImage}
-            alt={`${schoolProfile?.name || 'School'} Crest`}
-            className="w-16 h-16 object-contain rounded-xl"
+            src={resolveComprehensiveSeal(schoolProfile, crestImage)}
+            alt={`${schoolProfile?.name || 'School'} Official Seal`}
+            className="w-20 h-20 object-contain rounded-full bg-white/95 p-0.5"
             referrerPolicy="no-referrer"
           />
         </div>

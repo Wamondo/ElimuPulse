@@ -555,12 +555,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const currentDeviceName = getCurrentDeviceFriendlyName();
   const clearDeviceKickoutNotice = () => setDeviceKickoutNotice(null);
 
-  // Monitor single active phone lock concurrency
+  // Cloud Database (Firestore) State
+  const [isCloudConnected, setIsCloudConnected] = useState<boolean>(false);
+  const [isSyncingToCloud, setIsSyncingToCloud] = useState<boolean>(false);
+  const [isCloudLoaded, setIsCloudLoaded] = useState<boolean>(false);
+
+  // Monitor single active phone lock concurrency only when cloud is reachable
   useEffect(() => {
-    if (!isAuthenticated || !currentUser?.isOwner) return;
+    if (!isAuthenticated || !currentUser?.isOwner || !isCloudConnected) return;
 
     let isMounted = true;
     const interval = setInterval(async () => {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
       try {
         const lock = await getOwnerDeviceLock();
         if (!isMounted) return;
@@ -583,7 +589,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       isMounted = false;
       clearInterval(interval);
     };
-  }, [isAuthenticated, currentUser?.isOwner, currentDeviceId]);
+  }, [isAuthenticated, currentUser?.isOwner, currentDeviceId, isCloudConnected]);
 
   // Active curriculum migration & synchronization
   useEffect(() => {
@@ -662,11 +668,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   useEffect(() => {
     localStorage.setItem(`${STORAGE_KEY_PREFIX}audit_logs`, JSON.stringify(auditLogs));
   }, [auditLogs]);
-
-  // Cloud Database (Firestore) State
-  const [isCloudConnected, setIsCloudConnected] = useState<boolean>(false);
-  const [isSyncingToCloud, setIsSyncingToCloud] = useState<boolean>(false);
-  const [isCloudLoaded, setIsCloudLoaded] = useState<boolean>(false);
 
   // Validate Connection to Firestore on boot and initialize cloud data
   useEffect(() => {
@@ -2125,10 +2126,37 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     attendance.filter((a) => a.learnerId === learnerId);
 
   const updateSchoolProfile = (updates: Partial<SchoolProfile>) => {
+    const prevProfile = registeredSchools.find((s) => s.id === currentSchoolId) || schoolProfile;
+    const nextPrincipalName = updates.principalName?.trim();
+    let mergedUpdates: Partial<SchoolProfile> = { ...updates };
+
+    // Keep HOI signature in sync when Principal name changes
+    if (nextPrincipalName && nextPrincipalName !== prevProfile.principalName) {
+      const existingHoiSig = prevProfile.signatures?.hoi;
+      const isPresetSig = !existingHoiSig || existingHoiSig.sourceType === 'preset';
+      mergedUpdates.signatures = {
+        ...(updates.signatures || prevProfile.signatures),
+        hoi: {
+          id: existingHoiSig?.id || `sig-hoi-${currentSchoolId}`,
+          role: 'hoi',
+          roleTitle: existingHoiSig?.roleTitle || 'Chief Principal & Head of Institution',
+          signatoryName: nextPrincipalName,
+          signatureDataUrl: isPresetSig
+            ? createSynchronousPresetPng('hoi', nextPrincipalName, '#1e3a8a')
+            : existingHoiSig.signatureDataUrl,
+          sourceType: existingHoiSig?.sourceType || 'preset',
+          updatedAt: new Date().toISOString(),
+          dateStr: new Date().toLocaleDateString('en-GB'),
+          isVerified: true,
+          verificationCode: existingHoiSig?.verificationCode || `SIG-HOI-${currentSchoolId.toUpperCase()}`,
+        },
+      };
+    }
+
     setRegisteredSchools((prev) => {
       const updated = prev.map((s) => {
         if (s.id === currentSchoolId) {
-          return { ...s, ...updates };
+          return { ...s, ...mergedUpdates };
         }
         return s;
       });
@@ -2140,7 +2168,40 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       saveDocumentToFirestore('settings', { ...active, id: 'school_config' }).catch(() => {});
       return updated;
     });
-    addAuditLog('School Profile Updated', `Updated official details for ${schoolProfile.name}`);
+
+    // Cascade school / wing rename across existing scorecards referencing the old school name
+    const nextName = updates.name?.trim();
+    const nextJuniorWing = updates.juniorWingName?.trim();
+    const nextPrimaryWing = updates.primaryWingName?.trim();
+    if (
+      (nextName && nextName !== prevProfile.name) ||
+      (nextJuniorWing && nextJuniorWing !== prevProfile.juniorWingName) ||
+      (nextPrimaryWing && nextPrimaryWing !== prevProfile.primaryWingName)
+    ) {
+      setScoreCards((prevCards) =>
+        prevCards.map((sc) => {
+          if (sc.schoolId && sc.schoolId !== currentSchoolId) return sc;
+          let remark = sc.principalRemark || '';
+          if (prevProfile.juniorWingName && nextJuniorWing) {
+            remark = remark.split(prevProfile.juniorWingName).join(nextJuniorWing);
+          }
+          if (prevProfile.primaryWingName && nextPrimaryWing) {
+            remark = remark.split(prevProfile.primaryWingName).join(nextPrimaryWing);
+          }
+          if (prevProfile.name && nextName) {
+            remark = remark.split(prevProfile.name).join(nextName);
+          }
+          if (remark !== sc.principalRemark) {
+            const updatedCard = { ...sc, principalRemark: remark };
+            saveDocumentToFirestore('scoreCards', updatedCard).catch(() => {});
+            return updatedCard;
+          }
+          return sc;
+        })
+      );
+    }
+
+    addAuditLog('School Profile Updated', `Updated official details for ${nextName || prevProfile.name}`);
   };
 
   const registerNewSchool = async (schoolData: Omit<SchoolProfile, 'id'>): Promise<SchoolProfile> => {
@@ -2364,6 +2425,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const updateGrade = (id: string, updates: Partial<GradeLevel>) => {
+    const oldGrade = grades.find((g) => g.id === id);
+    const oldName = oldGrade?.name || '';
+    const nextName = updates.name ?? oldName;
+
     setGrades((prev) =>
       prev.map((g) => {
         if (g.id === id) {
@@ -2374,7 +2439,87 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return g;
       })
     );
-    addAuditLog('Grade Updated', `Modified grade profile for ${id}`);
+
+    // Bidirectional Class Teacher synchronization when classTeacherId or grade name changes
+    if (updates.classTeacherId !== undefined || (nextName && oldName && nextName !== oldName)) {
+      const targetTeacherId = updates.classTeacherId !== undefined ? updates.classTeacherId : oldGrade?.classTeacherId;
+      setTeachers((prevTeachers) =>
+        prevTeachers.map((t) => {
+          if (t.schoolId && t.schoolId !== currentSchoolId) return t;
+          let changed = false;
+          let nextT = { ...t };
+
+          if (updates.classTeacherId !== undefined) {
+            if (t.id === targetTeacherId) {
+              if (nextT.teacherType !== 'class_teacher' || nextT.assignedGrade !== nextName) {
+                nextT = { ...nextT, teacherType: 'class_teacher', assignedGrade: nextName };
+                changed = true;
+              }
+            } else if (
+              t.teacherType === 'class_teacher' &&
+              ((t.assignedGrade || '').trim().toLowerCase() === oldName.trim().toLowerCase() ||
+                (t.assignedGrade || '').trim().toLowerCase() === nextName.trim().toLowerCase())
+            ) {
+              // Unbind previous class teacher from this grade so no two teachers claim the same grade
+              nextT = { ...nextT, assignedGrade: '' };
+              changed = true;
+            }
+          } else if (nextName && oldName && nextName !== oldName && nextT.assignedGrade === oldName) {
+            nextT = { ...nextT, assignedGrade: nextName };
+            changed = true;
+          }
+
+          if (changed) {
+            saveDocumentToFirestore('teachers', nextT).catch(() => {});
+            if (currentUser.id === nextT.id || currentUser.phone === nextT.phone) {
+              setCurrentUser((u) => ({
+                ...u,
+                teacherType: nextT.teacherType,
+                teacherGrade: nextT.assignedGrade,
+              }));
+            }
+            return nextT;
+          }
+          return t;
+        })
+      );
+    }
+
+    // Cascade grade rename across learners, assessments, and submissions
+    if (nextName && oldName && nextName !== oldName) {
+      setLearners((prev) =>
+        prev.map((l) => {
+          if (l.grade === oldName && (!l.schoolId || l.schoolId === currentSchoolId)) {
+            const nextL = { ...l, grade: nextName };
+            saveDocumentToFirestore('learners', nextL).catch(() => {});
+            return nextL;
+          }
+          return l;
+        })
+      );
+      setAssessments((prev) =>
+        prev.map((a) => {
+          if (a.grade === oldName && (!a.schoolId || a.schoolId === currentSchoolId)) {
+            const nextA = { ...a, grade: nextName };
+            saveDocumentToFirestore('assessments', nextA).catch(() => {});
+            return nextA;
+          }
+          return a;
+        })
+      );
+      setSubjectSubmissions((prev) =>
+        prev.map((s) => {
+          if (s.grade === oldName && (!s.schoolId || s.schoolId === currentSchoolId)) {
+            const nextS = { ...s, grade: nextName };
+            saveDocumentToFirestore('subjectSubmissions', nextS).catch(() => {});
+            return nextS;
+          }
+          return s;
+        })
+      );
+    }
+
+    addAuditLog('Grade Updated', `Modified grade profile for ${nextName || id}`);
   };
 
   const deleteGrade = (id: string) => {
@@ -2395,6 +2540,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const updateSubject = (id: string, updates: Partial<SubjectDefinition>) => {
+    const oldSub = subjects.find((s) => s.id === id);
     setSubjects((prev) =>
       prev.map((s) => {
         if (s.id === id) {
@@ -2405,7 +2551,51 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return s;
       })
     );
-    addAuditLog('CBC Subject Updated', `Modified subject ${id}`);
+
+    // Cascade subject rename across teachers, scoreCards, and submissions
+    if (updates.name && oldSub && updates.name !== oldSub.name) {
+      const oldSubName = oldSub.name;
+      const newSubName = updates.name;
+      setTeachers((prev) =>
+        prev.map((t) => {
+          if (t.registeredSubjects?.includes(oldSubName) && (!t.schoolId || t.schoolId === currentSchoolId)) {
+            const nextT = {
+              ...t,
+              registeredSubjects: t.registeredSubjects.map((r) => (r === oldSubName ? newSubName : r)),
+            };
+            saveDocumentToFirestore('teachers', nextT).catch(() => {});
+            return nextT;
+          }
+          return t;
+        })
+      );
+      setScoreCards((prev) =>
+        prev.map((sc) => {
+          if (sc.schoolId && sc.schoolId !== currentSchoolId) return sc;
+          if (!sc.subjects.some((sub) => sub.subjectName === oldSubName)) return sc;
+          const nextCard = {
+            ...sc,
+            subjects: sc.subjects.map((sub) =>
+              sub.subjectName === oldSubName ? { ...sub, subjectName: newSubName } : sub
+            ),
+          };
+          saveDocumentToFirestore('scoreCards', nextCard).catch(() => {});
+          return nextCard;
+        })
+      );
+      setSubjectSubmissions((prev) =>
+        prev.map((subm) => {
+          if (subm.subjectName === oldSubName && (!subm.schoolId || subm.schoolId === currentSchoolId)) {
+            const nextSubm = { ...subm, subjectName: newSubName };
+            saveDocumentToFirestore('subjectSubmissions', nextSubm).catch(() => {});
+            return nextSubm;
+          }
+          return subm;
+        })
+      );
+    }
+
+    addAuditLog('CBC Subject Updated', `Modified subject ${updates.name || id}`);
   };
 
   const deleteSubject = (id: string) => {
@@ -2420,12 +2610,47 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       id: `tch-${Date.now()}`,
       schoolId: teacher.schoolId || currentSchoolId,
     };
-    setTeachers((prev) => [...prev, newTeacher]);
+    setTeachers((prev) => {
+      const cleaned =
+        newTeacher.teacherType === 'class_teacher' && newTeacher.assignedGrade
+          ? prev.map((t) => {
+              if (
+                t.teacherType === 'class_teacher' &&
+                t.assignedGrade === newTeacher.assignedGrade &&
+                (!t.schoolId || t.schoolId === currentSchoolId)
+              ) {
+                const updated = { ...t, assignedGrade: '' };
+                saveDocumentToFirestore('teachers', updated).catch(() => {});
+                return updated;
+              }
+              return t;
+            })
+          : prev;
+      return [...cleaned, newTeacher];
+    });
     saveDocumentToFirestore('teachers', newTeacher).catch(() => {});
+
+    // Sync GradeLevel classTeacherId if added directly as Class Teacher of a grade
+    if (newTeacher.teacherType === 'class_teacher' && newTeacher.assignedGrade) {
+      setGrades((prevGrades) =>
+        prevGrades.map((g) => {
+          if (g.name === newTeacher.assignedGrade && (!g.schoolId || g.schoolId === currentSchoolId)) {
+            const nextG = { ...g, classTeacherId: newTeacher.id };
+            saveDocumentToFirestore('grades', nextG).catch(() => {});
+            return nextG;
+          }
+          return g;
+        })
+      );
+    }
+
     addAuditLog('Teacher Registered', `Enrolled faculty teacher ${newTeacher.name} (${newTeacher.teacherType})`);
   };
 
   const updateTeacher = (id: string, updates: Partial<TeacherRecord>) => {
+    const oldTeacher = teachers.find((t) => t.id === id);
+    const nextTeacher: TeacherRecord | undefined = oldTeacher ? { ...oldTeacher, ...updates } : undefined;
+
     setTeachers((prev) =>
       prev.map((t) => {
         if (t.id === id) {
@@ -2433,14 +2658,146 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           saveDocumentToFirestore('teachers', next).catch(() => {});
           return next;
         }
+        // If this update assigns a Class Teacher to a grade, unbind any previous class teacher on that same grade
+        if (
+          nextTeacher &&
+          nextTeacher.teacherType === 'class_teacher' &&
+          nextTeacher.assignedGrade &&
+          t.teacherType === 'class_teacher' &&
+          t.assignedGrade === nextTeacher.assignedGrade &&
+          (!t.schoolId || t.schoolId === currentSchoolId)
+        ) {
+          const updated = { ...t, assignedGrade: '' };
+          saveDocumentToFirestore('teachers', updated).catch(() => {});
+          return updated;
+        }
         return t;
       })
     );
-    addAuditLog('Teacher Updated', `Modified profile for teacher ${id}`);
+
+    if (oldTeacher && nextTeacher) {
+      // Bidirectional sync with grades.classTeacherId
+      setGrades((prevGrades) =>
+        prevGrades.map((g) => {
+          if (g.schoolId && g.schoolId !== currentSchoolId) return g;
+          if (nextTeacher.teacherType === 'class_teacher' && g.name === nextTeacher.assignedGrade) {
+            if (g.classTeacherId !== id) {
+              const nextG = { ...g, classTeacherId: id };
+              saveDocumentToFirestore('grades', nextG).catch(() => {});
+              return nextG;
+            }
+          } else if (g.classTeacherId === id) {
+            const nextG = { ...g, classTeacherId: '' };
+            saveDocumentToFirestore('grades', nextG).catch(() => {});
+            return nextG;
+          }
+          return g;
+        })
+      );
+
+      // Cascade teacher name rename across scorecards, submissions, attendance, admins, and signatures
+      if (updates.name && updates.name !== oldTeacher.name) {
+        const oldName = oldTeacher.name;
+        const newName = updates.name;
+
+        setScoreCards((prev) =>
+          prev.map((sc) => {
+            if (sc.schoolId && sc.schoolId !== currentSchoolId) return sc;
+            if (!sc.subjects.some((s) => s.subjectTeacher === oldName)) return sc;
+            const nextSc = {
+              ...sc,
+              subjects: sc.subjects.map((s) =>
+                s.subjectTeacher === oldName ? { ...s, subjectTeacher: newName } : s
+              ),
+            };
+            saveDocumentToFirestore('scoreCards', nextSc).catch(() => {});
+            return nextSc;
+          })
+        );
+
+        setSubjectSubmissions((prev) =>
+          prev.map((s) => {
+            if (s.teacherName === oldName && (!s.schoolId || s.schoolId === currentSchoolId)) {
+              const nextS = { ...s, teacherName: newName };
+              saveDocumentToFirestore('subjectSubmissions', nextS).catch(() => {});
+              return nextS;
+            }
+            return s;
+          })
+        );
+
+        setAttendance((prev) =>
+          prev.map((a) => {
+            if (a.markedBy === oldName && (!a.schoolId || a.schoolId === currentSchoolId)) {
+              const nextA = { ...a, markedBy: newName };
+              saveDocumentToFirestore('attendance', nextA).catch(() => {});
+              return nextA;
+            }
+            return a;
+          })
+        );
+
+        setAdminAccounts((prev) =>
+          prev.map((adm) => {
+            if (
+              (adm.phone === oldTeacher.phone || adm.name === oldName) &&
+              (!adm.schoolId || adm.schoolId === currentSchoolId)
+            ) {
+              const nextAdm = { ...adm, name: newName };
+              saveDocumentToFirestore('admins', nextAdm).catch(() => {});
+              return nextAdm;
+            }
+            return adm;
+          })
+        );
+
+        if (schoolProfile.signatures?.class_teacher?.signatoryName === oldName) {
+          const ctSig = schoolProfile.signatures.class_teacher;
+          updateSchoolProfile({
+            signatures: {
+              ...schoolProfile.signatures,
+              class_teacher: {
+                ...ctSig,
+                signatoryName: newName,
+                signatureDataUrl:
+                  ctSig.sourceType === 'preset'
+                    ? createSynchronousPresetPng('class_teacher', newName, '#047857')
+                    : ctSig.signatureDataUrl,
+                updatedAt: new Date().toISOString(),
+              },
+            },
+          });
+        }
+      }
+
+      // Sync active session if logged in / impersonating this teacher
+      if (currentUser.id === id || currentUser.phone === oldTeacher.phone) {
+        setCurrentUser((u) => ({
+          ...u,
+          name: nextTeacher.name,
+          phone: nextTeacher.phone,
+          teacherType: nextTeacher.teacherType,
+          teacherGrade: nextTeacher.assignedGrade,
+          registeredSubjects: nextTeacher.registeredSubjects,
+        }));
+      }
+    }
+
+    addAuditLog('Teacher Updated', `Modified profile for teacher ${updates.name || oldTeacher?.name || id}`);
   };
 
   const deleteTeacher = (id: string) => {
     setTeachers((prev) => prev.filter((t) => t.id !== id));
+    setGrades((prevGrades) =>
+      prevGrades.map((g) => {
+        if (g.classTeacherId === id && (!g.schoolId || g.schoolId === currentSchoolId)) {
+          const nextG = { ...g, classTeacherId: '' };
+          saveDocumentToFirestore('grades', nextG).catch(() => {});
+          return nextG;
+        }
+        return g;
+      })
+    );
     deleteDocumentFromFirestore('teachers', id).catch(() => {});
     addAuditLog('Teacher Removed', `Deleted teacher ${id}`);
   };

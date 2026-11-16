@@ -24,6 +24,7 @@ import {
   Smartphone
 } from 'lucide-react';
 import crestImage from '../assets/images/school_crest_emblem_1792317813141.jpg';
+import { resolveComprehensiveSeal } from '../utils/schoolResolvers';
 import { BulkRemindersModal } from './BulkRemindersModal';
 import { MpesaPaymentModal } from './MpesaPaymentModal';
 import { SmsGatewaySettingsModal } from './SmsGatewaySettingsModal';
@@ -591,9 +592,9 @@ export const TuitionFeesView: React.FC<TuitionFeesViewProps> = ({
                   <div className="flex items-center justify-between border-b border-slate-200 pb-4">
                     <div className="flex items-center gap-3">
                       <img
-                        src={crestImage}
-                        alt="School Crest"
-                        className="w-14 h-14 object-contain"
+                        src={resolveComprehensiveSeal(schoolProfile, crestImage)}
+                        alt={`${schoolProfile?.name || 'School'} Official Seal`}
+                        className="w-16 h-16 object-contain rounded-full"
                         referrerPolicy="no-referrer"
                       />
                       <div>
@@ -708,9 +709,17 @@ export const TuitionFeesView: React.FC<TuitionFeesViewProps> = ({
                   <p className="font-semibold text-slate-900">{activeReceiptPayment.recordedBy}</p>
                   <p className="text-slate-400">Finance & Accounts Office</p>
                 </div>
-                <div className="text-right">
-                  <div className="inline-block p-2 border-2 border-dashed border-emerald-600 rounded text-emerald-800 font-mono font-bold text-[10px] uppercase tracking-wider mb-2">
-                    ✓ Verified Paid & Cleared
+                <div className="text-right flex flex-col items-end gap-1.5">
+                  <div className="flex items-center gap-2.5">
+                    <img
+                      src={resolveComprehensiveSeal(schoolProfile, crestImage)}
+                      alt="Official School Seal"
+                      className="w-14 h-14 object-contain rounded-full border border-slate-200 bg-white"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="inline-block p-2 border-2 border-dashed border-emerald-600 rounded text-emerald-800 font-mono font-bold text-[10px] uppercase tracking-wider">
+                      ✓ Verified Paid &amp; Cleared
+                    </div>
                   </div>
                   <p className="text-slate-400">Official Electronic School Seal</p>
                 </div>

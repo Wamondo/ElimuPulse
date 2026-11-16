@@ -70,14 +70,17 @@ export function generate6DigitOtp(): string {
  * Retrieves the owner device lock record from Firestore (with local cache fallback).
  */
 export async function getOwnerDeviceLock(): Promise<OwnerDeviceLock | null> {
-  try {
-    const remote = await fetchDocumentFromFirestore<OwnerDeviceLock>('settings', OWNER_LOCK_DOC_ID);
-    if (remote && remote.activeDeviceId) {
-      localStorage.setItem(LOCAL_LOCK_KEY, JSON.stringify(remote));
-      return remote;
+  const isBrowserOnline = typeof navigator === 'undefined' || navigator.onLine !== false;
+  if (isBrowserOnline) {
+    try {
+      const remote = await fetchDocumentFromFirestore<OwnerDeviceLock>('settings', OWNER_LOCK_DOC_ID);
+      if (remote && remote.activeDeviceId) {
+        localStorage.setItem(LOCAL_LOCK_KEY, JSON.stringify(remote));
+        return remote;
+      }
+    } catch (err) {
+      console.warn('Could not read owner lock from Firestore server, checking local cache:', err);
     }
-  } catch (err) {
-    console.warn('Could not read owner lock from Firestore server, checking local cache:', err);
   }
 
   const cached = localStorage.getItem(LOCAL_LOCK_KEY);
@@ -141,7 +144,7 @@ export async function initiateOwnerOtpChallenge(
   await persistOwnerDeviceLock(currentLock);
 
   // Dispatch cellular SMS to 0716235185
-  const smsBody = `MWIVONA SCHOOL SECURITY: A secondary device (${targetDeviceName}) is requesting access to your Owner Account. Use verification OTP: ${otpCode}. Valid for 5 minutes. Do not share if unauthorized.`;
+  const smsBody = `ELIMUPULSE SECURITY: A secondary device (${targetDeviceName}) is requesting access to your Owner Account. Use verification OTP: ${otpCode}. Valid for 5 minutes. Do not share if unauthorized.`;
 
   const dispatchRes = await dispatchRealSms(OWNER_PHONE, smsBody);
 

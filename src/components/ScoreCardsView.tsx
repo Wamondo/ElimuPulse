@@ -8,6 +8,14 @@ import {
   getGradeColor,
 } from '../services/gradingService';
 import { exportScoreCardPdf, exportAllGradeScoreCardsBatchPdf } from '../services/pdfService';
+import {
+  resolveClassTeacherForGrade,
+  resolvePrincipalName,
+  resolveSubjectTeacherName,
+  sanitizeInstitutionalRemark,
+  resolveWingSeal,
+  KNEC_SEAL_URL,
+} from '../utils/schoolResolvers';
 import { GradeBroadsheetView } from './GradeBroadsheetView';
 import { SubjectScoresheetView } from './SubjectScoresheetView';
 import {
@@ -49,6 +57,8 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
     attendance,
     schoolProfile,
     assessments,
+    grades,
+    teachers,
   } = useApp();
 
   const [wingFilter, setWingFilter] = useState<'all' | 'junior' | 'primary'>('all');
@@ -121,6 +131,16 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
   const activeWingName = activeIsJunior
     ? (schoolProfile?.juniorWingName || `${schoolProfile?.name || 'School'} Junior Wing`)
     : (schoolProfile?.primaryWingName || `${schoolProfile?.name || 'School'} Primary Wing`);
+
+  // Live resolved Class Teacher & Principal for the selected learner's grade and active school
+  const activeClassTeacherName = useMemo(
+    () => resolveClassTeacherForGrade(activeLearner?.grade || '', grades, teachers, schoolProfile),
+    [activeLearner?.grade, grades, teachers, schoolProfile]
+  );
+  const activePrincipalName = useMemo(
+    () => resolvePrincipalName(schoolProfile, teachers),
+    [schoolProfile, teachers]
+  );
 
   // Active Assessment configuration for this Grade & Term
   const activeAssessment: AssessmentRecord | undefined = useMemo(() => {
@@ -708,7 +728,11 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
           (cur, tot) => {
             setBatchProgress({ current: cur, total: tot });
           },
-          activeAssessment
+          activeAssessment,
+          {
+            classTeacherName: resolveClassTeacherForGrade(targetGrade, grades, teachers, schoolProfile),
+            principalName: activePrincipalName,
+          }
         );
       } finally {
         setTimeout(() => {
@@ -847,7 +871,10 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
                 isExamAbsent: isLearnerAbsentForExam,
                 examAbsentReason: activeAssessment?.absentReasons?.[selectedLearnerId] || cardBuffer.examAbsentReason,
               };
-              exportScoreCardPdf(exportCard, activeLearner, schoolProfile);
+              exportScoreCardPdf(exportCard, activeLearner, schoolProfile, {
+                classTeacherName: activeClassTeacherName,
+                principalName: activePrincipalName,
+              });
             }}
             className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg transition-colors cursor-pointer shadow-xs"
             title="Download this learner's assessment form as a strict 1-page A4 PDF"
@@ -988,11 +1015,12 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
           : 'bg-indigo-50/70 border-indigo-200 text-indigo-950'
       }`}>
         <div className="flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-            isLearnerAbsentForExam ? 'bg-rose-100 text-rose-700' : 'bg-indigo-100 text-indigo-700'
-          }`}>
-            <Award className="w-5 h-5" />
-          </div>
+          <img
+            src={resolveWingSeal(activeLearner?.grade || '', schoolProfile, crestImage)}
+            alt={`${activeWingName} Official Seal`}
+            className="w-11 h-11 object-contain rounded-full bg-white border border-slate-200 p-0.5 shrink-0 shadow-2xs"
+            referrerPolicy="no-referrer"
+          />
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
@@ -1020,17 +1048,26 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
           </div>
         </div>
 
-        {isLearnerAbsentForExam ? (
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-rose-100 border border-rose-300 rounded-lg text-rose-900 text-xs font-semibold self-stretch sm:self-auto justify-center">
-            <span className="w-2 h-2 rounded-full bg-rose-600 animate-pulse"></span>
-            <span>EXAM STATUS: ABSENT (Did Not Sit Exam)</span>
-          </div>
-        ) : (
-          <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
-            <CalendarCheck className="w-4 h-4 text-emerald-600" />
-            <span>Regular Exam Candidate</span>
-          </div>
-        )}
+        <div className="flex items-center gap-2.5 self-stretch sm:self-auto justify-between sm:justify-end">
+          {isLearnerAbsentForExam ? (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-rose-100 border border-rose-300 rounded-lg text-rose-900 text-xs font-semibold justify-center">
+              <span className="w-2 h-2 rounded-full bg-rose-600 animate-pulse"></span>
+              <span>EXAM STATUS: ABSENT (Did Not Sit Exam)</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+              <CalendarCheck className="w-4 h-4 text-emerald-600" />
+              <span>Regular Exam Candidate</span>
+            </div>
+          )}
+          <img
+            src={KNEC_SEAL_URL}
+            alt="KNEC Examinations Council Seal"
+            title="Kenya National Examinations Council (KNEC) · CBC Standardized Assessment"
+            className="w-10 h-10 object-contain rounded-md bg-white border border-slate-200 p-0.5 shrink-0 shadow-2xs"
+            referrerPolicy="no-referrer"
+          />
+        </div>
       </div>
 
       {/* Prominent Absentee Warning if Learner Did Not Sit Assessment */}
@@ -1359,7 +1396,7 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
                         <div>
                           <div>{sub.subjectName}</div>
                           <div className="text-[10px] text-slate-400 font-normal">
-                            Instructor: {sub.subjectTeacher}
+                            Instructor: {resolveSubjectTeacherName(sub.subjectName, activeLearner?.grade || '', teachers, sub.subjectTeacher)}
                           </div>
                         </div>
                       )}
@@ -1536,7 +1573,7 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
             </p>
           )}
           <p className="text-[11px] font-semibold text-slate-500">
-            — Mr. Marcus Thorne, Class Tutor
+            — {activeClassTeacherName}, Class Tutor
           </p>
         </div>
 
@@ -1553,11 +1590,11 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
             />
           ) : (
             <p className="text-slate-800 italic leading-relaxed">
-              "{cardBuffer.principalRemark}"
+              "{sanitizeInstitutionalRemark(cardBuffer.principalRemark, schoolProfile, activeLearner?.grade)}"
             </p>
           )}
           <p className="text-[11px] font-semibold text-slate-500">
-            — Dr. Evelyn Vance, Head of School
+            — {activePrincipalName}, Head of School
           </p>
         </div>
       </div>
@@ -1579,7 +1616,12 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
               </div>
               <div className="flex items-center gap-2 flex-wrap">
                 <button
-                  onClick={() => exportScoreCardPdf(cardBuffer, activeLearner, schoolProfile)}
+                  onClick={() =>
+                    exportScoreCardPdf(cardBuffer, activeLearner, schoolProfile, {
+                      classTeacherName: activeClassTeacherName,
+                      principalName: activePrincipalName,
+                    })
+                  }
                   className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-md transition-colors cursor-pointer shadow-xs"
                 >
                   <FileDown className="w-3.5 h-3.5" />
@@ -1639,13 +1681,13 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
                 }
               `}</style>
 
-              {/* Official Academic Header - Bearing distinct wing name */}
-              <div className="flex items-center justify-between border-b-2 border-slate-900 pb-3">
+              {/* Official Academic Header - Bearing distinct wing name & seal + KNEC Seal */}
+              <div className="flex items-center justify-between border-b-2 border-slate-900 pb-3 gap-3">
                 <div className="flex items-center gap-3">
                   <img
-                    src={crestImage}
-                    alt="School Crest"
-                    className="w-14 h-14 object-contain"
+                    src={resolveWingSeal(activeLearner?.grade || '', schoolProfile, crestImage)}
+                    alt={`${activeWingName} Official Seal`}
+                    className="w-16 h-16 object-contain rounded-full"
                     referrerPolicy="no-referrer"
                   />
                   <div>
@@ -1661,17 +1703,25 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
                   </div>
                 </div>
 
-                <div className="text-right">
-                  <span className="font-mono text-xs font-bold text-indigo-800 block uppercase">
-                    {activeIsJunior ? 'KJSEA Junior School Assessment Form' : 'KPSEA Primary School Progress Form'}
-                  </span>
-                  <span className="text-xs font-bold text-indigo-900 block bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 mt-0.5">
-                    {activeAssessment?.name || cardBuffer.assessmentName || `${selectedTerm} Summative Assessment 2026`}
-                  </span>
-                  <span className="text-xs text-slate-700 block font-semibold mt-0.5">{selectedTerm}</span>
-                  <span className="text-[10px] text-slate-500 block">
-                    Issued: {cardBuffer.issueDate}
-                  </span>
+                <div className="flex items-center gap-3 shrink-0">
+                  <div className="text-right">
+                    <span className="font-mono text-xs font-bold text-indigo-800 block uppercase">
+                      {activeIsJunior ? 'KJSEA Junior School Assessment Form' : 'KPSEA Primary School Progress Form'}
+                    </span>
+                    <span className="text-xs font-bold text-indigo-900 block bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 mt-0.5">
+                      {activeAssessment?.name || cardBuffer.assessmentName || `${selectedTerm} Summative Assessment 2026`}
+                    </span>
+                    <span className="text-xs text-slate-700 block font-semibold mt-0.5">{selectedTerm}</span>
+                    <span className="text-[10px] text-slate-500 block">
+                      Issued: {cardBuffer.issueDate}
+                    </span>
+                  </div>
+                  <img
+                    src={KNEC_SEAL_URL}
+                    alt="KNEC Mitihani Seal"
+                    className="w-14 h-14 object-contain shrink-0"
+                    referrerPolicy="no-referrer"
+                  />
                 </div>
               </div>
 
@@ -1888,7 +1938,7 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
                     "{cardBuffer.classTeacherRemark}"
                   </p>
                   <p className="text-[10px] text-slate-500 mt-1 font-semibold">
-                    — Mr. Marcus Thorne, Class Tutor
+                    — {activeClassTeacherName}, Class Tutor
                   </p>
                 </div>
 
@@ -1897,10 +1947,10 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
                     Principal &amp; Head of Institution Comments &amp; Endorsement
                   </span>
                   <p className="text-slate-900 italic mt-1 leading-relaxed text-xs break-words font-medium">
-                    "{cardBuffer.principalRemark}"
+                    "{sanitizeInstitutionalRemark(cardBuffer.principalRemark, schoolProfile, activeLearner?.grade)}"
                   </p>
                   <p className="text-[10px] text-slate-500 mt-1 font-semibold">
-                    — Dr. Evelyn Vance, Head of Institution ({activeWingName})
+                    — {activePrincipalName}, Head of Institution ({activeWingName})
                   </p>
                 </div>
 
@@ -1908,7 +1958,8 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
                 <div className="pt-4 grid grid-cols-3 gap-6 text-[11px]">
                   <div>
                     <div className="h-10 flex items-end pb-1">
-                      {schoolProfile.signatures?.['class_teacher']?.signatureDataUrl ? (
+                      {schoolProfile.signatures?.['class_teacher']?.signatureDataUrl &&
+                      schoolProfile.signatures['class_teacher'].signatoryName === activeClassTeacherName ? (
                         <img
                           src={schoolProfile.signatures['class_teacher'].signatureDataUrl}
                           alt="Tutor Signature"
@@ -1918,7 +1969,7 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
                     </div>
                     <div className="border-b border-slate-400 mb-1"></div>
                     <p className="font-semibold text-slate-800">
-                      {schoolProfile.signatures?.['class_teacher']?.signatoryName || 'Mr. Marcus Thorne'}
+                      {activeClassTeacherName}
                     </p>
                     <p className="text-slate-400 text-[10px]">
                       {schoolProfile.signatures?.['class_teacher']?.roleTitle || 'Class Tutor Signature'}
@@ -1936,23 +1987,27 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
                     </div>
                     <div className="border-b border-slate-400 mb-1"></div>
                     <p className="font-semibold text-slate-800">
-                      {schoolProfile.signatures?.['hoi']?.signatoryName || 'Dr. Evelyn Vance'}
+                      {activePrincipalName}
                     </p>
                     <p className="text-slate-400 text-[10px]">
                       {schoolProfile.signatures?.['hoi']?.roleTitle || 'Principal Signature'}
                     </p>
                   </div>
                   <div className="text-right">
-                    <div className="inline-block p-1.5 border-2 border-indigo-700 rounded text-indigo-900 font-mono font-bold text-[10px] uppercase">
-                      {schoolProfile.signatures?.['seal']?.signatureDataUrl ? (
-                        <img
-                          src={schoolProfile.signatures['seal'].signatureDataUrl}
-                          alt="Seal"
-                          className="w-16 h-16 object-contain mx-auto"
-                        />
-                      ) : (
-                        <span>Official {activeWingName} Seal</span>
-                      )}
+                    <div className="inline-flex flex-col items-center p-2 border border-indigo-200 bg-indigo-50/30 rounded-lg text-indigo-950">
+                      <img
+                        src={resolveWingSeal(
+                          activeLearner?.grade || '',
+                          schoolProfile,
+                          schoolProfile.signatures?.['seal']?.signatureDataUrl || crestImage
+                        )}
+                        alt={`${activeWingName} Official Seal`}
+                        className="w-16 h-16 object-contain rounded-full mx-auto"
+                        referrerPolicy="no-referrer"
+                      />
+                      <span className="font-mono font-bold text-[9px] uppercase tracking-wider mt-1">
+                        {activeWingName} Seal
+                      </span>
                     </div>
                   </div>
                 </div>

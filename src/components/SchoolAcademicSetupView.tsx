@@ -32,6 +32,13 @@ import { validateKenyanPhoneNumber } from '../services/cryptoService';
 import { NewSchoolRegistrationModal } from './NewSchoolRegistrationModal';
 import { SchoolLockModal } from './SchoolLockModal';
 import { DeleteSchoolModal } from './DeleteSchoolModal';
+import crestImage from '../assets/images/school_crest_emblem_1792317813141.jpg';
+import {
+  resolveComprehensiveSeal,
+  resolveWingSeal,
+  KNEC_SEAL_URL,
+  isMwivonaSchool,
+} from '../utils/schoolResolvers';
 
 type TabKey = 'school' | 'admins' | 'teachers' | 'grades' | 'subjects' | 'guide';
 
@@ -706,6 +713,83 @@ export const SchoolAcademicSetupView: React.FC = () => {
               </button>
             </div>
 
+          {/* Official Institutional & Examination Seals Showcase */}
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+            <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700">
+                Active Institutional &amp; Examination Council Seals ({schoolForm.name || 'School'})
+              </span>
+              <span className="text-[10px] font-mono text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 font-semibold">
+                Auto-Routed Across Documents
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="p-3 bg-white rounded-lg border border-slate-200 flex items-center gap-3">
+                <img
+                  src={resolveComprehensiveSeal(schoolForm, crestImage)}
+                  alt="Institutional Umbrella Seal"
+                  className="w-12 h-12 object-contain rounded-full shrink-0 border border-amber-200"
+                  referrerPolicy="no-referrer"
+                />
+                <div className="min-w-0">
+                  <div className="font-bold text-slate-900 truncate">Umbrella Seal</div>
+                  <div className="text-[10px] text-slate-500 leading-tight">
+                    Navbar, Login, Fee Receipts &amp; Treasury Reports
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-3 bg-white rounded-lg border border-emerald-200 flex items-center gap-3">
+                <img
+                  src={resolveWingSeal('Grade 1', schoolForm, crestImage)}
+                  alt="Primary School Seal"
+                  className="w-12 h-12 object-contain rounded-full shrink-0 border border-emerald-200"
+                  referrerPolicy="no-referrer"
+                />
+                <div className="min-w-0">
+                  <div className="font-bold text-emerald-900 truncate">
+                    {isMwivonaSchool(schoolForm) ? 'Mwivona Primary Seal' : (schoolForm.primaryWingName || 'Primary Wing Seal')}
+                  </div>
+                  <div className="text-[10px] text-slate-500 leading-tight">
+                    Grades 1–6 KPSEA Reports &amp; Broadsheets
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-3 bg-white rounded-lg border border-indigo-200 flex items-center gap-3">
+                <img
+                  src={resolveWingSeal('Grade 7A', schoolForm, crestImage)}
+                  alt="Junior Secondary Seal"
+                  className="w-12 h-12 object-contain rounded-full shrink-0 border border-indigo-200"
+                  referrerPolicy="no-referrer"
+                />
+                <div className="min-w-0">
+                  <div className="font-bold text-indigo-900 truncate">
+                    {isMwivonaSchool(schoolForm) ? 'Mwivona JSS Seal' : (schoolForm.juniorWingName || 'Junior Wing Seal')}
+                  </div>
+                  <div className="text-[10px] text-slate-500 leading-tight">
+                    Grades 7–9 KJSEA Reports &amp; Broadsheets
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-3 bg-white rounded-lg border border-slate-200 flex items-center gap-3">
+                <img
+                  src={KNEC_SEAL_URL}
+                  alt="KNEC Mitihani Seal"
+                  className="w-12 h-12 object-contain shrink-0"
+                  referrerPolicy="no-referrer"
+                />
+                <div className="min-w-0">
+                  <div className="font-bold text-slate-900 truncate">KNEC Mitihani Seal</div>
+                  <div className="text-[10px] text-slate-500 leading-tight">
+                    National CBC Assessments, Scoresheets &amp; Exam Council
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label className="block font-semibold text-slate-700 mb-1">Comprehensive School Name *</label>
@@ -1157,7 +1241,10 @@ export const SchoolAcademicSetupView: React.FC = () => {
               .filter((g) => gradeTierFilter === 'all' || g.tier === gradeTierFilter)
               .map((g) => {
                 const enrolledCount = learners.filter((l) => l.grade === g.name).length;
-                const assignedTeacher = teachers.find((t) => t.id === g.classTeacherId || t.assignedGrade === g.name);
+                const assignedTeacher =
+                  teachers.find((t) => t.id === g.classTeacherId) ||
+                  teachers.find((t) => t.teacherType === 'class_teacher' && t.assignedGrade === g.name) ||
+                  teachers.find((t) => t.assignedGrade === g.name);
 
                 return (
                   <div key={g.id} className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3 hover:border-indigo-300 transition-colors">

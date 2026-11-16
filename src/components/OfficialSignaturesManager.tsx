@@ -3,6 +3,12 @@ import { useApp } from '../context/AppContext';
 import { DigitalSignatureRecord } from '../types';
 import { OFFICIAL_SIGNATURE_PRESETS, svgToPngDataUrl } from '../utils/signaturePresets';
 import {
+  resolveComprehensiveSeal,
+  resolveWingSeal,
+  KNEC_SEAL_URL,
+  isMwivonaSchool,
+} from '../utils/schoolResolvers';
+import {
   PenTool,
   Upload,
   CheckCircle2,
@@ -559,11 +565,15 @@ export const OfficialSignaturesManager: React.FC<OfficialSignaturesManagerProps>
 
               {/* Rendered signature on document line preview */}
               <div className="p-4 bg-slate-50/70 border border-slate-200 rounded-lg text-center space-y-2">
-                <div className="h-16 flex items-center justify-center">
+                <div className="h-20 flex items-center justify-center gap-3">
                   <img
-                    src={existingSignature.signatureDataUrl}
+                    src={
+                      activeRole === 'seal'
+                        ? resolveComprehensiveSeal(schoolProfile, existingSignature.signatureDataUrl)
+                        : existingSignature.signatureDataUrl
+                    }
                     alt="Active Signature"
-                    className="max-h-16 max-w-full object-contain filter drop-shadow-2xs"
+                    className="max-h-20 max-w-full object-contain filter drop-shadow-2xs rounded-full"
                   />
                 </div>
                 <div className="border-t border-slate-400 pt-1.5 max-w-xs mx-auto">
@@ -634,6 +644,37 @@ export const OfficialSignaturesManager: React.FC<OfficialSignaturesManagerProps>
             {/* MODE 1: OFFICIAL PRESETS */}
             {activeMode === 'preset' && (
               <div className="space-y-4">
+                {activeRole === 'seal' && isMwivonaSchool(schoolProfile) && (
+                  <div className="p-4 bg-amber-50/60 border border-amber-200 rounded-xl space-y-3">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <span className="text-xs font-bold text-amber-950">
+                        Active Official Engraved Seals (Mwivona Comprehensive &amp; KNEC)
+                      </span>
+                      <span className="text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded border border-emerald-200">
+                        Automatically Applied
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                      <div className="p-2 bg-white rounded-lg border border-amber-200/80">
+                        <img src={resolveComprehensiveSeal(schoolProfile)} alt="Comprehensive Seal" className="w-14 h-14 object-contain mx-auto rounded-full" />
+                        <p className="text-[10px] font-bold text-slate-900 mt-1">Comprehensive</p>
+                      </div>
+                      <div className="p-2 bg-white rounded-lg border border-emerald-200/80">
+                        <img src={resolveWingSeal('Grade 1', schoolProfile)} alt="Primary Seal" className="w-14 h-14 object-contain mx-auto rounded-full" />
+                        <p className="text-[10px] font-bold text-emerald-900 mt-1">Primary Wing</p>
+                      </div>
+                      <div className="p-2 bg-white rounded-lg border border-indigo-200/80">
+                        <img src={resolveWingSeal('Grade 7A', schoolProfile)} alt="Junior Secondary Seal" className="w-14 h-14 object-contain mx-auto rounded-full" />
+                        <p className="text-[10px] font-bold text-indigo-900 mt-1">Junior Sec. Wing</p>
+                      </div>
+                      <div className="p-2 bg-white rounded-lg border border-slate-200">
+                        <img src={KNEC_SEAL_URL} alt="KNEC Seal" className="w-14 h-14 object-contain mx-auto" />
+                        <p className="text-[10px] font-bold text-slate-900 mt-1">KNEC Mitihani</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <p className="text-xs text-slate-600">
                   Select a pre-approved, vector-grade digitized signature or seal tailored for Kenyan institutional governance:
                 </p>

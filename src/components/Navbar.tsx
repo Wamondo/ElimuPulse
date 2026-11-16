@@ -20,6 +20,7 @@ import {
   Trash2
 } from 'lucide-react';
 import crestImage from '../assets/images/school_crest_emblem_1792317813141.jpg';
+import { resolveComprehensiveSeal } from '../utils/schoolResolvers';
 import { UserSession, OwnerDesignation, SchoolProfile } from '../types';
 import { PWAInstallButton } from './PWAInstallButton';
 import { NewSchoolRegistrationModal } from './NewSchoolRegistrationModal';
@@ -234,9 +235,9 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Zone 1: Single text element wordmark + School Crest & Multi-School Switcher */}
           <div className="flex items-center gap-3 shrink-0 relative">
             <img
-              src={crestImage}
-              alt="School Crest"
-              className="w-9 h-9 object-contain rounded-md"
+              src={resolveComprehensiveSeal(schoolProfile, crestImage)}
+              alt={`${schoolProfile?.name || 'School'} Official Seal`}
+              className="w-10 h-10 object-contain rounded-full border border-amber-200/70 bg-white shadow-2xs"
               referrerPolicy="no-referrer"
             />
             <div className="relative">
