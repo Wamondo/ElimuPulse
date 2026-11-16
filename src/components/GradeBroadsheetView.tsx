@@ -5,7 +5,6 @@ import {
   calculateCompetencyGrade,
   calculateGradeFromPoints,
   COMPETENCY_SCALE,
-  getGradeColor,
   GradeSubjectDef,
   getSubjectsForGrade,
 } from '../services/gradingService';
@@ -31,7 +30,6 @@ import {
   Award,
   Filter,
   Users,
-  TrendingUp,
   CheckCircle2,
   Lock,
   ChevronRight,
@@ -43,7 +41,6 @@ import {
   Crown,
   Medal,
   ArrowUpRight,
-  Sparkles,
   BarChart3,
   PieChart,
   Send,
@@ -98,7 +95,7 @@ export const GradeBroadsheetView: React.FC<GradeBroadsheetViewProps> = ({
 
   const [selectedGrade, setSelectedGrade] = useState<string>(defaultGrade);
   const [selectedTerm, setSelectedTerm] = useState<string>('Term 1 - 2026');
-  const [activeSubView, setActiveSubView] = useState<'roster' | 'workflow' | 'summary' | 'honours' | 'trends' | 'all'>('roster');
+  const [activeSubView, setActiveSubView] = useState<'roster' | 'workflow' | 'summary' | 'honours' | 'all'>('roster');
 
   // Active Assessment configuration for this Grade & Term
   const activeAssessment: AssessmentRecord = useMemo(() => {
@@ -962,18 +959,6 @@ export const GradeBroadsheetView: React.FC<GradeBroadsheetViewProps> = ({
         </button>
 
         <button
-          onClick={() => setActiveSubView('trends')}
-          className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg font-bold transition-all cursor-pointer whitespace-nowrap ${
-            activeSubView === 'trends'
-              ? 'bg-indigo-700 text-white shadow-xs'
-              : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
-          }`}
-        >
-          <TrendingUp className="w-3.5 h-3.5" />
-          <span>Visual Trends &amp; Analytics</span>
-        </button>
-
-        <button
           onClick={() => setActiveSubView('honours')}
           className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg font-bold transition-all cursor-pointer whitespace-nowrap ${
             activeSubView === 'honours'
@@ -1377,183 +1362,6 @@ export const GradeBroadsheetView: React.FC<GradeBroadsheetViewProps> = ({
       </div>
 
       {/* ============================================================== */}
-      {/* SECTION: VISUAL TRENDS & PERFORMANCE ANALYTICS                 */}
-      {/* ============================================================== */}
-      {(activeSubView === 'trends' || activeSubView === 'all') && (
-        <div className="space-y-6">
-          {/* Header Card */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-slate-100">
-              <div>
-                <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5 text-indigo-600" />
-                  <span>Learning Area Comparative Performance &amp; Competency Trends</span>
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Visual comparative analysis across curriculum learning areas, CBC competency tiers, and gender equity.
-                </p>
-              </div>
-              <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-md">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                  <span>≥75% Distinction (EE)</span>
-                </span>
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-md">
-                  <span className="w-2 h-2 rounded-full bg-blue-500" />
-                  <span>≥41% Proficient (ME)</span>
-                </span>
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-md">
-                  <span className="w-2 h-2 rounded-full bg-amber-500" />
-                  <span>≤40% Support (AE/BE)</span>
-                </span>
-              </div>
-            </div>
-
-            {/* Learning Area Mean Performance Bars */}
-            <div className="mt-5 space-y-3.5">
-              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                1. Learning Area Mean Scores vs Benchmarks (Class Target: 65%)
-              </h4>
-              <div className="space-y-2.5">
-                {performanceSummary.subjectPerformance.map((sub) => {
-                  const gradeColor = getGradeColor(sub.relationGrade);
-                  return (
-                    <div key={sub.code} className="p-3 bg-slate-50/80 rounded-lg border border-slate-200/80 hover:bg-slate-50 transition-colors">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs mb-1.5">
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-slate-900">{sub.subjectName}</span>
-                          <span className="font-mono text-[10px] text-slate-400">({sub.code})</span>
-                        </div>
-                        <div className="flex items-center gap-3 font-mono">
-                          <span className="text-slate-600 text-[11px]">
-                            Points: <strong className="text-slate-900">{sub.meanPoints.toFixed(2)} / 8.0</strong>
-                          </span>
-                          <span className="font-extrabold text-slate-900 text-sm">
-                            {sub.meanScore.toFixed(1)}%
-                          </span>
-                          <span
-                            className="px-2 py-0.5 rounded text-[10px] font-bold text-white shadow-2xs"
-                            style={{ backgroundColor: gradeColor.hex }}
-                          >
-                            {sub.relationGrade}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Horizontal Visual Progress Bar with Target Reference Markers */}
-                      <div className="relative w-full bg-slate-200/70 h-3 rounded-full overflow-hidden">
-                        <div
-                          style={{
-                            width: `${Math.min(100, Math.max(5, sub.meanScore))}%`,
-                            backgroundColor: gradeColor.hex,
-                          }}
-                          className="h-full rounded-full transition-all duration-500"
-                        />
-                        {/* 50% Benchmark Line */}
-                        <div
-                          style={{ left: '50%' }}
-                          className="absolute top-0 bottom-0 w-0.5 bg-slate-400/80"
-                          title="50% Standard Pass Line"
-                        />
-                        {/* 75% Distinction Line */}
-                        <div
-                          style={{ left: '75%' }}
-                          className="absolute top-0 bottom-0 w-0.5 bg-indigo-400/80"
-                          title="75% High Distinction Line"
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Gender Equity & Cohort Distribution Visual Breakdown */}
-            <div className="mt-6 pt-5 border-t border-slate-100 grid grid-cols-1 lg:grid-cols-2 gap-5">
-              {/* Left: Competency Tiers Visual Stack */}
-              <div>
-                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-3">
-                  2. Cohort CBC Competency Distribution Profile
-                </h4>
-                <div className="space-y-2">
-                  {performanceSummary.levelDistribution.map((lvl) => {
-                    const gradeColor = getGradeColor(lvl.grade);
-                    return (
-                      <div key={lvl.grade} className="flex items-center gap-3 text-xs">
-                        <span className="font-mono font-bold w-10 text-slate-800">{lvl.grade}</span>
-                        <div className="flex-1 bg-slate-100 h-3.5 rounded-md overflow-hidden relative">
-                          <div
-                            style={{
-                              width: `${Math.min(100, Math.max(0, lvl.percentage))}%`,
-                              backgroundColor: gradeColor.hex,
-                            }}
-                            className="h-full rounded-md"
-                          />
-                        </div>
-                        <div className="w-24 text-right font-mono text-[11px] font-semibold text-slate-700">
-                          {lvl.total} ({lvl.percentage.toFixed(1)}%)
-                        </div>
-                        <div className="w-20 text-right text-[10px] text-slate-400 font-mono">
-                          <span className="text-blue-700 font-bold">{lvl.boys}B</span> · <span className="text-pink-700 font-bold">{lvl.girls}G</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Right: Gender Performance & Equity */}
-              <div className="space-y-3">
-                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                  3. Gender Performance Comparison &amp; Equity
-                </h4>
-                {(() => {
-                  const boysRows = broadsheetRows.filter((r) => r.gender.toLowerCase().startsWith('m'));
-                  const girlsRows = broadsheetRows.filter((r) => r.gender.toLowerCase().startsWith('f'));
-                  const boysMean = boysRows.length > 0
-                    ? boysRows.reduce((a, b) => a + b.averageScore, 0) / boysRows.length
-                    : 0;
-                  const girlsMean = girlsRows.length > 0
-                    ? girlsRows.reduce((a, b) => a + b.averageScore, 0) / girlsRows.length
-                    : 0;
-                  const boysHigh = boysRows.filter((b) => b.overallGrade.startsWith('EE')).length;
-                  const girlsHigh = girlsRows.filter((g) => g.overallGrade.startsWith('EE')).length;
-
-                  return (
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="p-3.5 rounded-xl bg-blue-50/70 border border-blue-200">
-                          <span className="text-[11px] font-bold text-blue-900 block">Boys Cohort ({boysRows.length})</span>
-                          <span className="text-xl font-extrabold font-mono text-blue-700">{boysMean.toFixed(1)}%</span>
-                          <span className="text-[10px] text-blue-600 block mt-0.5">
-                            {boysHigh} in Distinction (EE)
-                          </span>
-                        </div>
-                        <div className="p-3.5 rounded-xl bg-pink-50/70 border border-pink-200">
-                          <span className="text-[11px] font-bold text-pink-900 block">Girls Cohort ({girlsRows.length})</span>
-                          <span className="text-xl font-extrabold font-mono text-pink-700">{girlsMean.toFixed(1)}%</span>
-                          <span className="text-[10px] text-pink-600 block mt-0.5">
-                            {girlsHigh} in Distinction (EE)
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs text-slate-700">
-                        <span className="font-bold text-slate-900 block mb-1">Pedagogical Equity Finding:</span>
-                        <p className="text-[11px] text-slate-600 leading-relaxed">
-                          Both boys and girls exhibit high engagement in formative learning tasks. Gender parity index is within optimal MoE standards.
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ============================================================== */}
       {/* SECTION 1: ACADEMIC HONOURS & MOST IMPROVED LEARNERS           */}
       {/* ============================================================== */}
       {(activeSubView === 'honours' || activeSubView === 'all') && (
@@ -1779,7 +1587,6 @@ export const GradeBroadsheetView: React.FC<GradeBroadsheetViewProps> = ({
                     <th className="py-2.5 px-3 text-center bg-rose-950 font-bold w-20">Girls (F)</th>
                     <th className="py-2.5 px-3 text-center bg-indigo-950 font-bold w-24">Total Learners</th>
                     <th className="py-2.5 px-3 text-center w-24">% of Class</th>
-                    <th className="py-2.5 px-4 min-w-[140px]">Visual Distribution</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
@@ -1823,24 +1630,6 @@ export const GradeBroadsheetView: React.FC<GradeBroadsheetViewProps> = ({
                       <td className="py-2.5 px-3 text-center font-semibold text-slate-700">
                         {lvl.percentage.toFixed(1)}%
                       </td>
-                      <td className="py-2.5 px-4">
-                        <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden flex">
-                          {lvl.total > 0 && (
-                            <>
-                              <div
-                                style={{ width: `${(lvl.boys / Math.max(1, broadsheetRows.length)) * 100}%` }}
-                                className="bg-blue-600 h-full"
-                                title={`Boys: ${lvl.boys}`}
-                              />
-                              <div
-                                style={{ width: `${(lvl.girls / Math.max(1, broadsheetRows.length)) * 100}%` }}
-                                className="bg-rose-500 h-full"
-                                title={`Girls: ${lvl.girls}`}
-                              />
-                            </>
-                          )}
-                        </div>
-                      </td>
                     </tr>
                   ))}
                   {/* Total Row */}
@@ -1860,7 +1649,6 @@ export const GradeBroadsheetView: React.FC<GradeBroadsheetViewProps> = ({
                     <td className="py-2.5 px-3 text-center font-bold text-slate-900">
                       100.0%
                     </td>
-                    <td></td>
                   </tr>
                 </tbody>
               </table>

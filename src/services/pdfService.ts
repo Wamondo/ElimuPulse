@@ -329,7 +329,7 @@ export function exportFeeReceiptPdf(
   doc.save(`Receipt_${payment.receiptNumber}_${studentName.replace(/\s+/g, '_')}.pdf`);
 }
 
-// 2. Official Single Page A4 CBC Student Score Card Renderer with Visual Trends
+// 2. Official Single Page A4 CBC Student Score Card Renderer
 export function drawSingleScoreCardPage(
   doc: jsPDF,
   scoreCard: ScoreCard,
@@ -375,60 +375,60 @@ export function drawSingleScoreCardPage(
   doc.rect(0, 0, pageWidth, 7, 'F');
 
   // Official Wing Seal (Top-Left) & KNEC Exam Council Seal (Top-Right)
-  drawSealInPdf(doc, wingSealUrl, marginLeft + 2, 9, 17, 17);
-  drawSealInPdf(doc, KNEC_SEAL_URL, rightEdge - 19, 9, 17, 17);
+  drawSealInPdf(doc, wingSealUrl, marginLeft + 1.5, 8.5, 19, 19);
+  drawSealInPdf(doc, KNEC_SEAL_URL, rightEdge - 20.5, 8.5, 19, 19);
 
   // 2. School Header (Spanning centered with full institution particulars)
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13.5);
+  doc.setFontSize(15.5);
   doc.setTextColor(15, 23, 42);
-  doc.text(wingInstitutionName.toUpperCase(), centerX, 13.5, { align: 'center' });
+  doc.text(wingInstitutionName.toUpperCase(), centerX, 14.0, { align: 'center' });
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.8);
+  doc.setFontSize(9.0);
   doc.setTextColor(71, 85, 105);
-  doc.text(umbrellaNotice, centerX, 18, { align: 'center' });
+  doc.text(umbrellaNotice, centerX, 18.8, { align: 'center' });
 
-  doc.setFontSize(7.2);
-  doc.text(`${school.postalAddress} | Tel: ${school.phone} | Email: ${school.email}`, centerX, 22.2, { align: 'center' });
+  doc.setFontSize(8.4);
+  doc.text(`${school.postalAddress} | Tel: ${school.phone} | Email: ${school.email}`, centerX, 23.2, { align: 'center' });
 
   doc.setFont('helvetica', 'italic');
-  doc.setFontSize(7.8);
+  doc.setFontSize(9.0);
   doc.setTextColor(79, 70, 229);
-  doc.text(`"${school.motto}"`, centerX, 26.2, { align: 'center' });
+  doc.text(`"${school.motto}"`, centerX, 27.4, { align: 'center' });
 
   // Document Title Banner (Covering full content width from x = 5.08)
-  let y = 28.5;
+  let y = 29.5;
   doc.setFillColor(241, 245, 249);
-  doc.roundedRect(marginLeft, y, contentWidth, 7, 1, 1, 'F');
+  doc.roundedRect(marginLeft, y, contentWidth, 8.0, 1, 1, 'F');
   doc.setDrawColor(203, 213, 225);
-  doc.roundedRect(marginLeft, y, contentWidth, 7, 1, 1, 'D');
+  doc.roundedRect(marginLeft, y, contentWidth, 8.0, 1, 1, 'D');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
+  doc.setFontSize(9.8);
   doc.setTextColor(30, 41, 59);
   const assessmentTitleSuffix = scoreCard.assessmentName ? ` · ${scoreCard.assessmentName.toUpperCase()}` : '';
-  doc.text(`${reportTitle.toUpperCase()}${assessmentTitleSuffix}`, centerX, y + 4.8, { align: 'center' });
+  doc.text(`${reportTitle.toUpperCase()}${assessmentTitleSuffix}`, centerX, y + 5.4, { align: 'center' });
 
-  y += 8.5;
+  y += 9.5;
 
   // If learner is marked Absent (Did Not Sit) for this exam, display a prominent notice
   if (scoreCard.isExamAbsent) {
     doc.setFillColor(254, 242, 242);
-    doc.roundedRect(marginLeft, y, contentWidth, 6.2, 1, 1, 'F');
+    doc.roundedRect(marginLeft, y, contentWidth, 7.2, 1, 1, 'F');
     doc.setDrawColor(248, 113, 113);
-    doc.roundedRect(marginLeft, y, contentWidth, 6.2, 1, 1, 'D');
+    doc.roundedRect(marginLeft, y, contentWidth, 7.2, 1, 1, 'D');
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.2);
+    doc.setFontSize(8.2);
     doc.setTextColor(185, 28, 28);
     const reasonText = scoreCard.examAbsentReason ? ` (${scoreCard.examAbsentReason})` : '';
-    doc.text(`EXAM SITTING STATUS: 🚫 ABSENT · DID NOT SIT FOR THIS ASSESSMENT${reasonText.toUpperCase()} · EXCLUDED FROM CLASS RANKING`, centerX, y + 4.2, { align: 'center' });
-    y += 7.5;
+    doc.text(`EXAM SITTING STATUS: ABSENT · DID NOT SIT FOR THIS ASSESSMENT${reasonText.toUpperCase()} · EXCLUDED FROM CLASS RANKING`, centerX, y + 4.8, { align: 'center' });
+    y += 8.6;
   }
 
   // 3. Student Particulars Card (0.2 margin, width 199.84mm)
-  const partH = 17.5;
+  const partH = 22.0;
   doc.setFillColor(248, 250, 252);
   doc.roundedRect(marginLeft, y, contentWidth, partH, 1.2, 1.2, 'FD');
 
@@ -437,152 +437,99 @@ export function drawSingleScoreCardPage(
   const grade = learner ? learner.grade : 'Grade 7A';
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.2);
+  doc.setFontSize(8.2);
   doc.setTextColor(71, 85, 105);
-  doc.text('STUDENT NAME:', marginLeft + 4, y + 4.8);
+  doc.text('STUDENT NAME:', marginLeft + 4, y + 6.0);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.8);
+  doc.setFontSize(10.0);
   doc.setTextColor(15, 23, 42);
-  doc.text(studentName, marginLeft + 32, y + 4.8);
+  doc.text(studentName, marginLeft + 38, y + 6.0);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.2);
+  doc.setFontSize(8.2);
   doc.setTextColor(71, 85, 105);
-  doc.text('UPI / ADMISSION NO:', marginLeft + 115, y + 4.8);
+  doc.text('UPI / ADMISSION NO:', marginLeft + 108, y + 6.0);
   doc.setFont('courier', 'bold');
-  doc.setFontSize(8.8);
+  doc.setFontSize(10.0);
   doc.setTextColor(15, 23, 42);
-  doc.text(studentId, marginLeft + 155, y + 4.8);
+  doc.text(studentId, marginLeft + 148, y + 6.0);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.2);
+  doc.setFontSize(8.2);
   doc.setTextColor(71, 85, 105);
-  doc.text('GRADE / STREAM:', marginLeft + 4, y + 10.2);
+  doc.text('GRADE / STREAM:', marginLeft + 4, y + 12.8);
   doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9.6);
   doc.setTextColor(67, 56, 202);
-  doc.text(grade, marginLeft + 32, y + 10.2);
+  doc.text(grade, marginLeft + 38, y + 12.8);
 
   doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.2);
   doc.setTextColor(71, 85, 105);
-  doc.text('ASSESSMENT NAME:', marginLeft + 115, y + 10.2);
+  doc.text('ASSESSMENT NAME:', marginLeft + 108, y + 12.8);
   doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9.4);
   doc.setTextColor(15, 23, 42);
-  doc.text((scoreCard.assessmentName || `${scoreCard.term} Evaluation`).slice(0, 26), marginLeft + 155, y + 10.2);
+  doc.text((scoreCard.assessmentName || `${scoreCard.term} Evaluation`).slice(0, 26), marginLeft + 148, y + 12.8);
 
   doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.2);
   doc.setTextColor(71, 85, 105);
-  doc.text('CLASS RANK:', marginLeft + 4, y + 15.4);
+  doc.text('CLASS RANK:', marginLeft + 4, y + 19.2);
   doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9.4);
   if (scoreCard.isExamAbsent) {
     doc.setTextColor(225, 29, 72);
-    doc.text('DNS (Did Not Sit Exam)', marginLeft + 32, y + 15.4);
+    doc.text('DNS (Did Not Sit Exam)', marginLeft + 38, y + 19.2);
   } else {
     doc.setTextColor(5, 150, 105);
-    doc.text(`Rank #${scoreCard.classRank} of ${scoreCard.classSize} students`, marginLeft + 32, y + 15.4);
+    doc.text(`Rank #${scoreCard.classRank} of ${scoreCard.classSize} students`, marginLeft + 38, y + 19.2);
   }
 
   doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.2);
   doc.setTextColor(71, 85, 105);
-  doc.text('TERM ATTENDANCE:', marginLeft + 115, y + 15.4);
+  doc.text('TERM ATTENDANCE:', marginLeft + 108, y + 19.2);
   doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9.4);
   doc.setTextColor(15, 23, 42);
-  doc.text(`${scoreCard.attendancePercentage.toFixed(1)}% Regularity`, marginLeft + 155, y + 15.4);
+  doc.text(`${scoreCard.attendancePercentage.toFixed(1)}% Regularity`, marginLeft + 148, y + 19.2);
 
   y += partH + 2.5;
 
-  // 4. VISUAL TRENDS & PROGRESSION TRAJECTORY STRIP (0.2 margin, width 199.84mm)
   const trends = calculateScoreCardVisualTrends(
     scoreCard.subjects || [],
     scoreCard.averageScore,
     learner?.previousTermAverageScore
   );
 
-  const progH = 10;
-  doc.setFillColor(238, 242, 255); // indigo-50
-  doc.roundedRect(marginLeft, y, contentWidth, progH, 1, 1, 'F');
-  doc.setDrawColor(199, 210, 254);
-  doc.roundedRect(marginLeft, y, contentWidth, progH, 1, 1, 'D');
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7);
-  doc.setTextColor(49, 46, 129);
-  doc.text('VISUAL PROGRESSION & CBC BALANCE:', marginLeft + 4, y + 4.2);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(30, 41, 59);
-  doc.text(`Baseline: ${trends.previousScore.toFixed(1)}%  ➔  Current Term: ${trends.currentScore.toFixed(1)}%`, marginLeft + 64, y + 4.2);
-
-  // Delta Badge
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(trends.isPositiveDelta ? 5 : 225, trends.isPositiveDelta ? 150 : 29, trends.isPositiveDelta ? 105 : 72);
-  doc.text(`[ ${trends.deltaPercentageStr} Growth ${trends.isPositiveDelta ? '▲' : '▼'} ]`, marginLeft + 150, y + 4.2);
-
-  // CBC Competency Mini Segmented Bar Chart
-  const totalSub = Math.max(1, (scoreCard.subjects || []).length);
-  const barTotalW = 55;
-  const eeW = (trends.categoryCounts.EE / totalSub) * barTotalW;
-  const meW = (trends.categoryCounts.ME / totalSub) * barTotalW;
-  const aeW = (trends.categoryCounts.AE / totalSub) * barTotalW;
-  const beW = (trends.categoryCounts.BE / totalSub) * barTotalW;
-
-  let barX = marginLeft + 4;
-  const barY = y + 5.8;
-  if (eeW > 0) {
-    doc.setFillColor(5, 150, 105);
-    doc.rect(barX, barY, eeW, 2.5, 'F');
-    barX += eeW;
-  }
-  if (meW > 0) {
-    doc.setFillColor(37, 99, 235);
-    doc.rect(barX, barY, meW, 2.5, 'F');
-    barX += meW;
-  }
-  if (aeW > 0) {
-    doc.setFillColor(217, 119, 6);
-    doc.rect(barX, barY, aeW, 2.5, 'F');
-    barX += aeW;
-  }
-  if (beW > 0) {
-    doc.setFillColor(225, 29, 72);
-    doc.rect(barX, barY, beW, 2.5, 'F');
-  }
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6.2);
-  doc.setTextColor(71, 85, 105);
-  doc.text(
-    `Balance: ${trends.categoryCounts.EE} EE (Exceeding) · ${trends.categoryCounts.ME} ME (Meeting) · ${trends.categoryCounts.AE} AE · ${trends.categoryCounts.BE} BE`,
-    marginLeft + 64,
-    y + 8.2
-  );
-
-  y += progH + 2.5;
-
-  // 5. SUBJECT SCORES TABLE (Accommodating all teacher remarks with no truncation)
-  const tblHeaderH = 6.5;
+  // 4. SUBJECT SCORES TABLE (Clean academic scoresheet expanding cleanly to fill full A4 page)
+  const tblHeaderH = 7.8;
   doc.setFillColor(30, 41, 59);
   doc.rect(marginLeft, y, contentWidth, tblHeaderH, 'F');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.2);
+  doc.setFontSize(8.4);
   doc.setTextColor(255, 255, 255);
-  doc.text('Learning Area / Subject', marginLeft + 4, y + 4.5);
-  doc.text('Test 1', marginLeft + 62, y + 4.5, { align: 'right' });
-  doc.text('Test 2', marginLeft + 75, y + 4.5, { align: 'right' });
-  doc.text('Exam', marginLeft + 90, y + 4.5, { align: 'right' });
-  doc.text('Total /100', marginLeft + 107, y + 4.5, { align: 'right' });
-  doc.text('Visual Score Trend Bar', marginLeft + 114, y + 4.5);
-  doc.text('Level', marginLeft + 148, y + 4.5, { align: 'center' });
-  doc.text('Teacher Remarks & Observations', marginLeft + 156, y + 4.5);
+  doc.text('Learning Area / Subject', marginLeft + 3.5, y + 5.2);
+  doc.text('Test 1', marginLeft + 80, y + 5.2, { align: 'right' });
+  doc.text('Test 2', marginLeft + 94, y + 5.2, { align: 'right' });
+  doc.text('Exam', marginLeft + 109, y + 5.2, { align: 'right' });
+  doc.text('Tot /100', marginLeft + 126, y + 5.2, { align: 'right' });
+  doc.text('Level', marginLeft + 138, y + 5.2, { align: 'center' });
+  doc.text('Teacher Remarks & Observations', marginLeft + 146, y + 5.2);
 
   y += tblHeaderH;
 
   const subjects = scoreCard.subjects || [];
-  // Calculate dynamic row height to comfortably fill vertical budget and allow multi-line wrapped remarks
-  const targetTableHeight = 66; // ~66mm for subjects
-  const rowH = Math.max(5.3, Math.min(8.2, targetTableHeight / Math.max(1, subjects.length)));
-  const remarksWidth = contentWidth - (marginLeft + 156 - marginLeft) - 2; // ~42mm
-  const isCompact = rowH < 6.3;
+  // Fixed height of all sections below the subject table (~130.5mm), keeping bottom above y=288.5mm (footer at y=292.5mm)
+  const postTableReservedHeight = 130.5;
+  const availableRowsHeight = Math.max(54, 288.5 - postTableReservedHeight - y);
+  const rowH = Math.max(5.2, Math.min(11.0, availableRowsHeight / Math.max(1, subjects.length)));
+  const remarksWidth = contentWidth - 146 - 2; // ~51.8mm wide without visual bars
+  const rowFontSize = rowH >= 7.2 ? 8.6 : rowH >= 6.0 ? 8.0 : 7.3;
+  const remarkFontSize = rowH >= 7.6 ? 7.5 : rowH >= 6.3 ? 6.9 : 6.2;
+  const singleLineY = rowH >= 8.2 ? 5.6 : rowH >= 6.5 ? 4.8 : 4.0;
 
   subjects.forEach((sub, idx) => {
     doc.setFillColor(idx % 2 === 0 ? 255 : 248, idx % 2 === 0 ? 255 : 250, idx % 2 === 0 ? 255 : 252);
@@ -592,78 +539,55 @@ export function drawSingleScoreCardPage(
 
     // Subject Name
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7);
+    const subNameFont = sub.subjectName.length > 32 ? Math.max(7.0, rowFontSize - 0.8) : rowFontSize;
+    doc.setFontSize(subNameFont);
     doc.setTextColor(15, 23, 42);
-    doc.text(sub.subjectName, marginLeft + 4, y + 4.2);
+    doc.text(sub.subjectName.slice(0, 38), marginLeft + 3.5, y + singleLineY);
 
     // Score Columns
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(6.8);
+    doc.setFontSize(rowFontSize);
     if (scoreCard.isExamAbsent) {
       doc.setTextColor(225, 29, 72);
-      doc.text('DNS', marginLeft + 62, y + 4.2, { align: 'right' });
-      doc.text('DNS', marginLeft + 75, y + 4.2, { align: 'right' });
-      doc.text('DNS', marginLeft + 90, y + 4.2, { align: 'right' });
+      doc.text('DNS', marginLeft + 80, y + singleLineY, { align: 'right' });
+      doc.text('DNS', marginLeft + 94, y + singleLineY, { align: 'right' });
+      doc.text('DNS', marginLeft + 109, y + singleLineY, { align: 'right' });
       doc.setFont('helvetica', 'bold');
-      doc.text('DNS', marginLeft + 107, y + 4.2, { align: 'right' });
-
-      // Visual Trend Progress Bar (Empty track for absent)
-      const trackW = 20;
-      doc.setFillColor(241, 245, 249);
-      doc.roundedRect(marginLeft + 114, y + 2.0, trackW, 2.6, 0.4, 0.4, 'F');
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(5.8);
-      doc.setTextColor(225, 29, 72);
-      doc.text('DNS', marginLeft + 136, y + 4.0);
-      doc.text('DNS', marginLeft + 148, y + 4.2, { align: 'center' });
+      doc.text('DNS', marginLeft + 126, y + singleLineY, { align: 'right' });
+      doc.text('DNS', marginLeft + 138, y + singleLineY, { align: 'center' });
 
       doc.setFont('helvetica', 'italic');
-      doc.setFontSize(5.8);
+      doc.setFontSize(remarkFontSize);
       doc.setTextColor(148, 163, 184);
-      doc.text('Marked Absent by Class Teacher for this assessment. Did not sit.', marginLeft + 156, y + 4.2);
+      doc.text('Marked Absent by Class Teacher (Did Not Sit).', marginLeft + 146, y + singleLineY);
     } else {
       doc.setTextColor(71, 85, 105);
-      doc.text(String(sub.catScore), marginLeft + 62, y + 4.2, { align: 'right' });
-      doc.text(String(sub.midTermScore), marginLeft + 75, y + 4.2, { align: 'right' });
-      doc.text(String(sub.finalExamScore), marginLeft + 90, y + 4.2, { align: 'right' });
+      doc.text(String(sub.catScore), marginLeft + 80, y + singleLineY, { align: 'right' });
+      doc.text(String(sub.midTermScore), marginLeft + 94, y + singleLineY, { align: 'right' });
+      doc.text(String(sub.finalExamScore), marginLeft + 109, y + singleLineY, { align: 'right' });
 
       doc.setFont('helvetica', 'bold');
+      doc.setFontSize(rowFontSize + 0.3);
       doc.setTextColor(15, 23, 42);
-      doc.text(String(sub.totalScore), marginLeft + 107, y + 4.2, { align: 'right' });
+      doc.text(String(sub.totalScore), marginLeft + 126, y + singleLineY, { align: 'right' });
 
-      // Visual Trend Progress Bar
-      const trackW = 20;
-      doc.setFillColor(226, 232, 240);
-      doc.roundedRect(marginLeft + 114, y + 2.0, trackW, 2.6, 0.4, 0.4, 'F');
-
-      const fillW = Math.max(1, Math.min(trackW, (sub.totalScore / 100) * trackW));
       const gradeColor = getGradeColor(sub.letterGrade);
-      doc.setFillColor(gradeColor.rgb[0], gradeColor.rgb[1], gradeColor.rgb[2]);
-      doc.roundedRect(marginLeft + 114, y + 2.0, fillW, 2.6, 0.4, 0.4, 'F');
-
-      // Percentage next to bar
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(5.8);
-      doc.setTextColor(71, 85, 105);
-      doc.text(`${sub.totalScore}%`, marginLeft + 136, y + 4.0);
-
-      // Level
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(7);
+      doc.setFontSize(rowFontSize);
       doc.setTextColor(gradeColor.rgb[0], gradeColor.rgb[1], gradeColor.rgb[2]);
-      doc.text(sub.letterGrade, marginLeft + 148, y + 4.2, { align: 'center' });
+      doc.text(sub.letterGrade, marginLeft + 138, y + singleLineY, { align: 'center' });
 
       // Teacher Remarks: FULL UNTRUNCATED TEXT WITH AUTOMATIC MULTI-LINE SPLIT
       doc.setFont('helvetica', 'italic');
-      doc.setFontSize(5.8);
+      doc.setFontSize(remarkFontSize);
       doc.setTextColor(51, 65, 85);
       const remarkStr = sub.teacherRemarks || 'Satisfactory competency mastery demonstrated.';
       const remarkLines = doc.splitTextToSize(remarkStr, remarksWidth);
-      if (remarkLines.length <= 1) {
-        doc.text(remarkLines[0], marginLeft + 156, y + 4.2);
+      if (remarkLines.length <= 1 || rowH < 6.4) {
+        doc.text(remarkLines[0], marginLeft + 146, y + singleLineY);
       } else {
-        doc.text(remarkLines[0], marginLeft + 156, y + 3.0);
-        doc.text(remarkLines[1], marginLeft + 156, y + 5.8);
+        doc.text(remarkLines[0], marginLeft + 146, y + 3.6);
+        doc.text(remarkLines[1], marginLeft + 146, y + 6.9);
       }
     }
 
@@ -672,60 +596,60 @@ export function drawSingleScoreCardPage(
 
   // 6. SUMMARY METRICS BAR
   y += 2.0;
-  const sumH = 8.5;
+  const sumH = 10.0;
   doc.setFillColor(241, 245, 249);
   doc.roundedRect(marginLeft, y, contentWidth, sumH, 1, 1, 'FD');
 
   const overallGradeInfo = calculateCompetencyGrade(scoreCard.averageScore);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.2);
+  doc.setFontSize(8.5);
   doc.setTextColor(30, 41, 59);
   if (scoreCard.isExamAbsent) {
-    doc.text(`TOTAL MARKS: DNS (Did Not Sit)`, marginLeft + 4, y + 5.5);
-    doc.text(`MEAN AVERAGE: DNS`, marginLeft + 68, y + 5.5);
-    doc.text(`COMPETENCY GPA: DNS`, marginLeft + 120, y + 5.5);
+    doc.text(`TOTAL MARKS: DNS (Did Not Sit)`, marginLeft + 4, y + 6.4);
+    doc.text(`MEAN AVERAGE: DNS`, marginLeft + 68, y + 6.4);
+    doc.text(`COMPETENCY GPA: DNS`, marginLeft + 120, y + 6.4);
     doc.setTextColor(225, 29, 72);
-    doc.text(`OVERALL STATUS: DNS (Absent)`, marginLeft + 165, y + 5.5);
+    doc.text(`OVERALL STATUS: DNS (Absent)`, marginLeft + 162, y + 6.4);
   } else {
-    doc.text(`TOTAL MARKS: ${scoreCard.totalMarks} / ${scoreCard.maxPossibleMarks}`, marginLeft + 4, y + 5.5);
-    doc.text(`MEAN AVERAGE: ${scoreCard.averageScore.toFixed(1)}%`, marginLeft + 68, y + 5.5);
-    doc.text(`COMPETENCY GPA: ${scoreCard.gpa.toFixed(2)} / 8.00`, marginLeft + 120, y + 5.5);
+    doc.text(`TOTAL MARKS: ${scoreCard.totalMarks} / ${scoreCard.maxPossibleMarks}`, marginLeft + 4, y + 6.4);
+    doc.text(`MEAN AVERAGE: ${scoreCard.averageScore.toFixed(1)}%`, marginLeft + 64, y + 6.4);
+    doc.text(`COMPETENCY GPA: ${scoreCard.gpa.toFixed(2)} / 8.00`, marginLeft + 114, y + 6.4);
     doc.setTextColor(67, 56, 202);
-    doc.text(`OVERALL STATUS: ${overallGradeInfo.grade}`, marginLeft + 165, y + 5.5);
+    doc.text(`OVERALL STATUS: ${overallGradeInfo.grade}`, marginLeft + 166, y + 6.4);
   }
 
   y += sumH + 2.5;
 
   // 7. COMPETENCY PROFILE & STRENGTHS SPOTLIGHT
-  const spotH = 11;
+  const spotH = 12.5;
   doc.setFillColor(255, 255, 255);
   doc.setDrawColor(203, 213, 225);
   doc.roundedRect(marginLeft, y, contentWidth, spotH, 1, 1, 'D');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.8);
+  doc.setFontSize(7.8);
   doc.setTextColor(5, 150, 105);
   doc.text(
-    `★ Core Academic Strength: ${trends.topStrengthSubject?.name || 'Mathematics'} (${trends.topStrengthSubject?.score || 88}% · ${trends.topStrengthSubject?.grade || 'EE2'})`,
+    `★ Core Strength: ${trends.topStrengthSubject?.name || 'Mathematics'} (${trends.topStrengthSubject?.score || 88}% · ${trends.topStrengthSubject?.grade || 'EE2'})`,
     marginLeft + 4,
-    y + 4.5
+    y + 5.0
   );
 
   doc.setTextColor(67, 56, 202);
   doc.text(
-    `Target Growth Area: ${trends.priorityGrowthSubject?.name || 'Integrated Studies'} (${trends.priorityGrowthSubject?.score || 72}% · ${trends.priorityGrowthSubject?.grade || 'ME1'})`,
-    marginLeft + 115,
-    y + 4.5
+    `Target Focus: ${trends.priorityGrowthSubject?.name || 'Integrated Studies'} (${trends.priorityGrowthSubject?.score || 72}% · ${trends.priorityGrowthSubject?.grade || 'ME1'})`,
+    marginLeft + 108,
+    y + 5.0
   );
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6.2);
+  doc.setFontSize(7.4);
   doc.setTextColor(71, 85, 105);
   doc.text(
     `National CBC Formative Performance Standing: ${overallGradeInfo.grade} - ${overallGradeInfo.label}. Demonstrating consistent competency progression.`,
     marginLeft + 4,
-    y + 8.5
+    y + 9.8
   );
 
   y += spotH + 2.5;
@@ -733,7 +657,7 @@ export function drawSingleScoreCardPage(
   // 8. UNTRUNCATED TEACHER & PRINCIPAL EVALUATION CARDS
   // Full width across whole A4 (199.84mm) with generous height and multi-line wrapping
   const remarkBoxW = contentWidth;
-  const remarkBoxH = 17.5;
+  const remarkBoxH = 19.5;
 
   // Class Teacher Card
   doc.setFillColor(248, 250, 252);
@@ -741,16 +665,16 @@ export function drawSingleScoreCardPage(
   doc.roundedRect(marginLeft, y, remarkBoxW, remarkBoxH, 1, 1, 'FD');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.8);
+  doc.setFontSize(8.0);
   doc.setTextColor(30, 41, 59);
-  doc.text("CLASS TEACHER'S EVALUATIVE REMARKS & OBSERVATIONS:", marginLeft + 4, y + 4.2);
+  doc.text("CLASS TEACHER'S EVALUATIVE REMARKS & OBSERVATIONS:", marginLeft + 4, y + 4.8);
 
   const teacherRemarkText = scoreCard.classTeacherRemark || 'Consistently attentive, disciplined, and shows commendable competency progression in all learning tasks.';
   doc.setFont('helvetica', 'italic');
-  doc.setFontSize(6.6);
+  doc.setFontSize(8.0);
   doc.setTextColor(15, 23, 42);
   const teacherLines = doc.splitTextToSize(`"${teacherRemarkText}"`, remarkBoxW - 8);
-  doc.text(teacherLines, marginLeft + 4, y + 8.2);
+  doc.text(teacherLines, marginLeft + 4, y + 9.4);
 
   const teacherSig = school.signatures?.['class_teacher'];
   const principalSig = school.signatures?.['hoi'];
@@ -764,65 +688,65 @@ export function drawSingleScoreCardPage(
     resolvedSignatories?.principalName || resolvePrincipalName(school);
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(5.8);
+  doc.setFontSize(7.2);
   doc.setTextColor(100, 116, 139);
-  doc.text(`— Evaluated by ${effectiveClassTeacherName}, Class Tutor`, marginLeft + 4, y + 15.5);
+  doc.text(`— Evaluated by ${effectiveClassTeacherName}, Class Tutor`, marginLeft + 4, y + 17.4);
 
-  y += remarkBoxH + 2.5;
+  y += remarkBoxH + 2.0;
 
   // Head of School / Principal Card
   doc.setFillColor(248, 250, 252);
   doc.roundedRect(marginLeft, y, remarkBoxW, remarkBoxH, 1, 1, 'FD');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.8);
+  doc.setFontSize(8.0);
   doc.setTextColor(30, 41, 59);
-  doc.text("HEAD OF INSTITUTION / PRINCIPAL'S REMARKS & ENDORSEMENT:", marginLeft + 4, y + 4.2);
+  doc.text("HEAD OF INSTITUTION / PRINCIPAL'S REMARKS & ENDORSEMENT:", marginLeft + 4, y + 4.8);
 
   const principalRemarkText = sanitizeInstitutionalRemark(scoreCard.principalRemark, school, learner?.grade);
   doc.setFont('helvetica', 'italic');
-  doc.setFontSize(6.6);
+  doc.setFontSize(8.0);
   doc.setTextColor(15, 23, 42);
   const principalLines = doc.splitTextToSize(`"${principalRemarkText}"`, remarkBoxW - 8);
-  doc.text(principalLines, marginLeft + 4, y + 8.2);
+  doc.text(principalLines, marginLeft + 4, y + 9.4);
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(5.8);
+  doc.setFontSize(7.2);
   doc.setTextColor(100, 116, 139);
-  doc.text(`— Endorsed by ${effectivePrincipalName}, Head of Institution (${wingInstitutionName})`, marginLeft + 4, y + 15.5);
+  doc.text(`— Endorsed by ${effectivePrincipalName}, Head of Institution (${wingInstitutionName})`, marginLeft + 4, y + 17.4);
 
   y += remarkBoxH + 2.5;
 
   // 9. KENYA CBC 8-POINT COMPETENCY RUBRIC LEGEND (Full Width)
-  const legendH = 15.5;
+  const legendH = 17.5;
   doc.setFillColor(241, 245, 249);
   doc.roundedRect(marginLeft, y, contentWidth, legendH, 1, 1, 'FD');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.2);
+  doc.setFontSize(7.4);
   doc.setTextColor(30, 41, 59);
-  doc.text('KENYA NATIONAL CBC 8-POINT COMPETENCY RUBRIC SCALE & ASSESSMENT SYSTEM:', marginLeft + 4, y + 3.8);
+  doc.text('KENYA NATIONAL CBC 8-POINT COMPETENCY RUBRIC SCALE & ASSESSMENT SYSTEM:', marginLeft + 4, y + 4.3);
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(5.5);
+  doc.setFontSize(6.6);
   doc.setTextColor(71, 85, 105);
   doc.text(
     'EE1: Exceeding Expectations 1 (>89%, 8pts) | EE2: High Distinction (75-89%, 7pts) | ME1: Proficient (58-74%, 6pts) | ME2: Satisfactory (41-57%, 5pts)',
     marginLeft + 4,
-    y + 7.0
+    y + 8.1
   );
   doc.text(
     'AE1: Developing (31-40%, 4pts) | AE2: Emerging (21-30%, 3pts) | BE1: Intervention Required (11-20%, 2pts) | BE2: Critical Support (≤10%, 1pt)',
     marginLeft + 4,
-    y + 10.2
+    y + 11.8
   );
   doc.text(
     'Assessment Modality: Continuous Learner Evaluations + Summative Assessments under Kenyan CBC Framework.',
     marginLeft + 4,
-    y + 13.4
+    y + 15.5
   );
 
-  y += legendH + 3.0;
+  y += legendH + 2.5;
 
   // 10. OFFICIAL SIGNATURES & INSTITUTION SEAL
   // Render digital signatures when signatory matches or falls back cleanly
@@ -841,78 +765,78 @@ export function drawSingleScoreCardPage(
 
   doc.setDrawColor(148, 163, 184);
   // Class Teacher line
-  doc.line(marginLeft + 6, y + 10, marginLeft + 65, y + 10);
+  doc.line(marginLeft + 6, y + 10.5, marginLeft + 65, y + 10.5);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.8);
+  doc.setFontSize(7.8);
   doc.setTextColor(30, 41, 59);
-  doc.text('CLASS TEACHER SIGNATURE & DATE', marginLeft + 8, y + 14);
+  doc.text('CLASS TEACHER SIGNATURE & DATE', marginLeft + 8, y + 14.8);
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(5.8);
+  doc.setFontSize(7.0);
   doc.setTextColor(100, 116, 139);
-  doc.text(`${effectiveClassTeacherName} · ${teacherSig?.roleTitle || 'Class Tutor'}`, marginLeft + 8, y + 17.5);
+  doc.text(`${effectiveClassTeacherName} · ${teacherSig?.roleTitle || 'Class Tutor'}`, marginLeft + 8, y + 18.8);
 
   // Principal line
-  doc.line(marginLeft + 76, y + 10, marginLeft + 138, y + 10);
+  doc.line(marginLeft + 76, y + 10.5, marginLeft + 138, y + 10.5);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.8);
+  doc.setFontSize(7.8);
   doc.setTextColor(30, 41, 59);
-  doc.text('HEAD OF INSTITUTION / PRINCIPAL', marginLeft + 78, y + 14);
+  doc.text('HEAD OF INSTITUTION / PRINCIPAL', marginLeft + 78, y + 14.8);
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(5.8);
+  doc.setFontSize(7.0);
   doc.setTextColor(100, 116, 139);
-  doc.text(`${effectivePrincipalName} · ${principalSig?.roleTitle || 'Chief Principal'}`, marginLeft + 78, y + 17.5);
+  doc.text(`${effectivePrincipalName} · ${principalSig?.roleTitle || 'Chief Principal'}`, marginLeft + 78, y + 18.8);
 
   // Official Seal Stamp Box
   doc.setDrawColor(99, 102, 241);
-  doc.roundedRect(marginLeft + 146, y, 50, 21, 1, 1, 'D');
+  doc.roundedRect(marginLeft + 146, y, 50, 21.5, 1, 1, 'D');
 
   const resolvedCardSeal = resolveWingSeal(gradeStr, school, sealSig?.signatureDataUrl);
-  drawSealInPdf(doc, resolvedCardSeal, marginLeft + 148, y + 2.5, 16, 16);
+  drawSealInPdf(doc, resolvedCardSeal, marginLeft + 148, y + 2.5, 16.5, 16.5);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.2);
+  doc.setFontSize(7.2);
   doc.setTextColor(67, 56, 202);
-  doc.text('OFFICIAL SEAL', marginLeft + 180, y + 6.0, { align: 'center' });
+  doc.text('OFFICIAL SEAL', marginLeft + 180.5, y + 6.2, { align: 'center' });
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(5.0);
+  doc.setFontSize(6.0);
   doc.setTextColor(30, 41, 59);
-  doc.text(isJunior ? 'JUNIOR WING' : 'PRIMARY WING', marginLeft + 180, y + 10.2, { align: 'center' });
+  doc.text(isJunior ? 'JUNIOR WING' : 'PRIMARY WING', marginLeft + 180.5, y + 10.6, { align: 'center' });
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(4.9);
+  doc.setFontSize(5.6);
   doc.setTextColor(100, 116, 139);
-  doc.text('VERIFIED & RATIFIED', marginLeft + 180, y + 14.2, { align: 'center' });
-  doc.text('2025/2026', marginLeft + 180, y + 18.0, { align: 'center' });
+  doc.text('VERIFIED & RATIFIED', marginLeft + 180.5, y + 14.8, { align: 'center' });
+  doc.text('2025/2026', marginLeft + 180.5, y + 18.8, { align: 'center' });
 
-  y += 24;
+  y += 23.5;
 
   // 11. STATUTORY COMPLIANCE & VERIFICATION STRIP
   doc.setFillColor(248, 250, 252);
-  doc.roundedRect(marginLeft, y, contentWidth, 9, 0.8, 0.8, 'FD');
+  doc.roundedRect(marginLeft, y, contentWidth, 10.5, 0.8, 0.8, 'FD');
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(5.6);
+  doc.setFontSize(6.6);
   doc.setTextColor(71, 85, 105);
   doc.text(
     `STATUTORY COMPLIANCE: Issued under Republic of Kenya Basic Education Act & KNEC CBA Framework · Verification Key: SEC-${(scoreCard.id || 'CBA').slice(0, 12).toUpperCase()}-2026`,
     marginLeft + 3,
-    y + 3.8
+    y + 4.4
   );
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(5.2);
+  doc.setFontSize(6.2);
   doc.text(
     `Security Ratification Hash: SHA256:${(learner?.id || 'L').slice(0, 10)}-${scoreCard.averageScore.toFixed(0)}-OK · Official electronic transcript copy.`,
     marginLeft + 3,
-    y + 6.8
+    y + 8.2
   );
 
-  // 12. FOOTER (Positioned precisely at y = 291mm on 297mm A4, strictly 1 page)
+  // 12. FOOTER (Positioned precisely at y = 292.5mm on 297mm A4, strictly 1 page)
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6.2);
+  doc.setFontSize(7.2);
   doc.setTextColor(148, 163, 184);
   const pageStr = totalPages ? `Page ${pageNum || 1} of ${totalPages}` : 'Official 1-Page Document';
   doc.text(
     `Official Assessment Report Form · Issued by ${wingInstitutionName} (${school.name}) · 0.2" Margins · ${pageStr}`,
     centerX,
-    291,
+    292.5,
     { align: 'center' }
   );
 }
@@ -1753,19 +1677,18 @@ export function exportGradeBroadsheetPdf(
     const rightX = 150;
     const rightWidth = 137;
 
-    // Table 1: Competency Level Breakdown with Gender Specific counts & Visual Distribution Bar
+    // Table 1: Competency Level Breakdown with Gender Specific counts
     doc.setFillColor(30, 41, 59);
     doc.rect(10, py, leftWidth, 6, 'F');
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
     doc.setTextColor(255, 255, 255);
     doc.text('CBC Level & Description', 13, py + 4.2);
-    doc.text('Pts', 55, py + 4.2, { align: 'center' });
-    doc.text('Boys', 68, py + 4.2, { align: 'center' });
-    doc.text('Girls', 81, py + 4.2, { align: 'center' });
-    doc.text('Total', 94, py + 4.2, { align: 'center' });
-    doc.text('Cohort %', 108, py + 4.2, { align: 'center' });
-    doc.text('Visual Trend', 123, py + 4.2);
+    doc.text('Pts', 62, py + 4.2, { align: 'center' });
+    doc.text('Boys', 78, py + 4.2, { align: 'center' });
+    doc.text('Girls', 94, py + 4.2, { align: 'center' });
+    doc.text('Total', 110, py + 4.2, { align: 'center' });
+    doc.text('Cohort %', 128, py + 4.2, { align: 'center' });
     py += 6;
 
     summary.levelDistribution.forEach((lvl, lidx) => {
@@ -1779,28 +1702,20 @@ export function exportGradeBroadsheetPdf(
       doc.setTextColor(15, 23, 42);
       doc.text(lvl.grade, 13, py + 3.6);
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(6.2);
+      doc.setFontSize(6.5);
       doc.setTextColor(71, 85, 105);
-      doc.text(lvl.label.slice(0, 18), 23, py + 3.6);
+      doc.text(lvl.label.slice(0, 22), 24, py + 3.6);
 
-      doc.text(String(lvl.points), 55, py + 3.6, { align: 'center' });
+      doc.text(String(lvl.points), 62, py + 3.6, { align: 'center' });
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(30, 58, 138); // blue-900
-      doc.text(String(lvl.boys), 68, py + 3.6, { align: 'center' });
+      doc.text(String(lvl.boys), 78, py + 3.6, { align: 'center' });
       doc.setTextColor(190, 24, 93); // rose-700
-      doc.text(String(lvl.girls), 81, py + 3.6, { align: 'center' });
+      doc.text(String(lvl.girls), 94, py + 3.6, { align: 'center' });
       doc.setTextColor(15, 23, 42);
-      doc.text(String(lvl.total), 94, py + 3.6, { align: 'center' });
+      doc.text(String(lvl.total), 110, py + 3.6, { align: 'center' });
       doc.setFont('helvetica', 'normal');
-      doc.text(`${lvl.percentage.toFixed(1)}%`, 108, py + 3.6, { align: 'center' });
-
-      // Visual progress bar for level cohort share
-      const lvlColor = getGradeColor(lvl.grade);
-      doc.setFillColor(226, 232, 240);
-      doc.roundedRect(118, py + 1.4, 18, 2.2, 0.4, 0.4, 'F');
-      const shareW = Math.max(0.5, Math.min(18, (lvl.percentage / 100) * 18 * 2.2)); // scaled
-      doc.setFillColor(lvlColor.rgb[0], lvlColor.rgb[1], lvlColor.rgb[2]);
-      doc.roundedRect(118, py + 1.4, shareW, 2.2, 0.4, 0.4, 'F');
+      doc.text(`${lvl.percentage.toFixed(1)}%`, 128, py + 3.6, { align: 'center' });
 
       py += 5;
     });
@@ -1887,14 +1802,14 @@ export function exportGradeBroadsheetPdf(
       ry += 4.8;
     });
 
-    // --- SECTION 3: LEARNING AREAS PERFORMANCE MATRIX WITH VISUAL TREND BARS (FULL WIDTH) ---
+    // --- SECTION 3: LEARNING AREAS PERFORMANCE MATRIX (FULL WIDTH) ---
     py = Math.max(py, ry) + 4;
     doc.setFillColor(30, 41, 59);
     doc.rect(10, py, 277, 6, 'F');
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
     doc.setTextColor(255, 255, 255);
-    doc.text('LEARNING AREA CBC COMPETENCY DISTRIBUTION & MEAN STANDINGS (WITH VISUAL TRENDS)', 13, py + 4.2);
+    doc.text('LEARNING AREA CBC COMPETENCY DISTRIBUTION & MEAN STANDINGS', 13, py + 4.2);
     py += 6;
 
     // Sub-header for Learning Areas
@@ -1904,18 +1819,17 @@ export function exportGradeBroadsheetPdf(
     doc.setFontSize(6.5);
     doc.setTextColor(51, 65, 85);
     doc.text('Learning Area / Subject', 13, py + 3.6);
-    doc.text('EE1', 82, py + 3.6, { align: 'center' });
-    doc.text('EE2', 96, py + 3.6, { align: 'center' });
-    doc.text('ME1', 110, py + 3.6, { align: 'center' });
-    doc.text('ME2', 124, py + 3.6, { align: 'center' });
-    doc.text('AE1', 138, py + 3.6, { align: 'center' });
-    doc.text('AE2', 152, py + 3.6, { align: 'center' });
-    doc.text('BE1', 166, py + 3.6, { align: 'center' });
-    doc.text('BE2', 180, py + 3.6, { align: 'center' });
-    doc.text('Visual Trend Bar', 198, py + 3.6);
-    doc.text('Mean %', 228, py + 3.6, { align: 'center' });
-    doc.text('Pts /8', 246, py + 3.6, { align: 'center' });
-    doc.text('Relation Grade Level', 268, py + 3.6, { align: 'center' });
+    doc.text('EE1', 86, py + 3.6, { align: 'center' });
+    doc.text('EE2', 101, py + 3.6, { align: 'center' });
+    doc.text('ME1', 116, py + 3.6, { align: 'center' });
+    doc.text('ME2', 131, py + 3.6, { align: 'center' });
+    doc.text('AE1', 146, py + 3.6, { align: 'center' });
+    doc.text('AE2', 161, py + 3.6, { align: 'center' });
+    doc.text('BE1', 176, py + 3.6, { align: 'center' });
+    doc.text('BE2', 191, py + 3.6, { align: 'center' });
+    doc.text('Mean %', 214, py + 3.6, { align: 'center' });
+    doc.text('Pts /8', 236, py + 3.6, { align: 'center' });
+    doc.text('Relation Grade Level', 265, py + 3.6, { align: 'center' });
     py += 5;
 
     summary.subjectPerformance.forEach((sub, sidx) => {
@@ -1930,29 +1844,22 @@ export function exportGradeBroadsheetPdf(
       doc.text(`${sub.subjectName} (${sub.code})`, 13, py + 3.4);
 
       doc.setFont('helvetica', 'normal');
-      doc.text(String(sub.distribution['EE1'] || 0), 82, py + 3.4, { align: 'center' });
-      doc.text(String(sub.distribution['EE2'] || 0), 96, py + 3.4, { align: 'center' });
-      doc.text(String(sub.distribution['ME1'] || 0), 110, py + 3.4, { align: 'center' });
-      doc.text(String(sub.distribution['ME2'] || 0), 124, py + 3.4, { align: 'center' });
-      doc.text(String(sub.distribution['AE1'] || 0), 138, py + 3.4, { align: 'center' });
-      doc.text(String(sub.distribution['AE2'] || 0), 152, py + 3.4, { align: 'center' });
-      doc.text(String(sub.distribution['BE1'] || 0), 166, py + 3.4, { align: 'center' });
-      doc.text(String(sub.distribution['BE2'] || 0), 180, py + 3.4, { align: 'center' });
+      doc.text(String(sub.distribution['EE1'] || 0), 86, py + 3.4, { align: 'center' });
+      doc.text(String(sub.distribution['EE2'] || 0), 101, py + 3.4, { align: 'center' });
+      doc.text(String(sub.distribution['ME1'] || 0), 116, py + 3.4, { align: 'center' });
+      doc.text(String(sub.distribution['ME2'] || 0), 131, py + 3.4, { align: 'center' });
+      doc.text(String(sub.distribution['AE1'] || 0), 146, py + 3.4, { align: 'center' });
+      doc.text(String(sub.distribution['AE2'] || 0), 161, py + 3.4, { align: 'center' });
+      doc.text(String(sub.distribution['BE1'] || 0), 176, py + 3.4, { align: 'center' });
+      doc.text(String(sub.distribution['BE2'] || 0), 191, py + 3.4, { align: 'center' });
 
-      // Visual Mean Progress Trend Bar
       const subColor = getGradeColor(sub.relationGrade);
-      doc.setFillColor(226, 232, 240);
-      doc.roundedRect(192, py + 1.2, 26, 2.4, 0.4, 0.4, 'F');
-      const meanBarW = Math.max(1, Math.min(26, (sub.meanScore / 100) * 26));
-      doc.setFillColor(subColor.rgb[0], subColor.rgb[1], subColor.rgb[2]);
-      doc.roundedRect(192, py + 1.2, meanBarW, 2.4, 0.4, 0.4, 'F');
-
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(15, 23, 42);
-      doc.text(`${sub.meanScore.toFixed(1)}%`, 228, py + 3.4, { align: 'center' });
-      doc.text(sub.meanPoints.toFixed(2), 246, py + 3.4, { align: 'center' });
+      doc.text(`${sub.meanScore.toFixed(1)}%`, 214, py + 3.4, { align: 'center' });
+      doc.text(sub.meanPoints.toFixed(2), 236, py + 3.4, { align: 'center' });
       doc.setTextColor(subColor.rgb[0], subColor.rgb[1], subColor.rgb[2]);
-      doc.text(`${sub.relationGrade} (${sub.relationLabel.slice(0, 14)})`, 268, py + 3.4, { align: 'center' });
+      doc.text(`${sub.relationGrade} (${sub.relationLabel.slice(0, 16)})`, 265, py + 3.4, { align: 'center' });
 
       py += 4.8;
     });

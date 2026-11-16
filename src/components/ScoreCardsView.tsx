@@ -4,8 +4,6 @@ import { ScoreCard, SubjectScore, AssessmentRecord } from '../types';
 import {
   calculateCompetencyGrade,
   COMPETENCY_SCALE,
-  calculateScoreCardVisualTrends,
-  getGradeColor,
 } from '../services/gradingService';
 import { exportScoreCardPdf, exportAllGradeScoreCardsBatchPdf } from '../services/pdfService';
 import {
@@ -29,7 +27,6 @@ import {
   CalendarCheck,
   CheckCircle2,
   ChevronRight,
-  TrendingUp,
   X,
   HelpCircle,
   FileDown,
@@ -38,9 +35,6 @@ import {
   Table,
   Lock,
   Layers,
-  Sparkles,
-  ArrowUpRight,
-  BarChart2,
 } from 'lucide-react';
 import crestImage from '../assets/images/school_crest_emblem_1792317813141.jpg';
 
@@ -695,15 +689,6 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
 
   const overallGradeInfo = calculateCompetencyGrade(cardBuffer.averageScore);
 
-  // Compute rich visual trends for the active learner's scorecard
-  const activeTrends = useMemo(() => {
-    return calculateScoreCardVisualTrends(
-      cardBuffer.subjects || [],
-      cardBuffer.averageScore,
-      activeLearner?.previousTermAverageScore
-    );
-  }, [cardBuffer, activeLearner]);
-
   // Batch Export State
   const [isGeneratingBatchPdf, setIsGeneratingBatchPdf] = useState(false);
   const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
@@ -1158,193 +1143,12 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
         </div>
       </div>
 
-      {/* VISUAL TRENDS & CBC COMPETENCY PROFILE DASHBOARD */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Trajectory Card */}
-        <div className="bg-white p-4 rounded-xl border border-slate-200 flex flex-col justify-between shadow-2xs">
-          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-indigo-600" />
-              <span className="font-bold text-slate-900 text-xs">Academic Trajectory &amp; Growth</span>
-            </div>
-            <span
-              className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${
-                activeTrends.isPositiveDelta
-                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                  : 'bg-rose-50 text-rose-800 border-rose-200'
-              }`}
-            >
-              {activeTrends.deltaPercentageStr} {activeTrends.isPositiveDelta ? '▲ Upward' : '▼ Need Guidance'}
-            </span>
-          </div>
-
-          <div className="mt-3 space-y-2">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-500 font-medium">Previous Term Baseline:</span>
-              <span className="font-mono font-bold text-slate-700">{activeTrends.previousScore.toFixed(1)}%</span>
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-500 font-medium">Current Term Average:</span>
-              <span className="font-mono font-bold text-indigo-700 text-sm">{activeTrends.currentScore.toFixed(1)}%</span>
-            </div>
-
-            {/* Visual Trajectory Progress Track */}
-            <div className="relative pt-2">
-              <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden flex">
-                <div
-                  style={{ width: `${Math.min(100, Math.max(10, activeTrends.currentScore))}%` }}
-                  className={`h-full rounded-full transition-all duration-500 ${
-                    activeTrends.isPositiveDelta ? 'bg-emerald-500' : 'bg-indigo-500'
-                  }`}
-                />
-              </div>
-              <div className="flex justify-between text-[10px] text-slate-400 mt-1 font-mono">
-                <span>0%</span>
-                <span className="text-slate-500 font-bold">Standard 50%</span>
-                <span className="text-indigo-600 font-bold">Current: {activeTrends.currentScore.toFixed(1)}%</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-2 pt-2 border-t border-slate-100 text-[11px] font-semibold text-slate-600 flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-            <span className="truncate">{activeTrends.trajectoryLabel}</span>
-          </div>
-        </div>
-
-        {/* CBC Competency Distribution Balance */}
-        <div className="bg-white p-4 rounded-xl border border-slate-200 flex flex-col justify-between shadow-2xs">
-          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-            <div className="flex items-center gap-2">
-              <BarChart2 className="w-4 h-4 text-indigo-600" />
-              <span className="font-bold text-slate-900 text-xs">CBC Competency Balance</span>
-            </div>
-            <span className="text-[10px] text-slate-500 font-mono">
-              {cardBuffer.subjects.length} Learning Areas
-            </span>
-          </div>
-
-          {/* Segmented Visual Stacked Bar */}
-          <div className="mt-3">
-            <div className="w-full h-3 rounded-full overflow-hidden flex bg-slate-100">
-              {cardBuffer.subjects.length > 0 && (
-                <>
-                  <div
-                    style={{ width: `${(activeTrends.categoryCounts.EE / cardBuffer.subjects.length) * 100}%` }}
-                    className="bg-emerald-500 h-full"
-                    title={`Exceeding (EE): ${activeTrends.categoryCounts.EE}`}
-                  />
-                  <div
-                    style={{ width: `${(activeTrends.categoryCounts.ME / cardBuffer.subjects.length) * 100}%` }}
-                    className="bg-blue-500 h-full"
-                    title={`Meeting (ME): ${activeTrends.categoryCounts.ME}`}
-                  />
-                  <div
-                    style={{ width: `${(activeTrends.categoryCounts.AE / cardBuffer.subjects.length) * 100}%` }}
-                    className="bg-amber-500 h-full"
-                    title={`Approaching (AE): ${activeTrends.categoryCounts.AE}`}
-                  />
-                  <div
-                    style={{ width: `${(activeTrends.categoryCounts.BE / cardBuffer.subjects.length) * 100}%` }}
-                    className="bg-rose-500 h-full"
-                    title={`Below (BE): ${activeTrends.categoryCounts.BE}`}
-                  />
-                </>
-              )}
-            </div>
-
-            <div className="grid grid-cols-4 gap-1.5 mt-3 text-center">
-              <div className="p-1.5 rounded bg-emerald-50 border border-emerald-100">
-                <span className="text-[10px] text-emerald-800 font-bold block">EE</span>
-                <span className="text-sm font-bold font-mono text-emerald-700">{activeTrends.categoryCounts.EE}</span>
-              </div>
-              <div className="p-1.5 rounded bg-blue-50 border border-blue-100">
-                <span className="text-[10px] text-blue-800 font-bold block">ME</span>
-                <span className="text-sm font-bold font-mono text-blue-700">{activeTrends.categoryCounts.ME}</span>
-              </div>
-              <div className="p-1.5 rounded bg-amber-50 border border-amber-100">
-                <span className="text-[10px] text-amber-800 font-bold block">AE</span>
-                <span className="text-sm font-bold font-mono text-amber-700">{activeTrends.categoryCounts.AE}</span>
-              </div>
-              <div className="p-1.5 rounded bg-rose-50 border border-rose-100">
-                <span className="text-[10px] text-rose-800 font-bold block">BE</span>
-                <span className="text-sm font-bold font-mono text-rose-700">{activeTrends.categoryCounts.BE}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-2 pt-2 border-t border-slate-100 text-[11px] text-slate-500">
-            Overall Standing: <strong className="text-slate-800">{overallGradeInfo.grade}</strong> ({overallGradeInfo.label})
-          </div>
-        </div>
-
-        {/* Spotlight Strengths & Priority Growth */}
-        <div className="bg-white p-4 rounded-xl border border-slate-200 flex flex-col justify-between shadow-2xs">
-          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-            <div className="flex items-center gap-2">
-              <Award className="w-4 h-4 text-amber-600" />
-              <span className="font-bold text-slate-900 text-xs">Subject Strengths &amp; Growth</span>
-            </div>
-            <span className="text-[10px] font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
-              Personalized
-            </span>
-          </div>
-
-          <div className="space-y-2 mt-3 text-xs">
-            {activeTrends.topStrengthSubject && (
-              <div className="p-2 rounded-lg bg-emerald-50/80 border border-emerald-200 flex items-center justify-between gap-2">
-                <div>
-                  <span className="text-[10px] font-bold text-emerald-800 uppercase block">★ Core Strength</span>
-                  <span className="font-bold text-slate-900 truncate block max-w-44">
-                    {activeTrends.topStrengthSubject.name}
-                  </span>
-                </div>
-                <div className="text-right shrink-0">
-                  <span className="font-mono font-bold text-emerald-700 text-sm">
-                    {activeTrends.topStrengthSubject.score}%
-                  </span>
-                  <span className="block text-[10px] font-mono font-bold text-emerald-800">
-                    {activeTrends.topStrengthSubject.grade}
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {activeTrends.priorityGrowthSubject && (
-              <div className="p-2 rounded-lg bg-indigo-50/80 border border-indigo-200 flex items-center justify-between gap-2">
-                <div>
-                  <span className="text-[10px] font-bold text-indigo-800 uppercase block">Target Focus Area</span>
-                  <span className="font-bold text-slate-900 truncate block max-w-44">
-                    {activeTrends.priorityGrowthSubject.name}
-                  </span>
-                </div>
-                <div className="text-right shrink-0">
-                  <span className="font-mono font-bold text-indigo-700 text-sm">
-                    {activeTrends.priorityGrowthSubject.score}%
-                  </span>
-                  <span className="block text-[10px] font-mono font-bold text-indigo-800">
-                    {activeTrends.priorityGrowthSubject.grade}
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="mt-2 pt-2 border-t border-slate-100 text-[11px] text-slate-500">
-            Cohort Rank: <strong>Rank #{cardBuffer.classRank}</strong> of {cardBuffer.classSize} students
-          </div>
-        </div>
-      </div>
-
       {/* Subject Scores Table */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
           <div>
-            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <span>Curriculum Competency Subject Performance · {selectedTerm}</span>
-              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                With Visual Trends
-              </span>
+            <h2 className="text-sm font-bold text-slate-900">
+              Curriculum Competency Subject Performance · {selectedTerm}
             </h2>
             <p className="text-xs text-slate-500">
               Evaluated on 8-level competency rubric: EE1 (8 pts), EE2 (7 pts), ME1 (6 pts), ME2 (5 pts), AE1 (4 pts), AE2 (3 pts), BE1 (2 pts), BE2 (1 pt)
@@ -1371,7 +1175,6 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
                 <th className="py-2.5 px-3 text-right">{activeAssessment?.test2Name || 'Test 2'}</th>
                 <th className="py-2.5 px-3 text-right">{activeAssessment?.test3Name || 'Exam'}</th>
                 <th className="py-2.5 px-3 text-right">Total (/100)</th>
-                <th className="py-2.5 px-3 text-left">Score Visual Trend</th>
                 <th className="py-2.5 px-3 text-center">Competency Grade</th>
                 <th className="py-2.5 px-3 text-center">Points (/8)</th>
                 <th className="py-2.5 px-4">Subject Teacher Remarks</th>
@@ -1381,7 +1184,6 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
             <tbody className="divide-y divide-slate-100">
               {cardBuffer.subjects.map((sub, idx) => {
                 const gradeInfo = calculateCompetencyGrade(sub.totalScore);
-                const gradeColor = getGradeColor(gradeInfo.grade);
                 return (
                   <tr key={sub.id} className="hover:bg-slate-50/70 transition-colors">
                     <td className="py-3 px-4 font-semibold text-slate-900">
@@ -1462,33 +1264,6 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
                         <span className="text-rose-600 font-bold">DNS</span>
                       ) : (
                         sub.totalScore
-                      )}
-                    </td>
-
-                    {/* Visual Score Trend Bar */}
-                    <td className="py-3 px-3">
-                      {isLearnerAbsentForExam ? (
-                        <div className="w-28 text-center text-[10px] font-mono text-rose-600 font-bold bg-rose-50 border border-rose-200 py-0.5 rounded">
-                          Did Not Sit (DNS)
-                        </div>
-                      ) : (
-                        <div className="w-28">
-                          <div className="flex items-center justify-between text-[10px] font-mono mb-1">
-                            <span className="font-bold text-slate-700">{sub.totalScore}%</span>
-                            <span className={`px-1 rounded font-bold text-[9px] border ${gradeInfo.badgeClass}`}>
-                              {gradeInfo.grade}
-                            </span>
-                          </div>
-                          <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                            <div
-                              style={{
-                                width: `${Math.min(100, Math.max(5, sub.totalScore))}%`,
-                                backgroundColor: gradeColor.hex,
-                              }}
-                              className="h-full rounded-full transition-all duration-300"
-                            />
-                          </div>
-                        </div>
                       )}
                     </td>
 
@@ -1658,7 +1433,7 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
             </div>
 
             {/* Document Print Container */}
-            <div id="printable-area" className="p-6 space-y-4 overflow-y-auto text-xs text-slate-900 bg-white print:p-0 print:space-y-3">
+            <div id="printable-area" className="p-7 space-y-5 overflow-y-auto text-sm text-slate-900 bg-white print:p-0 print:min-h-[278mm] print:flex print:flex-col print:justify-between print:space-y-3.5">
               <style>{`
                 @media print {
                   @page {
@@ -1677,49 +1452,50 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
                     margin: 0 !important;
                     overflow: visible !important;
                     width: 100% !important;
+                    min-height: 278mm !important;
                   }
                 }
               `}</style>
 
               {/* Official Academic Header - Bearing distinct wing name & seal + KNEC Seal */}
-              <div className="flex items-center justify-between border-b-2 border-slate-900 pb-3 gap-3">
-                <div className="flex items-center gap-3">
+              <div className="flex items-center justify-between border-b-2 border-slate-900 pb-3.5 gap-3">
+                <div className="flex items-center gap-3.5">
                   <img
                     src={resolveWingSeal(activeLearner?.grade || '', schoolProfile, crestImage)}
                     alt={`${activeWingName} Official Seal`}
-                    className="w-16 h-16 object-contain rounded-full"
+                    className="w-20 h-20 object-contain rounded-full shrink-0"
                     referrerPolicy="no-referrer"
                   />
                   <div>
-                    <h1 className="text-lg font-extrabold tracking-tight text-slate-900 uppercase">
+                    <h1 className="text-xl font-extrabold tracking-tight text-slate-900 uppercase">
                       {activeWingName}
                     </h1>
-                    <p className="text-xs font-semibold text-indigo-800">
+                    <p className="text-sm font-bold text-indigo-800">
                       {schoolProfile.name} · {activeIsJunior ? 'Junior Secondary Wing (KJSEA Formative Assessment)' : 'Primary School Wing (KPSEA Formative Assessment)'}
                     </p>
-                    <p className="text-[10px] text-slate-500">
+                    <p className="text-xs text-slate-600 mt-0.5">
                       MoE/KNEC Center Registration: {schoolProfile.registrationNumber} · {schoolProfile.county}, {schoolProfile.subCounty}
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3 shrink-0">
+                <div className="flex items-center gap-3.5 shrink-0">
                   <div className="text-right">
-                    <span className="font-mono text-xs font-bold text-indigo-800 block uppercase">
+                    <span className="font-mono text-sm font-bold text-indigo-800 block uppercase">
                       {activeIsJunior ? 'KJSEA Junior School Assessment Form' : 'KPSEA Primary School Progress Form'}
                     </span>
-                    <span className="text-xs font-bold text-indigo-900 block bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 mt-0.5">
+                    <span className="text-sm font-bold text-indigo-900 block bg-indigo-50 px-2.5 py-0.5 rounded border border-indigo-200 mt-1">
                       {activeAssessment?.name || cardBuffer.assessmentName || `${selectedTerm} Summative Assessment 2026`}
                     </span>
-                    <span className="text-xs text-slate-700 block font-semibold mt-0.5">{selectedTerm}</span>
-                    <span className="text-[10px] text-slate-500 block">
+                    <span className="text-sm text-slate-700 block font-semibold mt-0.5">{selectedTerm}</span>
+                    <span className="text-xs text-slate-500 block">
                       Issued: {cardBuffer.issueDate}
                     </span>
                   </div>
                   <img
                     src={KNEC_SEAL_URL}
                     alt="KNEC Mitihani Seal"
-                    className="w-14 h-14 object-contain shrink-0"
+                    className="w-16 h-16 object-contain shrink-0"
                     referrerPolicy="no-referrer"
                   />
                 </div>
@@ -1727,34 +1503,34 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
 
               {/* Student Metadata Strip */}
               {activeLearner && (
-                <div className="grid grid-cols-4 gap-2.5 p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-xs">
+                <div className="grid grid-cols-4 gap-3 p-3.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-sm">
                   <div>
-                    <span className="text-[9px] uppercase font-semibold text-slate-400 block">
+                    <span className="text-[11px] uppercase font-semibold text-slate-500 block">
                       Learner Full Name
                     </span>
-                    <span className="font-bold text-slate-900 text-xs">
+                    <span className="font-bold text-slate-900 text-sm">
                       {activeLearner.firstName} {activeLearner.lastName}
                     </span>
                   </div>
                   <div>
-                    <span className="text-[9px] uppercase font-semibold text-slate-400 block">
+                    <span className="text-[11px] uppercase font-semibold text-slate-500 block">
                       Student UPI / ID
                     </span>
-                    <span className="font-mono font-semibold text-slate-800 text-xs">
+                    <span className="font-mono font-bold text-slate-800 text-sm">
                       {activeLearner.studentId}
                     </span>
                   </div>
                   <div>
-                    <span className="text-[9px] uppercase font-semibold text-slate-400 block">
+                    <span className="text-[11px] uppercase font-semibold text-slate-500 block">
                       Section &amp; Class
                     </span>
-                    <span className="font-bold text-indigo-700 text-xs">{activeWingName} · {activeLearner.grade}</span>
+                    <span className="font-bold text-indigo-700 text-sm">{activeWingName} · {activeLearner.grade}</span>
                   </div>
                   <div>
-                    <span className="text-[9px] uppercase font-semibold text-slate-400 block">
+                    <span className="text-[11px] uppercase font-semibold text-slate-500 block">
                       Class Rank &amp; Attendance
                     </span>
-                    <span className={`font-mono font-bold text-xs ${isLearnerAbsentForExam ? 'text-rose-700' : 'text-slate-800'}`}>
+                    <span className={`font-mono font-bold text-sm ${isLearnerAbsentForExam ? 'text-rose-700' : 'text-slate-800'}`}>
                       {isLearnerAbsentForExam ? 'DNS (Did Not Sit Exam)' : `Rank #${cardBuffer.classRank}`} · {cardBuffer.attendancePercentage.toFixed(1)}%
                     </span>
                   </div>
@@ -1763,111 +1539,69 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
 
               {/* Prominent Absentee Alert Banner for Exam Attendance */}
               {isLearnerAbsentForExam && (
-                <div className="p-2.5 bg-rose-50 border-2 border-rose-300 rounded-lg flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded font-bold font-mono text-[10px] bg-rose-700 text-white">
+                <div className="p-3 bg-rose-50 border-2 border-rose-300 rounded-lg flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-2.5">
+                    <span className="px-2.5 py-0.5 rounded font-bold font-mono text-xs bg-rose-700 text-white">
                       EXAM SITTING STATUS: ABSENT (DNS)
                     </span>
-                    <span className="font-semibold text-rose-900 text-xs">
+                    <span className="font-semibold text-rose-900 text-sm">
                       {cardBuffer.examAbsentReason || activeAssessment?.absentReasons?.[selectedLearnerId] || 'Marked Absent by Class Teacher'} · Did Not Sit for this Examination
                     </span>
                   </div>
-                  <span className="text-[10px] font-mono text-rose-700 font-bold">
+                  <span className="text-xs font-mono text-rose-700 font-bold">
                     Excluded from Class Standing &amp; Mean Calculation
                   </span>
                 </div>
               )}
 
-              {/* Printable Visual Trajectory & Competency Profile Strip */}
-              <div className="p-2.5 bg-indigo-50/60 border border-indigo-200 rounded-lg flex items-center justify-between text-xs flex-wrap gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-indigo-900 text-[11px]">Academic Trajectory:</span>
-                  <span className="text-slate-700">Prev: {activeTrends.previousScore.toFixed(1)}% ➔ Curr: <strong>{activeTrends.currentScore.toFixed(1)}%</strong></span>
-                  <span className={`font-mono font-bold px-1.5 py-0.5 rounded text-[10px] ${
-                    activeTrends.isPositiveDelta ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
-                  }`}>
-                    {activeTrends.deltaPercentageStr} {activeTrends.isPositiveDelta ? '▲' : '▼'}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 text-[11px]">
-                  <span className="text-slate-500">Balance:</span>
-                  <span className="font-bold text-emerald-700">{activeTrends.categoryCounts.EE} EE</span>
-                  <span className="text-slate-300">·</span>
-                  <span className="font-bold text-blue-700">{activeTrends.categoryCounts.ME} ME</span>
-                  <span className="text-slate-300">·</span>
-                  <span className="font-bold text-amber-700">{activeTrends.categoryCounts.AE} AE</span>
-                  <span className="text-slate-300">·</span>
-                  <span className="font-bold text-rose-700">{activeTrends.categoryCounts.BE} BE</span>
-                </div>
-              </div>
-
-              {/* Grade Table with Visual Progress Bar & Full Unclipped Remarks */}
+              {/* Grade Table with Full Unclipped Remarks */}
               <div className="border border-slate-200 rounded-lg overflow-hidden">
                 <table className="w-full text-left">
-                  <thead className="bg-slate-100 text-[10px] uppercase font-semibold text-slate-700">
+                  <thead className="bg-slate-800 text-xs uppercase font-bold text-white">
                     <tr>
-                      <th className="py-1.5 px-3">Subject / Academic Area</th>
-                      <th className="py-1.5 px-2 text-right">{activeAssessment?.test1Name || 'Test 1'}</th>
-                      <th className="py-1.5 px-2 text-right">{activeAssessment?.test2Name || 'Test 2'}</th>
-                      <th className="py-1.5 px-2 text-right">{activeAssessment?.test3Name || 'Exam'}</th>
-                      <th className="py-1.5 px-2 text-right">Total (100)</th>
-                      <th className="py-1.5 px-2 text-left">Score Visual Trend</th>
-                      <th className="py-1.5 px-2 text-center">Grade</th>
-                      <th className="py-1.5 px-2 text-center">Points</th>
-                      <th className="py-1.5 px-3 text-left min-w-56">Teacher Remarks &amp; Observations</th>
+                      <th className="py-2.5 px-3">Subject / Academic Area</th>
+                      <th className="py-2.5 px-2.5 text-right">{activeAssessment?.test1Name || 'Test 1'}</th>
+                      <th className="py-2.5 px-2.5 text-right">{activeAssessment?.test2Name || 'Test 2'}</th>
+                      <th className="py-2.5 px-2.5 text-right">{activeAssessment?.test3Name || 'Exam'}</th>
+                      <th className="py-2.5 px-2.5 text-right">Total (100)</th>
+                      <th className="py-2.5 px-2.5 text-center">Grade</th>
+                      <th className="py-2.5 px-2.5 text-center">Pts</th>
+                      <th className="py-2.5 px-3 text-left min-w-64">Teacher Remarks &amp; Observations</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 text-xs">
+                  <tbody className="divide-y divide-slate-200 text-sm">
                     {cardBuffer.subjects.map((s) => {
                       const g = calculateCompetencyGrade(s.totalScore);
-                      const gCol = getGradeColor(g.grade);
                       return (
-                        <tr key={s.id}>
-                          <td className="py-2 px-3 font-semibold text-slate-900 whitespace-nowrap">{s.subjectName}</td>
-                          <td className="py-2 px-2 text-right font-mono tabular-nums text-slate-600">
+                        <tr key={s.id} className="even:bg-slate-50/70">
+                          <td className="py-2.5 px-3 font-bold text-slate-900 whitespace-nowrap">{s.subjectName}</td>
+                          <td className="py-2.5 px-2.5 text-right font-mono tabular-nums text-slate-700">
                             {isLearnerAbsentForExam ? <span className="text-rose-600 font-bold">DNS</span> : s.catScore}
                           </td>
-                          <td className="py-2 px-2 text-right font-mono tabular-nums text-slate-600">
+                          <td className="py-2.5 px-2.5 text-right font-mono tabular-nums text-slate-700">
                             {isLearnerAbsentForExam ? <span className="text-rose-600 font-bold">DNS</span> : s.midTermScore}
                           </td>
-                          <td className="py-2 px-2 text-right font-mono tabular-nums text-slate-600">
+                          <td className="py-2.5 px-2.5 text-right font-mono tabular-nums text-slate-700">
                             {isLearnerAbsentForExam ? <span className="text-rose-600 font-bold">DNS</span> : s.finalExamScore}
                           </td>
-                          <td className="py-2 px-2 text-right font-mono font-bold text-slate-900 tabular-nums">
+                          <td className="py-2.5 px-2.5 text-right font-mono font-extrabold text-slate-900 tabular-nums">
                             {isLearnerAbsentForExam ? <span className="text-rose-600 font-bold">DNS</span> : s.totalScore}
                           </td>
-                          <td className="py-2 px-2">
-                            {isLearnerAbsentForExam ? (
-                              <span className="text-[10px] font-mono text-rose-600 font-bold">Did Not Sit</span>
-                            ) : (
-                              <div className="w-24">
-                                <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden flex">
-                                  <div
-                                    style={{
-                                      width: `${Math.min(100, Math.max(5, s.totalScore))}%`,
-                                      backgroundColor: gCol.hex,
-                                    }}
-                                    className="h-full rounded-full"
-                                  />
-                                </div>
-                              </div>
-                            )}
-                          </td>
-                          <td className="py-2 px-2 text-center font-mono font-bold text-indigo-700">
+                          <td className="py-2.5 px-2.5 text-center font-mono font-bold text-indigo-700">
                             {isLearnerAbsentForExam ? (
                               <span className="text-rose-600 font-bold">DNS</span>
                             ) : (
                               g.grade
                             )}
                           </td>
-                          <td className="py-2 px-2 text-center font-mono font-bold text-slate-800">
+                          <td className="py-2.5 px-2.5 text-center font-mono font-bold text-slate-800">
                             {isLearnerAbsentForExam ? (
                               <span className="text-rose-600 font-bold">0</span>
                             ) : (
                               g.points
                             )}
                           </td>
-                          <td className="py-2 px-3 text-slate-700 text-[10.5px] leading-snug whitespace-normal break-words">
+                          <td className="py-2.5 px-3 text-slate-700 text-xs leading-snug whitespace-normal break-words">
                             {isLearnerAbsentForExam ? (
                               <span className="text-rose-700 italic">Did Not Sit (DNS) — Candidate absent during examination session.</span>
                             ) : (
@@ -1882,119 +1616,118 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
               </div>
 
               {/* Summary Metrics Strip */}
-              <div className="grid grid-cols-4 gap-2.5 p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-center">
+              <div className="grid grid-cols-4 gap-3 p-3.5 bg-slate-50 border border-slate-200 rounded-lg text-center">
                 <div>
-                  <span className="text-[9px] text-slate-400 uppercase font-semibold block">Total Marks</span>
-                  <span className={`text-sm font-bold font-mono tabular-nums ${isLearnerAbsentForExam ? 'text-rose-600' : 'text-slate-900'}`}>
+                  <span className="text-[11px] text-slate-500 uppercase font-semibold block">Total Marks</span>
+                  <span className={`text-base font-extrabold font-mono tabular-nums ${isLearnerAbsentForExam ? 'text-rose-600' : 'text-slate-900'}`}>
                     {isLearnerAbsentForExam ? 'DNS' : `${cardBuffer.totalMarks} / ${cardBuffer.maxPossibleMarks}`}
                   </span>
                 </div>
                 <div>
-                  <span className="text-[9px] text-slate-400 uppercase font-semibold block">Mean Percentage</span>
-                  <span className={`text-sm font-bold font-mono tabular-nums ${isLearnerAbsentForExam ? 'text-rose-600' : 'text-indigo-700'}`}>
+                  <span className="text-[11px] text-slate-500 uppercase font-semibold block">Mean Percentage</span>
+                  <span className={`text-base font-extrabold font-mono tabular-nums ${isLearnerAbsentForExam ? 'text-rose-600' : 'text-indigo-700'}`}>
                     {isLearnerAbsentForExam ? 'DNS' : `${cardBuffer.averageScore.toFixed(1)}%`}
                   </span>
                 </div>
                 <div>
-                  <span className="text-[9px] text-slate-400 uppercase font-semibold block">Competency GPA</span>
-                  <span className={`text-sm font-bold font-mono tabular-nums ${isLearnerAbsentForExam ? 'text-rose-600' : 'text-slate-900'}`}>
+                  <span className="text-[11px] text-slate-500 uppercase font-semibold block">Competency GPA</span>
+                  <span className={`text-base font-extrabold font-mono tabular-nums ${isLearnerAbsentForExam ? 'text-rose-600' : 'text-slate-900'}`}>
                     {isLearnerAbsentForExam ? 'DNS / 8.0 (DNS)' : `${cardBuffer.gpa.toFixed(2)} / 8.0 (${overallGradeInfo.grade})`}
                   </span>
                 </div>
                 <div>
-                  <span className="text-[9px] text-slate-400 uppercase font-semibold block">Attendance Rate</span>
-                  <span className="text-sm font-bold font-mono text-emerald-700 tabular-nums">
+                  <span className="text-[11px] text-slate-500 uppercase font-semibold block">Attendance Rate</span>
+                  <span className="text-base font-extrabold font-mono text-emerald-700 tabular-nums">
                     {cardBuffer.attendancePercentage.toFixed(1)}%
                   </span>
                 </div>
               </div>
 
-
               {/* 8-Tier Grading Rubric Legend Table */}
-              <div className="p-3 bg-slate-50/80 border border-slate-200 rounded-lg text-[10px] text-slate-600 space-y-1.5">
-                <span className="font-bold text-slate-800 block text-[11px]">
+              <div className="p-3.5 bg-slate-50/80 border border-slate-200 rounded-lg text-xs text-slate-600 space-y-2">
+                <span className="font-bold text-slate-800 block text-xs uppercase tracking-wide">
                   Institutional 8-Level Competency Grading Scale Rubric:
                 </span>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 font-mono text-[10px]">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono text-xs">
                   {COMPETENCY_SCALE.map((lvl) => (
-                    <div key={lvl.grade} className="p-1.5 bg-white border border-slate-200 rounded">
+                    <div key={lvl.grade} className="p-2 bg-white border border-slate-200 rounded">
                       <div className="flex items-center justify-between font-bold text-slate-900">
                         <span>{lvl.grade} ({lvl.points} pts)</span>
-                        <span className="text-indigo-600 text-[9px]">{lvl.condition}</span>
+                        <span className="text-indigo-600 text-[11px]">{lvl.condition}</span>
                       </div>
-                      <div className="text-[9px] text-slate-500 truncate">{lvl.label}</div>
+                      <div className="text-[11px] text-slate-500 truncate">{lvl.label}</div>
                     </div>
                   ))}
                 </div>
               </div>
 
               {/* Remarks and Official Signatures - Fully Accommodating All Remarks */}
-              <div className="space-y-3 pt-2">
-                <div className="p-3 border border-slate-200 rounded-lg bg-slate-50/50">
-                  <span className="text-[10px] uppercase font-bold text-slate-600 block">
+              <div className="space-y-3 pt-1">
+                <div className="p-3.5 border border-slate-200 rounded-lg bg-slate-50/50">
+                  <span className="text-xs uppercase font-bold text-slate-600 block">
                     Class Teacher's Evaluative Remarks &amp; Observations
                   </span>
-                  <p className="text-slate-900 italic mt-1 leading-relaxed text-xs break-words font-medium">
+                  <p className="text-slate-900 italic mt-1 leading-relaxed text-sm break-words font-medium">
                     "{cardBuffer.classTeacherRemark}"
                   </p>
-                  <p className="text-[10px] text-slate-500 mt-1 font-semibold">
+                  <p className="text-xs text-slate-500 mt-1 font-semibold">
                     — {activeClassTeacherName}, Class Tutor
                   </p>
                 </div>
 
-                <div className="p-3 border border-slate-200 rounded-lg bg-slate-50/50">
-                  <span className="text-[10px] uppercase font-bold text-slate-600 block">
+                <div className="p-3.5 border border-slate-200 rounded-lg bg-slate-50/50">
+                  <span className="text-xs uppercase font-bold text-slate-600 block">
                     Principal &amp; Head of Institution Comments &amp; Endorsement
                   </span>
-                  <p className="text-slate-900 italic mt-1 leading-relaxed text-xs break-words font-medium">
+                  <p className="text-slate-900 italic mt-1 leading-relaxed text-sm break-words font-medium">
                     "{sanitizeInstitutionalRemark(cardBuffer.principalRemark, schoolProfile, activeLearner?.grade)}"
                   </p>
-                  <p className="text-[10px] text-slate-500 mt-1 font-semibold">
+                  <p className="text-xs text-slate-500 mt-1 font-semibold">
                     — {activePrincipalName}, Head of Institution ({activeWingName})
                   </p>
                 </div>
 
                 {/* Signature Lines with Digital Signatures */}
-                <div className="pt-4 grid grid-cols-3 gap-6 text-[11px]">
+                <div className="pt-4 grid grid-cols-3 gap-6 text-xs">
                   <div>
-                    <div className="h-10 flex items-end pb-1">
+                    <div className="h-11 flex items-end pb-1">
                       {schoolProfile.signatures?.['class_teacher']?.signatureDataUrl &&
                       schoolProfile.signatures['class_teacher'].signatoryName === activeClassTeacherName ? (
                         <img
                           src={schoolProfile.signatures['class_teacher'].signatureDataUrl}
                           alt="Tutor Signature"
-                          className="max-h-10 object-contain"
+                          className="max-h-11 object-contain"
                         />
                       ) : null}
                     </div>
-                    <div className="border-b border-slate-400 mb-1"></div>
-                    <p className="font-semibold text-slate-800">
+                    <div className="border-b border-slate-400 mb-1.5"></div>
+                    <p className="font-bold text-slate-900 text-sm">
                       {activeClassTeacherName}
                     </p>
-                    <p className="text-slate-400 text-[10px]">
+                    <p className="text-slate-500 text-xs">
                       {schoolProfile.signatures?.['class_teacher']?.roleTitle || 'Class Tutor Signature'}
                     </p>
                   </div>
                   <div>
-                    <div className="h-10 flex items-end pb-1">
+                    <div className="h-11 flex items-end pb-1">
                       {schoolProfile.signatures?.['hoi']?.signatureDataUrl ? (
                         <img
                           src={schoolProfile.signatures['hoi'].signatureDataUrl}
                           alt="Principal Signature"
-                          className="max-h-10 object-contain"
+                          className="max-h-11 object-contain"
                         />
                       ) : null}
                     </div>
-                    <div className="border-b border-slate-400 mb-1"></div>
-                    <p className="font-semibold text-slate-800">
+                    <div className="border-b border-slate-400 mb-1.5"></div>
+                    <p className="font-bold text-slate-900 text-sm">
                       {activePrincipalName}
                     </p>
-                    <p className="text-slate-400 text-[10px]">
+                    <p className="text-slate-500 text-xs">
                       {schoolProfile.signatures?.['hoi']?.roleTitle || 'Principal Signature'}
                     </p>
                   </div>
                   <div className="text-right">
-                    <div className="inline-flex flex-col items-center p-2 border border-indigo-200 bg-indigo-50/30 rounded-lg text-indigo-950">
+                    <div className="inline-flex flex-col items-center p-2.5 border border-indigo-200 bg-indigo-50/30 rounded-lg text-indigo-950">
                       <img
                         src={resolveWingSeal(
                           activeLearner?.grade || '',
@@ -2002,10 +1735,10 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
                           schoolProfile.signatures?.['seal']?.signatureDataUrl || crestImage
                         )}
                         alt={`${activeWingName} Official Seal`}
-                        className="w-16 h-16 object-contain rounded-full mx-auto"
+                        className="w-18 h-18 object-contain rounded-full mx-auto"
                         referrerPolicy="no-referrer"
                       />
-                      <span className="font-mono font-bold text-[9px] uppercase tracking-wider mt-1">
+                      <span className="font-mono font-bold text-[10px] uppercase tracking-wider mt-1">
                         {activeWingName} Seal
                       </span>
                     </div>
