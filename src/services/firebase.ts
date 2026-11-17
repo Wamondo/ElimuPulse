@@ -244,6 +244,26 @@ export async function fetchCollectionFromFirestore<T>(
   }
 }
 
+// Fetch all documents in a collection with explicit ok status (distinguishes genuine empty collection from offline/error)
+export async function fetchCollectionSafe<T>(
+  collectionName: string
+): Promise<{ ok: boolean; items: T[] }> {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    return { ok: false, items: [] };
+  }
+  try {
+    const querySnapshot = await getDocs(collection(db, collectionName));
+    const items: T[] = [];
+    querySnapshot.forEach((docSnap) => {
+      items.push(docSnap.data() as T);
+    });
+    return { ok: true, items };
+  } catch (err) {
+    console.warn(`Firestore list failed for ${collectionName}:`, err);
+    return { ok: false, items: [] };
+  }
+}
+
 // Bulk initialize or sync items to Firestore in batches
 export async function batchSyncToFirestore<T extends { id: string }>(
   collectionName: string,

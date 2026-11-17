@@ -401,7 +401,7 @@ export const LearnersAndParentsView: React.FC<LearnersAndParentsViewProps> = ({
           const attendancePercent =
             studentAttendance.length > 0
               ? (presentCount / studentAttendance.length) * 100
-              : 96;
+              : 0;
 
           const isDecrypted = parent ? isParentDecrypted(parent.id) : false;
 

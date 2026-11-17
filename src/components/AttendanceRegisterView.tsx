@@ -170,7 +170,7 @@ export const AttendanceRegisterView: React.FC<AttendanceRegisterViewProps> = ({
     });
 
     const totalAttendedSessions = morningPresent + afternoonPresent;
-    const dayAttendanceRate = totalPossibleSessions > 0 ? (totalAttendedSessions / totalPossibleSessions) * 100 : 100;
+    const dayAttendanceRate = totalPossibleSessions > 0 ? (totalAttendedSessions / totalPossibleSessions) * 100 : 0;
 
     return {
       totalPossibleSessions,
@@ -224,7 +224,7 @@ export const AttendanceRegisterView: React.FC<AttendanceRegisterViewProps> = ({
   }, [classLearners, currentWeekDays, attendance]);
 
   const classWeeklyAverageRate = useMemo(() => {
-    if (weeklyLearnerData.length === 0) return 100;
+    if (weeklyLearnerData.length === 0) return 0;
     const sum = weeklyLearnerData.reduce((acc, curr) => acc + curr.weeklyRate, 0);
     return sum / weeklyLearnerData.length;
   }, [weeklyLearnerData]);
@@ -245,7 +245,7 @@ export const AttendanceRegisterView: React.FC<AttendanceRegisterViewProps> = ({
       const absentCount = records.filter((a) => a.status === 'absent').length;
 
       const totalEffectiveAttended = presentCount + lateCount + excusedCount;
-      const termRate = recordedCount > 0 ? (totalEffectiveAttended / recordedCount) * 100 : 96.5;
+      const termRate = recordedCount > 0 ? (totalEffectiveAttended / recordedCount) * 100 : 0;
 
       // Projecting annual sessions based on term regularity
       const annualProjectedAttended = Math.round((termRate / 100) * STANDARD_YEAR_SESSIONS);
@@ -267,7 +267,7 @@ export const AttendanceRegisterView: React.FC<AttendanceRegisterViewProps> = ({
   }, [classLearners, attendance]);
 
   const classTermAverageRate = useMemo(() => {
-    if (termAndAnnualData.length === 0) return 96.5;
+    if (termAndAnnualData.length === 0) return 0;
     const sum = termAndAnnualData.reduce((acc, curr) => acc + curr.termRate, 0);
     return sum / termAndAnnualData.length;
   }, [termAndAnnualData]);
@@ -287,16 +287,16 @@ export const AttendanceRegisterView: React.FC<AttendanceRegisterViewProps> = ({
     const aPresent = afternoonRecords.filter((a) => a.status === 'present' || a.status === 'late' || a.status === 'excused').length;
 
     const totalAttended = mPresent + aPresent;
-    const rate = total > 0 ? (totalAttended / total) * 100 : 97.2;
+    const rate = total > 0 ? (totalAttended / total) * 100 : 0;
 
     return {
       totalSessions: total,
       morningSessions: morningRecords.length,
       morningPresent: mPresent,
-      morningRate: morningRecords.length > 0 ? (mPresent / morningRecords.length) * 100 : 98,
+      morningRate: morningRecords.length > 0 ? (mPresent / morningRecords.length) * 100 : 0,
       afternoonSessions: afternoonRecords.length,
       afternoonPresent: aPresent,
-      afternoonRate: afternoonRecords.length > 0 ? (aPresent / afternoonRecords.length) * 100 : 96.5,
+      afternoonRate: afternoonRecords.length > 0 ? (aPresent / afternoonRecords.length) * 100 : 0,
       rate,
       annualProjected: Math.round((rate / 100) * STANDARD_YEAR_SESSIONS),
     };
@@ -504,7 +504,7 @@ export const AttendanceRegisterView: React.FC<AttendanceRegisterViewProps> = ({
                   Morning Session
                 </span>
                 <span className="text-xs font-bold text-amber-700">
-                  {classLearners.length > 0 ? ((dayStats.morningPresent / classLearners.length) * 100).toFixed(0) : 100}%
+                  {classLearners.length > 0 ? ((dayStats.morningPresent / classLearners.length) * 100).toFixed(0) : 0}%
                 </span>
               </div>
               <div className="text-xl font-bold font-mono text-amber-900 mt-0.5">
@@ -520,7 +520,7 @@ export const AttendanceRegisterView: React.FC<AttendanceRegisterViewProps> = ({
                   Afternoon Session
                 </span>
                 <span className="text-xs font-bold text-indigo-700">
-                  {classLearners.length > 0 ? ((dayStats.afternoonPresent / classLearners.length) * 100).toFixed(0) : 100}%
+                  {classLearners.length > 0 ? ((dayStats.afternoonPresent / classLearners.length) * 100).toFixed(0) : 0}%
                 </span>
               </div>
               <div className="text-xl font-bold font-mono text-indigo-900 mt-0.5">

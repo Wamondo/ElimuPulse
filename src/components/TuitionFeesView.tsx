@@ -375,99 +375,113 @@ export const TuitionFeesView: React.FC<TuitionFeesViewProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredStructures.map((fs) => {
-                const learner = learners.find((l) => l.id === fs.learnerId);
-                const parent = parents.find((p) => p.id === learner?.parentId);
-                const isOverdue = new Date(fs.dueDate) < new Date('2026-06-18') && fs.balance > 0;
+              {filteredStructures.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={currentUser.role === 'admin' || currentUser.role === 'bursar' ? 10 : 9}
+                    className="py-8 px-4 text-center text-slate-500"
+                  >
+                    {learners.length === 0
+                      ? 'No learners currently enrolled. Enroll learners to generate tuition fee accounts.'
+                      : 'No student tuition fee accounts match the selected filter.'}
+                  </td>
+                </tr>
+              ) : (
+                filteredStructures.map((fs) => {
+                  const learner = learners.find((l) => l.id === fs.learnerId);
+                  if (!learner) return null;
+                  const parent = parents.find((p) => p.id === learner.parentId);
+                  const isOverdue = new Date(fs.dueDate) < new Date('2026-06-18') && fs.balance > 0;
 
-                return (
-                  <tr key={fs.id} className="hover:bg-slate-50/70 transition-colors">
-                    <td className="py-3 px-4">
-                      <div className="font-semibold text-slate-900">
-                        {learner?.firstName} {learner?.lastName}
-                      </div>
-                      <div className="text-[11px] text-slate-500 font-mono">
-                        {learner?.studentId} · {learner?.grade}
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="font-medium text-slate-800">{parent?.fullName}</div>
-                      <div className="text-[11px] text-slate-500">{parent?.relationship}</div>
-                    </td>
-                    <td className="py-3 px-3 text-right font-mono tabular-nums text-slate-700">
-                      Ksh {fs.tuitionFee.toLocaleString()}
-                    </td>
-                    <td className="py-3 px-3 text-right font-mono tabular-nums text-slate-500">
-                      Ksh {(fs.sportsAndActivityFee + fs.learningMaterialsFee).toLocaleString()}
-                    </td>
-                    <td className="py-3 px-3 text-right font-mono tabular-nums font-semibold text-slate-900">
-                      Ksh {fs.totalDue.toLocaleString()}
-                    </td>
-                    <td className="py-3 px-3 text-right font-mono tabular-nums text-emerald-700">
-                      Ksh {fs.amountPaid.toLocaleString()}
-                    </td>
-                    <td className="py-3 px-3 text-right font-mono tabular-nums font-bold">
-                      <span className={fs.balance > 0 ? 'text-amber-700' : 'text-slate-400'}>
-                        Ksh {fs.balance.toLocaleString()}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3 font-mono text-[11px] text-slate-600">
-                      {fs.dueDate}
-                    </td>
-                    <td className="py-3 px-3">
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold uppercase font-mono ${
-                          fs.balance <= 0
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : isOverdue
-                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                            : 'bg-amber-50 text-amber-700 border border-amber-200'
-                        }`}
-                      >
-                        {fs.balance <= 0 ? 'Paid' : isOverdue ? 'Overdue' : 'Partial'}
-                      </span>
-                    </td>
-                    {(currentUser.role === 'admin' || currentUser.role === 'bursar') && (
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {fs.balance > 0 && (
-                            <button
-                              onClick={() => handleOpenReminders(fs.learnerId)}
-                              title="Send direct SMS/Email reminder to parent"
-                              className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded transition-colors cursor-pointer"
-                            >
-                              <BellRing className="w-3 h-3 text-amber-600" />
-                              <span>Remind</span>
-                            </button>
-                          )}
-                          {fs.balance > 0 && (
-                            <button
-                              onClick={() => {
-                                setMpesaLearnerId(fs.learnerId);
-                                setIsMpesaModalOpen(true);
-                              }}
-                              title="Prompt Lipa Na M-Pesa STK push on parent phone"
-                              className="px-2.5 py-1 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded transition-colors cursor-pointer"
-                            >
-                              M-Pesa
-                            </button>
-                          )}
-                          {fs.balance > 0 ? (
-                            <button
-                              onClick={() => onOpenRecordPaymentModal(fs.learnerId)}
-                              className="px-2.5 py-1 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded transition-colors cursor-pointer"
-                            >
-                              Pay Due
-                            </button>
-                          ) : (
-                            <span className="text-[11px] text-emerald-600 font-medium">Cleared</span>
-                          )}
+                  return (
+                    <tr key={fs.id} className="hover:bg-slate-50/70 transition-colors">
+                      <td className="py-3 px-4">
+                        <div className="font-semibold text-slate-900">
+                          {learner.firstName} {learner.lastName}
+                        </div>
+                        <div className="text-[11px] text-slate-500 font-mono">
+                          {learner.studentId} · {learner.grade}
                         </div>
                       </td>
-                    )}
-                  </tr>
-                );
-              })}
+                      <td className="py-3 px-4">
+                        <div className="font-medium text-slate-800">{parent?.fullName || '—'}</div>
+                        <div className="text-[11px] text-slate-500">{parent?.relationship || ''}</div>
+                      </td>
+                      <td className="py-3 px-3 text-right font-mono tabular-nums text-slate-700">
+                        Ksh {fs.tuitionFee.toLocaleString()}
+                      </td>
+                      <td className="py-3 px-3 text-right font-mono tabular-nums text-slate-500">
+                        Ksh {(fs.sportsAndActivityFee + fs.learningMaterialsFee).toLocaleString()}
+                      </td>
+                      <td className="py-3 px-3 text-right font-mono tabular-nums font-semibold text-slate-900">
+                        Ksh {fs.totalDue.toLocaleString()}
+                      </td>
+                      <td className="py-3 px-3 text-right font-mono tabular-nums text-emerald-700">
+                        Ksh {fs.amountPaid.toLocaleString()}
+                      </td>
+                      <td className="py-3 px-3 text-right font-mono tabular-nums font-bold">
+                        <span className={fs.balance > 0 ? 'text-amber-700' : 'text-slate-400'}>
+                          Ksh {fs.balance.toLocaleString()}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 font-mono text-[11px] text-slate-600">
+                        {fs.dueDate}
+                      </td>
+                      <td className="py-3 px-3">
+                        <span
+                          className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold uppercase font-mono ${
+                            fs.balance <= 0
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : isOverdue
+                              ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                              : 'bg-amber-50 text-amber-700 border border-amber-200'
+                          }`}
+                        >
+                          {fs.balance <= 0 ? 'Paid' : isOverdue ? 'Overdue' : 'Partial'}
+                        </span>
+                      </td>
+                      {(currentUser.role === 'admin' || currentUser.role === 'bursar') && (
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {fs.balance > 0 && (
+                              <button
+                                onClick={() => handleOpenReminders(fs.learnerId)}
+                                title="Send direct SMS/Email reminder to parent"
+                                className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded transition-colors cursor-pointer"
+                              >
+                                <BellRing className="w-3 h-3 text-amber-600" />
+                                <span>Remind</span>
+                              </button>
+                            )}
+                            {fs.balance > 0 && (
+                              <button
+                                onClick={() => {
+                                  setMpesaLearnerId(fs.learnerId);
+                                  setIsMpesaModalOpen(true);
+                                }}
+                                title="Prompt Lipa Na M-Pesa STK push on parent phone"
+                                className="px-2.5 py-1 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded transition-colors cursor-pointer"
+                              >
+                                M-Pesa
+                              </button>
+                            )}
+                            {fs.balance > 0 ? (
+                              <button
+                                onClick={() => onOpenRecordPaymentModal(fs.learnerId)}
+                                className="px-2.5 py-1 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded transition-colors cursor-pointer"
+                              >
+                                Pay Due
+                              </button>
+                            ) : (
+                              <span className="text-[11px] text-emerald-600 font-medium">Cleared</span>
+                            )}
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
@@ -500,50 +514,59 @@ export const TuitionFeesView: React.FC<TuitionFeesViewProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredPayments.map((p) => {
-                const learner = learners.find((l) => l.id === p.learnerId);
-                const parent = parents.find((pr) => pr.id === p.parentId);
+              {filteredPayments.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="py-8 px-4 text-center text-slate-500">
+                    No fee payment receipts recorded yet.
+                  </td>
+                </tr>
+              ) : (
+                filteredPayments.map((p) => {
+                  const learner = learners.find((l) => l.id === p.learnerId);
+                  if (!learner) return null;
+                  const parent = parents.find((pr) => pr.id === p.parentId);
 
-                return (
-                  <tr key={p.id} className="hover:bg-slate-50/70 transition-colors">
-                    <td className="py-3 px-4 font-mono font-semibold text-indigo-700">
-                      {p.receiptNumber}
-                    </td>
-                    <td className="py-3 px-4 font-mono text-slate-600 text-[11px]">
-                      {p.transactionRef}
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="font-semibold text-slate-900">
-                        {learner?.firstName} {learner?.lastName}
-                      </div>
-                      <div className="text-[11px] text-slate-500">
-                        Paid by {parent?.fullName || 'Parent'}
-                      </div>
-                    </td>
-                    <td className="py-3 px-3 text-slate-600">{p.term}</td>
-                    <td className="py-3 px-3 text-right font-mono font-bold text-emerald-700 tabular-nums">
-                      Ksh {p.amount.toLocaleString()}
-                    </td>
-                    <td className="py-3 px-3">
-                      <span className="font-mono text-[11px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200">
-                        {p.method}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3 font-mono text-slate-600 tabular-nums">
-                      {p.paymentDate}
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <button
-                        onClick={() => setActiveReceiptPayment(p)}
-                        className="flex items-center gap-1 ml-auto px-2.5 py-1 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded transition-colors cursor-pointer"
-                      >
-                        <Receipt className="w-3.5 h-3.5 text-slate-500" />
-                        <span>View Receipt</span>
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
+                  return (
+                    <tr key={p.id} className="hover:bg-slate-50/70 transition-colors">
+                      <td className="py-3 px-4 font-mono font-semibold text-indigo-700">
+                        {p.receiptNumber}
+                      </td>
+                      <td className="py-3 px-4 font-mono text-slate-600 text-[11px]">
+                        {p.transactionRef}
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="font-semibold text-slate-900">
+                          {learner.firstName} {learner.lastName}
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          Paid by {parent?.fullName || 'Parent'}
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 text-slate-600">{p.term}</td>
+                      <td className="py-3 px-3 text-right font-mono font-bold text-emerald-700 tabular-nums">
+                        Ksh {p.amount.toLocaleString()}
+                      </td>
+                      <td className="py-3 px-3">
+                        <span className="font-mono text-[11px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200">
+                          {p.method}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 font-mono text-slate-600 tabular-nums">
+                        {p.paymentDate}
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <button
+                          onClick={() => setActiveReceiptPayment(p)}
+                          className="flex items-center gap-1 ml-auto px-2.5 py-1 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded transition-colors cursor-pointer"
+                        >
+                          <Receipt className="w-3.5 h-3.5 text-slate-500" />
+                          <span>View Receipt</span>
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>

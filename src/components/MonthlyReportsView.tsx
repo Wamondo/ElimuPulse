@@ -97,12 +97,12 @@ export const MonthlyReportsView: React.FC = () => {
   const avgSchoolScore =
     scoreCards.length > 0
       ? scoreCards.reduce((acc, curr) => acc + curr.averageScore, 0) / scoreCards.length
-      : 89.3;
+      : 0;
 
   const avgSchoolPoints =
     scoreCards.length > 0
       ? scoreCards.reduce((acc, curr) => acc + curr.gpa, 0) / scoreCards.length
-      : 7.56;
+      : 0;
 
   const overallSchoolCompetency = calculateCompetencyGrade(avgSchoolScore);
 
@@ -112,7 +112,7 @@ export const MonthlyReportsView: React.FC = () => {
     (a) => a.status === 'present' || a.status === 'late'
   ).length;
   const monthAttendanceRate =
-    monthAttendance.length > 0 ? (presentCount / monthAttendance.length) * 100 : 96.2;
+    monthAttendance.length > 0 ? (presentCount / monthAttendance.length) * 100 : 0;
 
   /**
    * Generates and downloads comprehensive student financial & performance CSV for offline analysis
@@ -160,9 +160,9 @@ export const MonthlyReportsView: React.FC = () => {
       const studentAtt = attendance.filter((a) => a.learnerId === learner.id);
       const presentDays = studentAtt.filter((a) => a.status === 'present' || a.status === 'late').length;
       const absentDays = studentAtt.filter((a) => a.status === 'absent').length;
-      const attRate = studentAtt.length > 0 ? (presentDays / studentAtt.length) * 100 : 96.0;
+      const attRate = studentAtt.length > 0 ? (presentDays / studentAtt.length) * 100 : 0;
 
-      const meanScore = card ? card.averageScore : 85.0;
+      const meanScore = card ? card.averageScore : 0;
       const compGradeInfo = calculateCompetencyGrade(meanScore);
       const compPoints = card ? card.gpa : compGradeInfo.points;
 

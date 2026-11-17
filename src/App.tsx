@@ -23,6 +23,7 @@ const MainLayout: React.FC = () => {
     currentUser,
     resetToDefault,
     isAuthenticated,
+    isOwner,
     logout,
     schoolProfile,
     isCloudConnected,
@@ -31,6 +32,10 @@ const MainLayout: React.FC = () => {
     syncAllDataToFirestore,
     firestoreDbId,
   } = useApp();
+
+  const isOwnerAccountActive = Boolean(
+    isOwner && (!currentUser.ownerDesignation || currentUser.ownerDesignation === 'owner')
+  );
 
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
@@ -76,89 +81,74 @@ const MainLayout: React.FC = () => {
         onOpenProductionCenter={() => setIsProductionCenterOpen(true)}
       />
 
-      {/* Role Notice & Security Breadcrumb */}
-      <div className="bg-slate-100 border-b border-slate-200 px-4 sm:px-6 lg:px-8 py-2">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-          <div className="flex items-center gap-2 text-slate-600 flex-wrap">
-            <span className="font-semibold text-slate-900">Active Login:</span>
-            <span className="capitalize font-mono px-2 py-0.5 rounded bg-white border border-slate-300 text-slate-800">
-              {currentUser.role.toUpperCase()}
-            </span>
-            <span className="text-slate-400">·</span>
-            <span className="text-slate-900 font-semibold">{currentUser.name}</span>
-            {currentUser.isOwner && (
+      {/* Role Notice & Security Breadcrumb (Visible exclusively to the Owner Account) */}
+      {isOwnerAccountActive && (
+        <div className="bg-slate-100 border-b border-slate-200 px-4 sm:px-6 lg:px-8 py-2">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-2 text-slate-600 flex-wrap">
+              <span className="font-semibold text-slate-900">Active Login:</span>
+              <span className="capitalize font-mono px-2 py-0.5 rounded bg-white border border-slate-300 text-slate-800">
+                {currentUser.role.toUpperCase()}
+              </span>
+              <span className="text-slate-400">·</span>
+              <span className="text-slate-900 font-semibold">{currentUser.name}</span>
               <span className="inline-flex items-center gap-1.5 text-amber-900 font-bold bg-amber-100 px-2 py-0.5 rounded border border-amber-300 font-mono text-[11px]">
                 <span>👑 App Owner</span>
                 <span className="text-amber-400">·</span>
                 <span className="text-emerald-800 font-semibold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-300">📱 1-Phone Locked</span>
               </span>
-            )}
-            {currentUser.role === 'teacher' && currentUser.teacherType === 'class_teacher' && (
-              <span className="text-emerald-800 font-semibold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-mono text-[11px]">
-                Class Teacher · {currentUser.teacherGrade} (Full Grade Access)
-              </span>
-            )}
-            {currentUser.role === 'teacher' && currentUser.teacherType === 'subject_teacher' && (
-              <span className="text-indigo-800 font-semibold bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 font-mono text-[11px]">
-                Subject Teacher · {currentUser.registeredSubjects?.join(', ')}
-              </span>
-            )}
-            {currentUser.role === 'parent' && (
-              <span className="text-indigo-800 font-semibold bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 font-mono text-[11px]">
-                {currentUser.title || 'Parent Portal (Child Data Only)'}
-              </span>
-            )}
-          </div>
+            </div>
 
-          <div className="flex items-center gap-3 flex-wrap">
-            {/* Install PWA Button */}
-            <PWAInstallButton variant="compact" />
+            <div className="flex items-center gap-3 flex-wrap">
+              {/* Install PWA Button */}
+              <PWAInstallButton variant="compact" />
 
-            {/* Live System Production Badge */}
-            <button
-              onClick={() => setIsProductionCenterOpen(true)}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold bg-indigo-50 text-indigo-900 border border-indigo-200 hover:bg-indigo-100 transition-colors cursor-pointer shadow-xs"
-              title={`Application Launch Status: Fully Operational in Production (${schoolProfile?.name || 'Comprehensive School'})`}
-            >
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>🚀 Production: Live &amp; Operational</span>
-            </button>
-            <span className="text-slate-300">|</span>
+              {/* Live System Production Badge */}
+              <button
+                onClick={() => setIsProductionCenterOpen(true)}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold bg-indigo-50 text-indigo-900 border border-indigo-200 hover:bg-indigo-100 transition-colors cursor-pointer shadow-xs"
+                title={`Application Launch Status: Fully Operational in Production (${schoolProfile?.name || 'Comprehensive School'})`}
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span>🚀 Production: Live &amp; Operational</span>
+              </button>
+              <span className="text-slate-300">|</span>
 
-            {/* Live Firestore Connection Badge */}
-            <button
-              onClick={() => syncAllDataToFirestore()}
-              disabled={isSyncingToCloud}
-              title={`Live Firestore Database (${firestoreDbId}). Fully persistent cloud storage. Click to manually re-sync.`}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-mono border transition-colors cursor-pointer ${
-                isCloudConnected
-                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100 shadow-xs'
-                  : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100 shadow-xs'
-              }`}
-            >
-              <span className={`w-2 h-2 rounded-full ${isCloudConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
-              <Database className={`w-3 h-3 ${isCloudConnected ? 'text-emerald-600' : 'text-amber-600'}`} />
-              <span>
-                {isSyncingToCloud
-                  ? 'Syncing Cloud...'
-                  : isCloudConnected
-                  ? isCloudLoaded
-                    ? 'Firestore: Live & Synced'
-                    : 'Firestore: Connected'
-                  : 'Cloud DB: Connecting'}
-              </span>
-            </button>
-            <span className="text-slate-300">|</span>
-            <button
-              onClick={() => setIsSecurityModalOpen(true)}
-              className="flex items-center gap-1.5 text-slate-600 hover:text-indigo-700 transition-colors cursor-pointer"
-            >
-              <Lock className="w-3 h-3 text-slate-500" />
-              <span>AES-256 Storage Protected</span>
-            </button>
+              {/* Live Firestore Connection Badge */}
+              <button
+                onClick={() => syncAllDataToFirestore()}
+                disabled={isSyncingToCloud}
+                title={`Live Firestore Database (${firestoreDbId}). Fully persistent cloud storage. Click to manually re-sync.`}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-mono border transition-colors cursor-pointer ${
+                  isCloudConnected
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100 shadow-xs'
+                    : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100 shadow-xs'
+                }`}
+              >
+                <span className={`w-2 h-2 rounded-full ${isCloudConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+                <Database className={`w-3 h-3 ${isCloudConnected ? 'text-emerald-600' : 'text-amber-600'}`} />
+                <span>
+                  {isSyncingToCloud
+                    ? 'Syncing Cloud...'
+                    : isCloudConnected
+                    ? isCloudLoaded
+                      ? 'Firestore: Live & Synced'
+                      : 'Firestore: Connected'
+                    : 'Cloud DB: Connecting'}
+                </span>
+              </button>
+              <span className="text-slate-300">|</span>
+              <button
+                onClick={() => setIsSecurityModalOpen(true)}
+                className="flex items-center gap-1.5 text-slate-600 hover:text-indigo-700 transition-colors cursor-pointer"
+              >
+                <Lock className="w-3 h-3 text-slate-500" />
+                <span>AES-256 Storage Protected</span>
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Main Content Viewport */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -244,16 +234,24 @@ const MainLayout: React.FC = () => {
             <span className="text-slate-600">
               {schoolProfile?.primaryWingName || `${schoolProfile?.name || ''} Primary`} &amp; {schoolProfile?.juniorWingName || `${schoolProfile?.name || ''} Junior`} Management Portal
             </span>
-            <span>·</span>
-            <span className="inline-flex items-center gap-1 font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-300 font-mono text-[10px]">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              STATUS: LIVE PRODUCTION · ACTIVE SYSTEM
-            </span>
+            {isOwnerAccountActive && (
+              <>
+                <span>·</span>
+                <span className="inline-flex items-center gap-1 font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-300 font-mono text-[10px]">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  STATUS: LIVE PRODUCTION · ACTIVE SYSTEM
+                </span>
+              </>
+            )}
           </div>
           <div className="flex items-center gap-3 text-slate-400 text-[11px] flex-wrap">
             <span>Compliant with Kenya Data Protection Act 2019</span>
-            <span>·</span>
-            <span className="font-mono">Security: AES-GCM-256</span>
+            {isOwnerAccountActive && (
+              <>
+                <span>·</span>
+                <span className="font-mono">Security: AES-GCM-256</span>
+              </>
+            )}
           </div>
         </div>
       </footer>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { calculateCompetencyGrade } from '../services/gradingService';
 import {
@@ -58,6 +58,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     adminAccounts,
   } = useApp();
 
+  const [dispatchNotice, setDispatchNotice] = useState<string | null>(null);
+
   // ==========================================
   // 1. PARENT ROLE SPECIFIC DASHBOARD VIEW
   // ==========================================
@@ -81,11 +83,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     const totalDays = learnerAttendance.length;
     const presentDays = learnerAttendance.filter((a) => a.status === 'present' || a.status === 'late').length;
     const absences = learnerAttendance.filter((a) => a.status === 'absent').length;
-    const attendancePercent = totalDays > 0 ? (presentDays / totalDays) * 100 : 96.5;
+    const attendancePercent = totalDays > 0 ? (presentDays / totalDays) * 100 : 0;
 
     const competencyResult = learnerScoreCard
       ? calculateCompetencyGrade(learnerScoreCard.averageScore)
-      : calculateCompetencyGrade(88);
+      : calculateCompetencyGrade(0);
 
     return (
       <div className="space-y-6">
@@ -103,11 +105,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               Welcome, {parentRecord?.fullName || currentUser.name}
             </h1>
             <p className="text-xs text-slate-600 mt-0.5">
-              Secure official academic and financial records for your learner:{' '}
-              <strong className="text-slate-900">
-                {parentLearner?.firstName} {parentLearner?.lastName}
-              </strong>{' '}
-              ({parentLearner?.studentId} · {parentLearner?.grade})
+              {parentLearner ? (
+                <>
+                  Secure official academic and financial records for your learner:{' '}
+                  <strong className="text-slate-900">
+                    {parentLearner.firstName} {parentLearner.lastName}
+                  </strong>{' '}
+                  ({parentLearner.studentId} · {parentLearner.grade})
+                </>
+              ) : (
+                'No enrolled learner profile is currently linked to this guardian account.'
+              )}
             </p>
           </div>
 
@@ -138,16 +146,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <Award className="w-4 h-4 text-indigo-600" />
             </div>
             <div className="flex items-baseline gap-2">
-              <span className={`text-2xl font-bold font-mono px-2 py-0.5 rounded border text-sm ${competencyResult.badgeClass}`}>
-                {competencyResult.grade}
+              <span className={`text-2xl font-bold font-mono px-2 py-0.5 rounded border text-sm ${learnerScoreCard ? competencyResult.badgeClass : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
+                {learnerScoreCard ? competencyResult.grade : '—'}
               </span>
               <span className="text-2xl font-bold font-mono text-slate-900 tabular-nums">
-                {learnerScoreCard?.gpa.toFixed(2) || '7.40'}{' '}
+                {learnerScoreCard ? learnerScoreCard.gpa.toFixed(2) : '0.00'}{' '}
                 <span className="text-xs text-slate-500 font-normal">/ 8.0</span>
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-2">
-              Mean: {learnerScoreCard?.averageScore.toFixed(1) || '86.5'}% · Class Rank #{learnerScoreCard?.classRank || '2'}
+              {learnerScoreCard
+                ? `Mean: ${learnerScoreCard.averageScore.toFixed(1)}% · Class Rank #${learnerScoreCard.classRank}`
+                : 'No assessment results published yet'}
             </p>
           </div>
 
@@ -169,9 +179,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               )}
             </div>
             <p className="text-xs text-slate-500 mt-2">
-              {learnerFee && learnerFee.balance <= 0
+              {!learnerFee
+                ? 'No fee invoice generated'
+                : learnerFee.balance <= 0
                 ? '✓ All fees cleared for Term 2'
-                : `Paid Ksh ${learnerFee?.amountPaid.toLocaleString()} of Ksh ${learnerFee?.totalDue.toLocaleString()}`}
+                : `Paid Ksh ${learnerFee.amountPaid.toLocaleString()} of Ksh ${learnerFee.totalDue.toLocaleString()}`}
             </p>
           </div>
 
@@ -375,13 +387,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
     // Today's attendance for this grade
     const allDates = Array.from(new Set(gradeAttendance.map((a) => a.date))).sort();
-    const latestDate = allDates[allDates.length - 1] || '2026-06-26';
-    const latestGradeAtt = gradeAttendance.filter((a) => a.date === latestDate);
+    const latestDate = allDates[allDates.length - 1] || '';
+    const latestGradeAtt = latestDate ? gradeAttendance.filter((a) => a.date === latestDate) : [];
     const presentInGrade = latestGradeAtt.filter(
       (a) => a.status === 'present' || a.status === 'late'
     ).length;
     const gradeAttRate =
-      latestGradeAtt.length > 0 ? (presentInGrade / latestGradeAtt.length) * 100 : 100;
+      latestGradeAtt.length > 0 ? (presentInGrade / latestGradeAtt.length) * 100 : 0;
 
     return (
       <div className="space-y-6">
@@ -438,7 +450,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               {gradeAttRate.toFixed(1)}%
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              {presentInGrade} of {latestGradeAtt.length} present on {latestDate}
+              {latestDate ? `${presentInGrade} of ${latestGradeAtt.length} present on ${latestDate}` : 'No attendance records yet'}
             </p>
           </div>
 
@@ -495,54 +507,62 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {gradeLearners.map((learner) => {
-                  const parent = parents.find((p) => p.id === learner.parentId);
-                  const fee = feeStructures.find(
-                    (fs) => fs.learnerId === learner.id && fs.term === 'Term 2 - 2026'
-                  );
-                  return (
-                    <tr key={learner.id} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-3 px-4 font-semibold text-slate-900">
-                        {learner.firstName} {learner.lastName}
-                      </td>
-                      <td className="py-3 px-3 font-mono text-slate-500">{learner.studentId}</td>
-                      <td className="py-3 px-4 font-medium text-slate-800">{parent?.fullName}</td>
-                      <td className="py-3 px-3 font-mono text-slate-600">
-                        {parent ? maskPhoneNumber(parent.phone) : ''}
-                      </td>
-                      <td className="py-3 px-3 text-slate-600">
-                        {learner.emergencyMedicalNotes || 'None'}
-                      </td>
-                      <td className="py-3 px-3">
-                        <span
-                          className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold uppercase font-mono ${
-                            fee && fee.balance <= 0
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                              : 'bg-amber-50 text-amber-700 border border-amber-200'
-                          }`}
-                        >
-                          {fee && fee.balance <= 0 ? 'Cleared' : `Due $${fee?.balance.toLocaleString()}`}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            onClick={() => onNavigateTab('scorecards')}
-                            className="px-2 py-1 text-xs font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded transition-colors cursor-pointer"
+                {gradeLearners.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-8 px-4 text-center text-slate-500">
+                      No learners are currently enrolled in {representedGrade}.
+                    </td>
+                  </tr>
+                ) : (
+                  gradeLearners.map((learner) => {
+                    const parent = parents.find((p) => p.id === learner.parentId);
+                    const fee = feeStructures.find(
+                      (fs) => fs.learnerId === learner.id && fs.term === 'Term 2 - 2026'
+                    );
+                    return (
+                      <tr key={learner.id} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="py-3 px-4 font-semibold text-slate-900">
+                          {learner.firstName} {learner.lastName}
+                        </td>
+                        <td className="py-3 px-3 font-mono text-slate-500">{learner.studentId}</td>
+                        <td className="py-3 px-4 font-medium text-slate-800">{parent?.fullName}</td>
+                        <td className="py-3 px-3 font-mono text-slate-600">
+                          {parent ? maskPhoneNumber(parent.phone) : ''}
+                        </td>
+                        <td className="py-3 px-3 text-slate-600">
+                          {learner.emergencyMedicalNotes || 'None'}
+                        </td>
+                        <td className="py-3 px-3">
+                          <span
+                            className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold uppercase font-mono ${
+                              fee && fee.balance <= 0
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : 'bg-amber-50 text-amber-700 border border-amber-200'
+                            }`}
                           >
-                            Score Card
-                          </button>
-                          <button
-                            onClick={() => onNavigateTab('attendance')}
-                            className="px-2 py-1 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded transition-colors cursor-pointer"
-                          >
-                            Attendance
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                            {!fee ? 'Unbilled' : fee.balance <= 0 ? 'Cleared' : `Due Ksh ${fee.balance.toLocaleString()}`}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => onNavigateTab('scorecards')}
+                              className="px-2 py-1 text-xs font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded transition-colors cursor-pointer"
+                            >
+                              Score Card
+                            </button>
+                            <button
+                              onClick={() => onNavigateTab('attendance')}
+                              className="px-2 py-1 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded transition-colors cursor-pointer"
+                            >
+                              Attendance
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
@@ -655,47 +675,55 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {learners.map((learner) => {
-                  const card = scoreCards.find((sc) => sc.learnerId === learner.id);
-                  const sub = card?.subjects.find((s) => registeredSubjects.includes(s.subjectName)) || {
-                    catScore: 25,
-                    midTermScore: 17,
-                    finalExamScore: 44,
-                    totalScore: 86,
-                  };
-                  const gradeResult = calculateCompetencyGrade(sub.totalScore);
+                {learners.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="py-8 px-4 text-center text-slate-500">
+                      No enrolled learners available for subject evaluation.
+                    </td>
+                  </tr>
+                ) : (
+                  learners.map((learner) => {
+                    const card = scoreCards.find((sc) => sc.learnerId === learner.id);
+                    const sub = card?.subjects.find((s) => registeredSubjects.includes(s.subjectName)) || {
+                      catScore: 0,
+                      midTermScore: 0,
+                      finalExamScore: 0,
+                      totalScore: 0,
+                    };
+                    const gradeResult = calculateCompetencyGrade(sub.totalScore);
 
-                  return (
-                    <tr key={learner.id} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-3 px-4 font-semibold text-slate-900">
-                        {learner.firstName} {learner.lastName}
-                        <span className="text-[11px] text-slate-500 font-normal block font-mono">
-                          {learner.studentId}
-                        </span>
-                      </td>
-                      <td className="py-3 px-3 font-medium text-slate-700">{learner.grade}</td>
-                      <td className="py-3 px-3 text-right font-mono text-slate-700">{sub.catScore}</td>
-                      <td className="py-3 px-3 text-right font-mono text-slate-700">{sub.midTermScore}</td>
-                      <td className="py-3 px-3 text-right font-mono text-slate-700">{sub.finalExamScore}</td>
-                      <td className="py-3 px-3 text-right font-mono font-bold text-indigo-700 tabular-nums">
-                        {sub.totalScore}
-                      </td>
-                      <td className="py-3 px-3 text-center">
-                        <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-mono font-bold border ${gradeResult.badgeClass}`}>
-                          {gradeResult.grade} ({gradeResult.points} pts)
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <button
-                          onClick={() => onNavigateTab('scorecards')}
-                          className="px-2.5 py-1 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded transition-colors cursor-pointer"
-                        >
-                          Edit Mark
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
+                    return (
+                      <tr key={learner.id} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="py-3 px-4 font-semibold text-slate-900">
+                          {learner.firstName} {learner.lastName}
+                          <span className="text-[11px] text-slate-500 font-normal block font-mono">
+                            {learner.studentId}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 font-medium text-slate-700">{learner.grade}</td>
+                        <td className="py-3 px-3 text-right font-mono text-slate-700">{sub.catScore}</td>
+                        <td className="py-3 px-3 text-right font-mono text-slate-700">{sub.midTermScore}</td>
+                        <td className="py-3 px-3 text-right font-mono text-slate-700">{sub.finalExamScore}</td>
+                        <td className="py-3 px-3 text-right font-mono font-bold text-indigo-700 tabular-nums">
+                          {sub.totalScore}
+                        </td>
+                        <td className="py-3 px-3 text-center">
+                          <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-mono font-bold border ${gradeResult.badgeClass}`}>
+                            {gradeResult.grade} ({gradeResult.points} pts)
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <button
+                            onClick={() => onNavigateTab('scorecards')}
+                            className="px-2.5 py-1 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded transition-colors cursor-pointer"
+                          >
+                            Edit Mark
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
@@ -707,29 +735,49 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   // ==========================================
   // 4. INSTITUTIONAL / ADMIN / BURSAR DASHBOARD
   // ==========================================
-  const totalBilled = feeStructures.reduce((acc, curr) => acc + curr.totalDue, 0);
-  const totalCollected = feeStructures.reduce((acc, curr) => acc + curr.amountPaid, 0);
-  const totalOutstanding = feeStructures.reduce((acc, curr) => acc + curr.balance, 0);
+  const learnerIds = new Set(learners.map((l) => l.id));
+  const validFeeStructures = feeStructures.filter((fs) => learnerIds.has(fs.learnerId));
+  const totalBilled = validFeeStructures.reduce((acc, curr) => acc + curr.totalDue, 0);
+  const totalCollected = validFeeStructures.reduce((acc, curr) => acc + curr.amountPaid, 0);
+  const totalOutstanding = validFeeStructures.reduce((acc, curr) => acc + curr.balance, 0);
   const collectionEfficiency = totalBilled > 0 ? (totalCollected / totalBilled) * 100 : 0;
 
-  const overdueAccounts = feeStructures.filter((fs) => fs.balance > 0);
+  const overdueAccounts = validFeeStructures.filter((fs) => fs.balance > 0);
+  const validReminders = reminders.filter((r) => learnerIds.has(r.learnerId));
+  const validScoreCards = scoreCards.filter((sc) => learnerIds.has(sc.learnerId));
 
-  const allDates = Array.from(new Set(attendance.map((a) => a.date))).sort();
-  const latestDate = allDates[allDates.length - 1] || '2026-06-26';
-  const latestDayAttendance = attendance.filter((a) => a.date === latestDate);
+  const validAttendance = attendance.filter((a) => learnerIds.has(a.learnerId));
+  const allDates = Array.from(new Set(validAttendance.map((a) => a.date))).sort();
+  const latestDate = allDates[allDates.length - 1] || '';
+  const latestDayAttendance = latestDate ? validAttendance.filter((a) => a.date === latestDate) : [];
   const presentCount = latestDayAttendance.filter(
     (a) => a.status === 'present' || a.status === 'late'
   ).length;
   const attendanceRate =
-    latestDayAttendance.length > 0 ? (presentCount / latestDayAttendance.length) * 100 : 96;
+    latestDayAttendance.length > 0 ? (presentCount / latestDayAttendance.length) * 100 : 0;
 
   const handleQuickBatchReminders = () => {
     const result = batchDispatchReminders();
-    alert(result.message);
+    setDispatchNotice(result.message);
+    setTimeout(() => setDispatchNotice(null), 6000);
   };
 
   return (
     <div className="space-y-6">
+      {dispatchNotice && (
+        <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-xs text-emerald-900">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span className="font-medium">{dispatchNotice}</span>
+          </div>
+          <button
+            onClick={() => setDispatchNotice(null)}
+            className="text-emerald-700 hover:text-emerald-950 font-semibold cursor-pointer"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
       {/* Welcome Banner */}
       <div className="bg-white rounded-xl p-6 border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -899,7 +947,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
         <div className="bg-white p-5 rounded-xl border border-slate-200">
           <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
-            <span>Daily Attendance ({latestDate.slice(5)})</span>
+            <span>Daily Attendance ({latestDate ? latestDate.slice(5) : 'No Logs'})</span>
             <CalendarCheck className="w-4 h-4 text-indigo-600" />
           </div>
           <div className="text-2xl font-bold text-slate-900 tabular-nums">
@@ -946,56 +994,67 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {overdueAccounts.map((fs) => {
-                    const learner = learners.find((l) => l.id === fs.learnerId);
-                    const parent = parents.find((p) => p.id === learner?.parentId);
-                    const isOverdue = new Date(fs.dueDate) < new Date('2026-06-18');
+                  {overdueAccounts.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-8 px-4 text-center text-slate-500">
+                        {learners.length === 0
+                          ? 'No learners currently enrolled. Enroll a learner to view tuition fee ledgers.'
+                          : 'All enrolled learners have cleared their tuition dues.'}
+                      </td>
+                    </tr>
+                  ) : (
+                    overdueAccounts.map((fs) => {
+                      const learner = learners.find((l) => l.id === fs.learnerId);
+                      if (!learner) return null;
+                      const parent = parents.find((p) => p.id === learner.parentId);
+                      const isOverdue = new Date(fs.dueDate) < new Date('2026-06-18');
 
-                    return (
-                      <tr key={fs.id} className="hover:bg-slate-50/70 transition-colors">
-                        <td className="py-3 px-4">
-                          <div className="font-semibold text-slate-900">
-                            {learner?.firstName} {learner?.lastName}
-                          </div>
-                          <div className="text-[11px] text-slate-500 font-mono">
-                            {learner?.studentId} · {learner?.grade}
-                          </div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="font-medium text-slate-800">{parent?.fullName}</div>
-                          <div className="text-[11px] text-slate-500 font-mono">
-                            {parent ? maskPhoneNumber(parent.phone) : ''}
-                          </div>
-                        </td>
-                        <td className="py-3 px-3 text-right tabular-nums font-mono text-slate-700">
-                          Ksh {fs.totalDue.toLocaleString()}
-                        </td>
-                        <td className="py-3 px-3 text-right tabular-nums font-mono font-bold text-amber-700">
-                          Ksh {fs.balance.toLocaleString()}
-                        </td>
-                        <td className="py-3 px-3 tabular-nums text-slate-600">{fs.dueDate}</td>
-                        <td className="py-3 px-3">
-                          <span
-                            className={`inline-block px-2 py-0.5 rounded text-[11px] font-medium ${
-                              isOverdue
-                                ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                                : 'bg-amber-50 text-amber-700 border border-amber-200'
-                            }`}
-                          >
-                            {isOverdue ? 'Overdue' : 'Partial / Pending'}
-                          </span>
-                        </td>
-                        <td className="py-3 px-3 text-right">
-                          <button
-                            onClick={onOpenRecordPayment}
-                            className="px-2.5 py-1 text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 rounded transition-colors cursor-pointer"
-                          >
-                            Pay
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                      return (
+                        <tr key={fs.id} className="hover:bg-slate-50/70 transition-colors">
+                          <td className="py-3 px-4">
+                            <div className="font-semibold text-slate-900">
+                              {learner.firstName} {learner.lastName}
+                            </div>
+                            <div className="text-[11px] text-slate-500 font-mono">
+                              {learner.studentId} · {learner.grade}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="font-medium text-slate-800">{parent?.fullName || '—'}</div>
+                            <div className="text-[11px] text-slate-500 font-mono">
+                              {parent ? maskPhoneNumber(parent.phone) : ''}
+                            </div>
+                          </td>
+                          <td className="py-3 px-3 text-right tabular-nums font-mono text-slate-700">
+                            Ksh {fs.totalDue.toLocaleString()}
+                          </td>
+                          <td className="py-3 px-3 text-right tabular-nums font-mono font-bold text-amber-700">
+                            Ksh {fs.balance.toLocaleString()}
+                          </td>
+                          <td className="py-3 px-3 tabular-nums text-slate-600">{fs.dueDate}</td>
+                          <td className="py-3 px-3">
+                            <span
+                              className={`inline-block px-2 py-0.5 rounded text-[11px] font-medium ${
+                                isOverdue
+                                  ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                                  : 'bg-amber-50 text-amber-700 border border-amber-200'
+                              }`}
+                            >
+                              {isOverdue ? 'Overdue' : 'Partial / Pending'}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 text-right">
+                            <button
+                              onClick={onOpenRecordPayment}
+                              className="px-2.5 py-1 text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 rounded transition-colors cursor-pointer"
+                            >
+                              Pay
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
@@ -1018,42 +1077,49 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
 
             <div className="space-y-3">
-              {reminders.slice(0, 3).map((r) => {
-                const learner = learners.find((l) => l.id === r.learnerId);
-                const parent = parents.find((p) => p.id === r.parentId);
+              {validReminders.length === 0 ? (
+                <p className="text-xs text-slate-500 py-4 text-center">
+                  No payment reminders queued for active learners.
+                </p>
+              ) : (
+                validReminders.slice(0, 3).map((r) => {
+                  const learner = learners.find((l) => l.id === r.learnerId);
+                  if (!learner) return null;
+                  const parent = parents.find((p) => p.id === r.parentId);
 
-                return (
-                  <div
-                    key={r.id}
-                    className="p-3 bg-slate-50 rounded-lg border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 shrink-0 mt-0.5">
-                        <BellRing className="w-4 h-4" />
+                  return (
+                    <div
+                      key={r.id}
+                      className="p-3 bg-slate-50 rounded-lg border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 shrink-0 mt-0.5">
+                          <BellRing className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <div className="font-semibold text-slate-900">
+                            {learner.firstName} {learner.lastName} · {parent?.fullName || 'Parent'}
+                          </div>
+                          <div className="text-slate-500 text-[11px]">
+                            Due: Ksh {r.amountDue.toLocaleString()} · Due Date: {r.dueDate}
+                          </div>
+                          <p className="text-slate-600 mt-1 italic text-[11px] max-w-md line-clamp-1">
+                            "{r.messagePreview}"
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <div className="font-semibold text-slate-900">
-                          {learner?.firstName} {learner?.lastName} · {parent?.fullName}
-                        </div>
-                        <div className="text-slate-500 text-[11px]">
-                          Due: Ksh {r.amountDue.toLocaleString()} · Due Date: {r.dueDate}
-                        </div>
-                        <p className="text-slate-600 mt-1 italic text-[11px] max-w-md line-clamp-1">
-                          "{r.messagePreview}"
-                        </p>
+                      <div className="flex items-center gap-2 self-end sm:self-center">
+                        <span className="capitalize px-2 py-0.5 rounded text-[10px] font-mono bg-indigo-50 text-indigo-700 border border-indigo-200">
+                          {r.channel.toUpperCase()}
+                        </span>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          {r.status}
+                        </span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 self-end sm:self-center">
-                      <span className="capitalize px-2 py-0.5 rounded text-[10px] font-mono bg-indigo-50 text-indigo-700 border border-indigo-200">
-                        {r.channel.toUpperCase()}
-                      </span>
-                      <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-50 text-emerald-700 border border-emerald-200">
-                        {r.status}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </div>
         </div>
@@ -1064,7 +1130,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="text-sm font-bold text-slate-900">Learner Score Cards Summary</h2>
-                <p className="text-xs text-slate-500">Term 1 Assessment Records</p>
+                <p className="text-xs text-slate-500">Assessment Records</p>
               </div>
               <button
                 onClick={() => onNavigateTab('scorecards')}
@@ -1076,34 +1142,41 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
 
             <div className="space-y-3">
-              {scoreCards.slice(0, 4).map((sc) => {
-                const learner = learners.find((l) => l.id === sc.learnerId);
-                const gradeInfo = calculateCompetencyGrade(sc.averageScore);
+              {validScoreCards.length === 0 ? (
+                <p className="text-xs text-slate-500 py-4 text-center">
+                  No learner score cards recorded yet.
+                </p>
+              ) : (
+                validScoreCards.slice(0, 4).map((sc) => {
+                  const learner = learners.find((l) => l.id === sc.learnerId);
+                  if (!learner) return null;
+                  const gradeInfo = calculateCompetencyGrade(sc.averageScore);
 
-                return (
-                  <div
-                    key={sc.id}
-                    className="p-3 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between text-xs"
-                  >
-                    <div>
-                      <div className="font-semibold text-slate-900">
-                        {learner?.firstName} {learner?.lastName}
+                  return (
+                    <div
+                      key={sc.id}
+                      className="p-3 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between text-xs"
+                    >
+                      <div>
+                        <div className="font-semibold text-slate-900">
+                          {learner.firstName} {learner.lastName}
+                        </div>
+                        <div className="text-[11px] text-slate-500 font-mono">
+                          {learner.grade} · Rank #{sc.classRank}
+                        </div>
                       </div>
-                      <div className="text-[11px] text-slate-500 font-mono">
-                        {learner?.grade} · Rank #{sc.classRank}
+                      <div className="text-right">
+                        <div className="font-bold font-mono text-slate-900 tabular-nums">
+                          {sc.averageScore.toFixed(1)}%
+                        </div>
+                        <span className={`inline-block px-1.5 py-0.2 rounded text-[10px] font-mono font-bold border ${gradeInfo.badgeClass}`}>
+                          {gradeInfo.grade} ({gradeInfo.points} pts)
+                        </span>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="font-bold font-mono text-slate-900 tabular-nums">
-                        {sc.averageScore.toFixed(1)}%
-                      </div>
-                      <span className={`inline-block px-1.5 py-0.2 rounded text-[10px] font-mono font-bold border ${gradeInfo.badgeClass}`}>
-                        {gradeInfo.grade} ({gradeInfo.points} pts)
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </div>
 

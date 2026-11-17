@@ -57,6 +57,9 @@ export const Navbar: React.FC<NavbarProps> = ({
     grades,
   } = useApp();
   const [showOwnerSwitcher, setShowOwnerSwitcher] = useState(false);
+  const isOwnerAccountActive = Boolean(
+    isOwner && (!currentUser.ownerDesignation || currentUser.ownerDesignation === 'owner')
+  );
 
   const ownerRegisteredTeacher = teachers.find((t) => {
     const cleanPhone = (t.phone || '').replace(/[^0-9]/g, '');
@@ -362,7 +365,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                             {isCurrent && <Check className="w-3.5 h-3.5 text-indigo-600 font-bold" />}
 
                             {/* Owner Delete Button */}
-                            {isOwner && (
+                            {isOwnerAccountActive && (
                               <button
                                 type="button"
                                 onClick={(e) => {
@@ -383,7 +386,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     })}
                   </div>
 
-                  {isOwner && (
+                  {isOwnerAccountActive && (
                     <div className="pt-2 border-t border-slate-100 mt-1 space-y-1">
                       <button
                         onClick={() => {
@@ -462,7 +465,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Zone 3: Primary Action & Active Role Switcher */}
           <div className="flex items-center gap-2.5 shrink-0">
             {/* Quick School Register & Lock Buttons for Owner */}
-            {isOwner && (
+            {isOwnerAccountActive && (
               <div className="hidden sm:flex items-center gap-1.5">
                 <button
                   onClick={() => setIsRegisterSchoolOpen(true)}
@@ -500,8 +503,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Install PWA Button for Phones, Tablets, and Laptops */}
             <PWAInstallButton variant="navbar" />
 
-            {/* Live Production Center launcher */}
-            {onOpenProductionCenter && (
+            {/* Live Production Center launcher (Owner Account Only) */}
+            {isOwnerAccountActive && onOpenProductionCenter && (
               <button
                 onClick={onOpenProductionCenter}
                 title="Application Launch Status: Fully Operational in Production"
@@ -512,51 +515,71 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
-            {/* Quick Security Status Badge */}
-            <button
-              onClick={onOpenSecurityModal}
-              title="Click to view AES-256 encryption status and RBAC permissions"
-              className="hidden sm:flex items-center gap-1.5 text-xs font-mono text-emerald-700 bg-emerald-50 px-2.5 py-1.5 rounded border border-emerald-200 hover:bg-emerald-100 transition-colors cursor-pointer"
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-              <span>AES-256 Active</span>
-            </button>
+            {/* Quick Security Status Badge (Owner Account Only) */}
+            {isOwnerAccountActive && (
+              <button
+                onClick={onOpenSecurityModal}
+                title="Click to view AES-256 encryption status and RBAC permissions"
+                className="hidden sm:flex items-center gap-1.5 text-xs font-mono text-emerald-700 bg-emerald-50 px-2.5 py-1.5 rounded border border-emerald-200 hover:bg-emerald-100 transition-colors cursor-pointer"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                <span>AES-256 Active</span>
+              </button>
+            )}
 
-            {/* Audit Log button */}
-            <button
-              onClick={onOpenAuditLog}
-              title="Security & System Audit Log"
-              className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-md transition-colors cursor-pointer"
-            >
-              <FileText className="w-4 h-4" />
-            </button>
+            {/* Audit Log button (Owner Account Only) */}
+            {isOwnerAccountActive && (
+              <button
+                onClick={onOpenAuditLog}
+                title="Security & System Audit Log"
+                className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-md transition-colors cursor-pointer"
+              >
+                <FileText className="w-4 h-4" />
+              </button>
+            )}
 
             {/* Authenticated User Badge / Owner Responsibility Switcher */}
             {isOwner ? (
               <div className="flex items-center gap-2">
-                <span
-                  title="Single Active Phone Policy Active: Restricted to authorized owner device"
-                  className="hidden md:inline-flex items-center gap-1 text-[11px] font-mono font-semibold text-emerald-800 bg-emerald-50 border border-emerald-300 px-2 py-1 rounded"
-                >
-                  <Smartphone className="w-3 h-3 text-emerald-600" />
-                  <span>1-Phone Locked</span>
-                </span>
+                {isOwnerAccountActive && (
+                  <span
+                    title="Single Active Phone Policy Active: Restricted to authorized owner device"
+                    className="hidden md:inline-flex items-center gap-1 text-[11px] font-mono font-semibold text-emerald-800 bg-emerald-50 border border-emerald-300 px-2 py-1 rounded"
+                  >
+                    <Smartphone className="w-3 h-3 text-emerald-600" />
+                    <span>1-Phone Locked</span>
+                  </span>
+                )}
 
                 <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setShowOwnerSwitcher(!showOwnerSwitcher)}
-                    className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300 rounded-md transition-all cursor-pointer shadow-xs"
-                    title="App Owner: Click to switch active responsibility (Owner, HOI, Deputy HOI, Senior Teacher, Class Teacher, Subject Teacher, Parent)"
-                  >
-                    <Crown className="w-3.5 h-3.5 text-amber-600 fill-amber-500 shrink-0" />
-                    <span className="font-bold text-amber-900">App Owner</span>
-                    <span className="text-amber-400">·</span>
-                    <span className="font-semibold text-indigo-900 truncate max-w-[140px]">
-                      {getOwnerDesignationLabel(currentUser)}
-                    </span>
-                    <ChevronDown className="w-3.5 h-3.5 text-amber-700 shrink-0" />
-                  </button>
+                  {isOwnerAccountActive ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowOwnerSwitcher(!showOwnerSwitcher)}
+                      className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300 rounded-md transition-all cursor-pointer shadow-xs"
+                      title="App Owner: Click to switch active responsibility (Owner, HOI, Deputy HOI, Senior Teacher, Class Teacher, Subject Teacher, Parent)"
+                    >
+                      <Crown className="w-3.5 h-3.5 text-amber-600 fill-amber-500 shrink-0" />
+                      <span className="font-bold text-amber-900">App Owner</span>
+                      <span className="text-amber-400">·</span>
+                      <span className="font-semibold text-indigo-900 truncate max-w-[140px]">
+                        {getOwnerDesignationLabel(currentUser)}
+                      </span>
+                      <ChevronDown className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setShowOwnerSwitcher(!showOwnerSwitcher)}
+                      className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-md transition-colors cursor-pointer"
+                    >
+                      <div className="w-2 h-2 rounded-full bg-emerald-600" />
+                      <span className="max-w-[130px] truncate font-semibold text-slate-800">{currentUser.name}</span>
+                      <span className="text-slate-400">·</span>
+                      <span className="font-semibold text-indigo-700">{getRoleBadge(currentUser)}</span>
+                      <ChevronDown className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                    </button>
+                  )}
 
                 {showOwnerSwitcher && (
                   <div

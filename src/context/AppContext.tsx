@@ -57,7 +57,7 @@ import {
   testFirestoreConnection,
   saveDocumentToFirestore,
   fetchDocumentFromFirestore,
-  fetchCollectionFromFirestore,
+  fetchCollectionSafe,
   batchSyncToFirestore,
   deleteDocumentFromFirestore,
   firestoreDatabaseId,
@@ -258,9 +258,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          const existingIds = new Set(parsed.map((p: ParentRecord) => p.id));
-          const toAdd = INITIAL_PARENTS.filter((p) => !existingIds.has(p.id));
-          return [...parsed, ...toAdd].map((p: ParentRecord) => {
+          return parsed.map((p: ParentRecord) => {
             const cleanParent: ParentRecord = {
               ...p,
               phone: normalizeKenyanPhone(p.phone || ''),
@@ -284,9 +282,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          const existingIds = new Set(parsed.map((p: LearnerRecord) => p.id));
-          const toAdd = INITIAL_LEARNERS.filter((l) => !existingIds.has(l.id));
-          return [...parsed, ...toAdd];
+          return parsed;
         }
       } catch { /* ignore */ }
     }
@@ -322,8 +318,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.some((sc: ScoreCard) => sc.learnerId === 'stu-4' || sc.learnerId === 'stu-5')) {
-          return parsed;
+        if (Array.isArray(parsed)) {
+          if (parsed.length === 0 || parsed.some((sc: ScoreCard) => sc.learnerId === 'stu-4' || sc.learnerId === 'stu-5' || sc.id)) {
+            return parsed;
+          }
         }
       } catch { /* ignore */ }
     }
@@ -335,7 +333,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
+          if (parsed.length === 0) return [];
           if (parsed.some((a) => a.session === 'afternoon')) {
             return parsed;
           }
@@ -758,45 +757,56 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (!connected) return;
 
       try {
-        // Fetch existing collections from Firestore
+        // Fetch existing collections from Firestore with explicit ok status
         const [
-          remoteLearners,
-          remoteParents,
-          remoteTeachers,
-          remoteFeeStructures,
-          remoteFeePayments,
-          remoteScoreCards,
-          remoteAttendance,
-          remoteReminders,
-          remoteGrades,
-          remoteSubjects,
-          remoteAdmins,
+          learnersRes,
+          parentsRes,
+          teachersRes,
+          feeStructuresRes,
+          feePaymentsRes,
+          scoreCardsRes,
+          attendanceRes,
+          remindersRes,
+          gradesRes,
+          subjectsRes,
+          adminsRes,
           remoteSettings,
-          remoteAssessments,
-          remoteSubmissions,
-          remoteSchools,
+          assessmentsRes,
+          submissionsRes,
+          schoolsRes,
         ] = await Promise.all([
-          fetchCollectionFromFirestore<LearnerRecord>('learners').catch(() => []),
-          fetchCollectionFromFirestore<ParentRecord>('parents').catch(() => []),
-          fetchCollectionFromFirestore<TeacherRecord>('teachers').catch(() => []),
-          fetchCollectionFromFirestore<FeeStructure>('feeStructures').catch(() => []),
-          fetchCollectionFromFirestore<FeePayment>('feePayments').catch(() => []),
-          fetchCollectionFromFirestore<ScoreCard>('scoreCards').catch(() => []),
-          fetchCollectionFromFirestore<AttendanceRecord>('attendance').catch(() => []),
-          fetchCollectionFromFirestore<PaymentReminder>('paymentReminders').catch(() => []),
-          fetchCollectionFromFirestore<GradeLevel>('grades').catch(() => []),
-          fetchCollectionFromFirestore<SubjectDefinition>('subjects').catch(() => []),
-          fetchCollectionFromFirestore<AdminAccount>('admins').catch(() => []),
+          fetchCollectionSafe<LearnerRecord>('learners'),
+          fetchCollectionSafe<ParentRecord>('parents'),
+          fetchCollectionSafe<TeacherRecord>('teachers'),
+          fetchCollectionSafe<FeeStructure>('feeStructures'),
+          fetchCollectionSafe<FeePayment>('feePayments'),
+          fetchCollectionSafe<ScoreCard>('scoreCards'),
+          fetchCollectionSafe<AttendanceRecord>('attendance'),
+          fetchCollectionSafe<PaymentReminder>('paymentReminders'),
+          fetchCollectionSafe<GradeLevel>('grades'),
+          fetchCollectionSafe<SubjectDefinition>('subjects'),
+          fetchCollectionSafe<AdminAccount>('admins'),
           fetchDocumentFromFirestore<SchoolProfile & { id: string }>('settings', 'school_config').catch(() => null),
-          fetchCollectionFromFirestore<AssessmentRecord>('assessments').catch(() => []),
-          fetchCollectionFromFirestore<SubjectMarksSubmission>('subjectSubmissions').catch(() => []),
-          fetchCollectionFromFirestore<SchoolProfile>('schools').catch(() => []),
+          fetchCollectionSafe<AssessmentRecord>('assessments'),
+          fetchCollectionSafe<SubjectMarksSubmission>('subjectSubmissions'),
+          fetchCollectionSafe<SchoolProfile>('schools'),
         ]);
 
         if (!isMounted) return;
 
-        // If Firestore has no learners yet, auto-seed the complete Mwivona Comprehensive School initial dataset!
-        if (!remoteLearners || remoteLearners.length === 0) {
+        // Only auto-seed when Firestore is genuinely fresh (no schools, no teachers, no grades, no learners, and no school_config)
+        const isBrandNewFirestore =
+          learnersRes.ok &&
+          schoolsRes.ok &&
+          teachersRes.ok &&
+          gradesRes.ok &&
+          learnersRes.items.length === 0 &&
+          schoolsRes.items.length === 0 &&
+          teachersRes.items.length === 0 &&
+          gradesRes.items.length === 0 &&
+          !remoteSettings;
+
+        if (isBrandNewFirestore) {
           console.log('Bootstrapping Firestore with Mwivona Comprehensive School initial dataset...');
           await Promise.all([
             batchSyncToFirestore('learners', INITIAL_LEARNERS),
@@ -817,35 +827,104 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             batchSyncToFirestore('subjectSubmissions', INITIAL_SUBJECT_SUBMISSIONS),
           ]);
         } else {
-          // Hydrate live state from Firestore
-          if (remoteSchools && remoteSchools.length > 0) {
-            setRegisteredSchools(remoteSchools);
-            const active = remoteSchools.find((s) => s.id === currentSchoolId) || remoteSchools[0];
+          // Hydrate live state from Firestore (respecting empty collections when learners were deleted)
+          if (schoolsRes.ok && schoolsRes.items.length > 0) {
+            setRegisteredSchools(schoolsRes.items);
+            const active = schoolsRes.items.find((s) => s.id === currentSchoolId) || schoolsRes.items[0];
             setSchoolProfile(active);
           } else if (remoteSettings && remoteSettings.name) {
             const { id: _, ...profile } = remoteSettings;
             setSchoolProfile(profile as SchoolProfile);
           }
-          if (remoteLearners && remoteLearners.length > 0) setLearners(remoteLearners);
-          if (remoteParents && remoteParents.length > 0) setParents(remoteParents);
-          if (remoteTeachers && remoteTeachers.length > 0) setTeachers(remoteTeachers);
-          if (remoteFeeStructures && remoteFeeStructures.length > 0) setFeeStructures(remoteFeeStructures);
-          if (remoteFeePayments && remoteFeePayments.length > 0) setFeePayments(remoteFeePayments);
-          if (remoteScoreCards && remoteScoreCards.length > 0) setScoreCards(remoteScoreCards);
-          if (remoteAttendance && remoteAttendance.length > 0) setAttendance(remoteAttendance);
-          if (remoteReminders && remoteReminders.length > 0) setReminders(remoteReminders);
-          if (remoteGrades && remoteGrades.length > 0) setGrades(remoteGrades);
-          if (remoteAssessments && remoteAssessments.length > 0) setAssessments(remoteAssessments);
-          if (remoteSubmissions && remoteSubmissions.length > 0) setSubjectSubmissions(remoteSubmissions);
-          if (remoteSubjects && remoteSubjects.length > 0) {
+
+          const validLearnerIds = learnersRes.ok ? new Set(learnersRes.items.map((l) => l.id)) : null;
+          const validParentIds = learnersRes.ok ? new Set(learnersRes.items.map((l) => l.parentId)) : null;
+
+          if (learnersRes.ok) {
+            setLearners(learnersRes.items);
+          }
+
+          if (parentsRes.ok) {
+            if (validParentIds) {
+              const validParents = parentsRes.items.filter((p) => validParentIds.has(p.id));
+              const orphanParents = parentsRes.items.filter((p) => !validParentIds.has(p.id));
+              setParents(validParents);
+              orphanParents.forEach((p) => deleteDocumentFromFirestore('parents', p.id).catch(() => {}));
+            } else {
+              setParents(parentsRes.items);
+            }
+          }
+
+          if (teachersRes.ok && teachersRes.items.length > 0) setTeachers(teachersRes.items);
+
+          if (feeStructuresRes.ok) {
+            if (validLearnerIds) {
+              const validFs = feeStructuresRes.items.filter((fs) => validLearnerIds.has(fs.learnerId));
+              const orphanFs = feeStructuresRes.items.filter((fs) => !validLearnerIds.has(fs.learnerId));
+              setFeeStructures(validFs);
+              orphanFs.forEach((fs) => deleteDocumentFromFirestore('feeStructures', fs.id).catch(() => {}));
+            } else {
+              setFeeStructures(feeStructuresRes.items);
+            }
+          }
+
+          if (feePaymentsRes.ok) {
+            if (validLearnerIds) {
+              const validFp = feePaymentsRes.items.filter((fp) => validLearnerIds.has(fp.learnerId));
+              const orphanFp = feePaymentsRes.items.filter((fp) => !validLearnerIds.has(fp.learnerId));
+              setFeePayments(validFp);
+              orphanFp.forEach((fp) => deleteDocumentFromFirestore('feePayments', fp.id).catch(() => {}));
+            } else {
+              setFeePayments(feePaymentsRes.items);
+            }
+          }
+
+          if (scoreCardsRes.ok) {
+            if (validLearnerIds) {
+              const validSc = scoreCardsRes.items.filter((sc) => validLearnerIds.has(sc.learnerId));
+              const orphanSc = scoreCardsRes.items.filter((sc) => !validLearnerIds.has(sc.learnerId));
+              setScoreCards(validSc);
+              orphanSc.forEach((sc) => deleteDocumentFromFirestore('scoreCards', sc.id).catch(() => {}));
+            } else {
+              setScoreCards(scoreCardsRes.items);
+            }
+          }
+
+          if (attendanceRes.ok) {
+            if (validLearnerIds) {
+              const validAtt = attendanceRes.items.filter((a) => validLearnerIds.has(a.learnerId));
+              const orphanAtt = attendanceRes.items.filter((a) => !validLearnerIds.has(a.learnerId));
+              setAttendance(validAtt);
+              orphanAtt.forEach((a) => deleteDocumentFromFirestore('attendance', a.id).catch(() => {}));
+            } else {
+              setAttendance(attendanceRes.items);
+            }
+          }
+
+          if (remindersRes.ok) {
+            if (validLearnerIds) {
+              const validRem = remindersRes.items.filter((r) => validLearnerIds.has(r.learnerId));
+              const orphanRem = remindersRes.items.filter((r) => !validLearnerIds.has(r.learnerId));
+              setReminders(validRem);
+              orphanRem.forEach((r) => deleteDocumentFromFirestore('paymentReminders', r.id).catch(() => {}));
+            } else {
+              setReminders(remindersRes.items);
+            }
+          }
+
+          if (gradesRes.ok && gradesRes.items.length > 0) setGrades(gradesRes.items);
+          if (assessmentsRes.ok && assessmentsRes.items.length > 0) setAssessments(assessmentsRes.items);
+          if (submissionsRes.ok && submissionsRes.items.length > 0) setSubjectSubmissions(submissionsRes.items);
+
+          if (subjectsRes.ok && subjectsRes.items.length > 0) {
             const hasOfficialCurriculum =
-              remoteSubjects.some((s) => s.code?.includes('901')) &&
-              remoteSubjects.some((s) => s.code?.includes('601')) &&
-              remoteSubjects.some((s) => s.code?.includes('301')) &&
-              !remoteSubjects.some((s) => s.code?.includes('101 (ENG)'));
+              subjectsRes.items.some((s) => s.code?.includes('901')) &&
+              subjectsRes.items.some((s) => s.code?.includes('601')) &&
+              subjectsRes.items.some((s) => s.code?.includes('301')) &&
+              !subjectsRes.items.some((s) => s.code?.includes('101 (ENG)'));
 
             if (hasOfficialCurriculum) {
-              setSubjects(remoteSubjects);
+              setSubjects(subjectsRes.items);
             } else {
               console.log('Upgrading Firestore with official KNEC 901/601/301 curriculum...');
               setSubjects(INITIAL_SUBJECTS);
@@ -854,10 +933,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               } catch { /* ignore */ }
               batchSyncToFirestore('subjects', INITIAL_SUBJECTS).catch(() => {});
             }
-          } else {
+          } else if (subjectsRes.ok) {
             batchSyncToFirestore('subjects', INITIAL_SUBJECTS).catch(() => {});
           }
-          if (remoteAdmins && remoteAdmins.length > 0) setAdminAccounts(remoteAdmins);
+          if (adminsRes.ok && adminsRes.items.length > 0) setAdminAccounts(adminsRes.items);
         }
         setIsCloudLoaded(true);
       } catch (err) {
@@ -1876,21 +1955,61 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const target = learners.find((l) => l.id === id);
     if (!target) return;
 
-    setLearners((prev) => prev.filter((l) => l.id !== id));
+    const remainingLearners = learners.filter((l) => l.id !== id);
+    const fsToDelete = feeStructures.filter((fs) => fs.learnerId === id);
+    const fpToDelete = feePayments.filter((fp) => fp.learnerId === id);
+    const scToDelete = scoreCards.filter((sc) => sc.learnerId === id);
+    const attToDelete = attendance.filter((a) => a.learnerId === id);
+    const remToDelete = reminders.filter((r) => r.learnerId === id);
+    const shouldDeleteParent = Boolean(
+      target.parentId && !remainingLearners.some((l) => l.parentId === target.parentId)
+    );
+
+    setLearners(remainingLearners);
     setFeeStructures((prev) => prev.filter((fs) => fs.learnerId !== id));
     setScoreCards((prev) => prev.filter((sc) => sc.learnerId !== id));
     setAttendance((prev) => prev.filter((a) => a.learnerId !== id));
     setFeePayments((prev) => prev.filter((fp) => fp.learnerId !== id));
+    setReminders((prev) => prev.filter((r) => r.learnerId !== id));
+    if (shouldDeleteParent) {
+      setParents((prev) => prev.filter((p) => p.id !== target.parentId));
+    }
+
+    setAssessments((prev) =>
+      prev.map((a) => {
+        if (a.absentLearnerIds?.includes(id)) {
+          const updated = {
+            ...a,
+            absentLearnerIds: a.absentLearnerIds.filter((lid) => lid !== id),
+          };
+          saveDocumentToFirestore('assessments', updated).catch(() => {});
+          return updated;
+        }
+        return a;
+      })
+    );
+
+    const firestoreDeletes: Promise<void>[] = [
+      deleteDocumentFromFirestore('learners', id),
+      ...fsToDelete.map((fs) => deleteDocumentFromFirestore('feeStructures', fs.id)),
+      ...fpToDelete.map((fp) => deleteDocumentFromFirestore('feePayments', fp.id)),
+      ...scToDelete.map((sc) => deleteDocumentFromFirestore('scoreCards', sc.id)),
+      ...attToDelete.map((a) => deleteDocumentFromFirestore('attendance', a.id)),
+      ...remToDelete.map((r) => deleteDocumentFromFirestore('paymentReminders', r.id)),
+    ];
+    if (shouldDeleteParent && target.parentId) {
+      firestoreDeletes.push(deleteDocumentFromFirestore('parents', target.parentId));
+    }
 
     try {
-      await deleteDocumentFromFirestore('learners', id);
+      await Promise.allSettled(firestoreDeletes);
     } catch (e) {
-      console.warn('Firestore delete error for learner:', e);
+      console.warn('Firestore cascade delete error for learner:', e);
     }
 
     addAuditLog(
       'Learner Record Deleted',
-      `Permanently removed student ${target.firstName} ${target.lastName} (${target.studentId}) from registered directory.`
+      `Permanently removed student ${target.firstName} ${target.lastName} (${target.studentId}) and all linked fee, score, attendance, and reminder records.`
     );
   };
 
@@ -3049,38 +3168,46 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     (currentUser.phone && (normalizeKenyanPhone(currentUser.phone) === '0716235185' || currentUser.phone === '0716235185'))
   );
 
-  // Scoped data arrays strictly isolated to current active school
+  // Scoped data arrays strictly isolated to current active school AND valid existing learners
   const activeLearners = useMemo(
     () => learners.filter((l) => (l.schoolId || 'sch-001') === currentSchoolId),
     [learners, currentSchoolId]
   );
+  const activeLearnerIds = useMemo(
+    () => new Set(activeLearners.map((l) => l.id)),
+    [activeLearners]
+  );
+  const activeParentIds = useMemo(
+    () => new Set(activeLearners.map((l) => l.parentId)),
+    [activeLearners]
+  );
   const activeParents = useMemo(
-    () => parents.filter((p) => (p.schoolId || 'sch-001') === currentSchoolId),
-    [parents, currentSchoolId]
+    () => parents.filter((p) => (p.schoolId || 'sch-001') === currentSchoolId && activeParentIds.has(p.id)),
+    [parents, currentSchoolId, activeParentIds]
   );
   const activeTeachers = useMemo(
     () => teachers.filter((t) => (t.schoolId || 'sch-001') === currentSchoolId),
     [teachers, currentSchoolId]
   );
   const activeFeeStructures = useMemo(
-    () => feeStructures.filter((f) => (f.schoolId || 'sch-001') === currentSchoolId),
-    [feeStructures, currentSchoolId]
+    () => feeStructures.filter((f) => (f.schoolId || 'sch-001') === currentSchoolId && activeLearnerIds.has(f.learnerId)),
+    [feeStructures, currentSchoolId, activeLearnerIds]
   );
   const activeFeePayments = useMemo(
-    () => feePayments.filter((p) => (p.schoolId || 'sch-001') === currentSchoolId),
-    [feePayments, currentSchoolId]
+    () => feePayments.filter((p) => (p.schoolId || 'sch-001') === currentSchoolId && activeLearnerIds.has(p.learnerId)),
+    [feePayments, currentSchoolId, activeLearnerIds]
   );
   const activeReminders = useMemo(
-    () => reminders.filter((r) => (r.schoolId || 'sch-001') === currentSchoolId),
-    [reminders, currentSchoolId]
+    () => reminders.filter((r) => (r.schoolId || 'sch-001') === currentSchoolId && activeLearnerIds.has(r.learnerId)),
+    [reminders, currentSchoolId, activeLearnerIds]
   );
   const activeScoreCards = useMemo(
-    () => scoreCards.filter((s) => (s.schoolId || 'sch-001') === currentSchoolId),
-    [scoreCards, currentSchoolId]
+    () => scoreCards.filter((s) => (s.schoolId || 'sch-001') === currentSchoolId && activeLearnerIds.has(s.learnerId)),
+    [scoreCards, currentSchoolId, activeLearnerIds]
   );
   const activeAttendance = useMemo(
-    () => attendance.filter((a) => (a.schoolId || 'sch-001') === currentSchoolId),
-    [attendance, currentSchoolId]
+    () => attendance.filter((a) => (a.schoolId || 'sch-001') === currentSchoolId && activeLearnerIds.has(a.learnerId)),
+    [attendance, currentSchoolId, activeLearnerIds]
   );
   const activeGrades = useMemo(() => {
     const scoped = grades.filter((g) => (g.schoolId || 'sch-001') === currentSchoolId);

@@ -205,7 +205,7 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
   const studentAttendance = attendance.filter((a) => a.learnerId === selectedLearnerId);
   const presentCount = studentAttendance.filter((a) => a.status === 'present' || a.status === 'late').length;
   const computedAttendanceRate =
-    studentAttendance.length > 0 ? (presentCount / studentAttendance.length) * 100 : 96.5;
+    studentAttendance.length > 0 ? (presentCount / studentAttendance.length) * 100 : 0;
 
   const defaultJuniorSubjects: SubjectScore[] = [
     {

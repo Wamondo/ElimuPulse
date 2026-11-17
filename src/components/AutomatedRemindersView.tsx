@@ -190,58 +190,69 @@ export const AutomatedRemindersView: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {pendingAccounts.map((fs) => {
-                const learner = learners.find((l) => l.id === fs.learnerId);
-                const parent = parents.find((p) => p.id === learner?.parentId);
-                const isOverdue = new Date(fs.dueDate) < new Date('2026-06-18');
+              {pendingAccounts.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-8 px-4 text-center text-slate-500">
+                    {learners.length === 0
+                      ? 'No learners currently enrolled.'
+                      : 'All enrolled learners have cleared their tuition dues.'}
+                  </td>
+                </tr>
+              ) : (
+                pendingAccounts.map((fs) => {
+                  const learner = learners.find((l) => l.id === fs.learnerId);
+                  if (!learner) return null;
+                  const parent = parents.find((p) => p.id === learner.parentId);
+                  const isOverdue = new Date(fs.dueDate) < new Date('2026-06-18');
 
-                return (
-                  <tr key={fs.id} className="hover:bg-slate-50/70 transition-colors">
-                    <td className="py-3 px-4">
-                      <div className="font-semibold text-slate-900">
-                        {learner?.firstName} {learner?.lastName}
-                      </div>
-                      <div className="text-[11px] text-slate-500 font-mono">
-                        {learner?.studentId} · {learner?.grade}
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="font-medium text-slate-800">{parent?.fullName}</div>
-                      <div className="text-[11px] text-slate-500 font-mono">{parent?.phone}</div>
-                    </td>
-                    <td className="py-3 px-3 text-right font-mono font-bold text-amber-700 tabular-nums">
-                      Ksh {fs.balance.toLocaleString()}
-                    </td>
-                    <td className="py-3 px-3 font-mono text-slate-600 tabular-nums">
-                      {fs.dueDate}
-                    </td>
-                    <td className="py-3 px-3">
-                      <span className="font-mono text-[10px] uppercase bg-slate-100 px-2 py-0.5 rounded border border-slate-200 text-slate-700">
-                        {parent?.preferredChannel}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3">
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${
-                          isOverdue
-                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                            : 'bg-amber-50 text-amber-700 border border-amber-200'
-                        }`}
-                      >
-                        {isOverdue ? 'Overdue' : 'Approaching'}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <button
-                        onClick={handleBatchDispatch}
-                        className="px-2.5 py-1 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded transition-colors cursor-pointer"
-                      >
-                        Send Alert
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
+                  return (
+                    <tr key={fs.id} className="hover:bg-slate-50/70 transition-colors">
+                      <td className="py-3 px-4">
+                        <div className="font-semibold text-slate-900">
+                          {learner.firstName} {learner.lastName}
+                        </div>
+                        <div className="text-[11px] text-slate-500 font-mono">
+                          {learner.studentId} · {learner.grade}
+                        </div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="font-medium text-slate-800">{parent?.fullName || '—'}</div>
+                        <div className="text-[11px] text-slate-500 font-mono">{parent?.phone || ''}</div>
+                      </td>
+                      <td className="py-3 px-3 text-right font-mono font-bold text-amber-700 tabular-nums">
+                        Ksh {fs.balance.toLocaleString()}
+                      </td>
+                      <td className="py-3 px-3 font-mono text-slate-600 tabular-nums">
+                        {fs.dueDate}
+                      </td>
+                      <td className="py-3 px-3">
+                        <span className="font-mono text-[10px] uppercase bg-slate-100 px-2 py-0.5 rounded border border-slate-200 text-slate-700">
+                          {parent?.preferredChannel || 'sms'}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3">
+                        <span
+                          className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${
+                            isOverdue
+                              ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                              : 'bg-amber-50 text-amber-700 border border-amber-200'
+                          }`}
+                        >
+                          {isOverdue ? 'Overdue' : 'Approaching'}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <button
+                          onClick={handleBatchDispatch}
+                          className="px-2.5 py-1 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded transition-colors cursor-pointer"
+                        >
+                          Send Alert
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
@@ -276,47 +287,54 @@ export const AutomatedRemindersView: React.FC = () => {
           </div>
 
           <div className="divide-y divide-slate-100 p-4 space-y-3">
-            {filteredReminders.map((rem) => {
-              const learner = learners.find((l) => l.id === rem.learnerId);
-              const parent = parents.find((p) => p.id === rem.parentId);
+            {filteredReminders.length === 0 ? (
+              <p className="text-xs text-slate-500 py-6 text-center">
+                No dispatched reminders recorded.
+              </p>
+            ) : (
+              filteredReminders.map((rem) => {
+                const learner = learners.find((l) => l.id === rem.learnerId);
+                if (!learner) return null;
+                const parent = parents.find((p) => p.id === rem.parentId);
 
-              return (
-                <div
-                  key={rem.id}
-                  className="p-3.5 bg-slate-50 rounded-lg border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
-                >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-slate-900">
-                        {parent?.fullName}
-                      </span>
-                      <span className="text-slate-500 text-[11px]">
-                        for {learner?.firstName} {learner?.lastName}
-                      </span>
-                      <span className="font-mono text-[10px] uppercase bg-white border border-slate-200 px-1.5 py-0.2 rounded text-slate-700">
-                        {rem.channel}
-                      </span>
-                      <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded">
-                        ✓ {rem.status}
-                      </span>
+                return (
+                  <div
+                    key={rem.id}
+                    className="p-3.5 bg-slate-50 rounded-lg border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-slate-900">
+                          {parent?.fullName || 'Parent'}
+                        </span>
+                        <span className="text-slate-500 text-[11px]">
+                          for {learner.firstName} {learner.lastName}
+                        </span>
+                        <span className="font-mono text-[10px] uppercase bg-white border border-slate-200 px-1.5 py-0.2 rounded text-slate-700">
+                          {rem.channel}
+                        </span>
+                        <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded">
+                          ✓ {rem.status}
+                        </span>
+                      </div>
+                      <p className="text-slate-600 text-xs italic">
+                        "{rem.messagePreview}"
+                      </p>
+                      <p className="text-[10px] text-slate-400 font-mono">
+                        Timestamp: {rem.sentDate || rem.scheduledDate}
+                      </p>
                     </div>
-                    <p className="text-slate-600 text-xs italic">
-                      "{rem.messagePreview}"
-                    </p>
-                    <p className="text-[10px] text-slate-400 font-mono">
-                      Timestamp: {rem.sentDate || rem.scheduledDate}
-                    </p>
-                  </div>
 
-                  <div className="text-right shrink-0">
-                    <span className="font-mono font-bold text-slate-900 tabular-nums">
-                      Ksh {rem.amountDue.toLocaleString()}
-                    </span>
-                    <p className="text-[10px] text-slate-400">Due: {rem.dueDate}</p>
+                    <div className="text-right shrink-0">
+                      <span className="font-mono font-bold text-slate-900 tabular-nums">
+                        Ksh {rem.amountDue.toLocaleString()}
+                      </span>
+                      <p className="text-[10px] text-slate-400">Due: {rem.dueDate}</p>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </div>
 
@@ -356,7 +374,10 @@ export const AutomatedRemindersView: React.FC = () => {
           </div>
 
           <button
-            onClick={() => alert("Notification templates successfully saved for automated dispatch engine.")}
+            onClick={() => {
+              setDispatchAlert('Notification templates successfully saved for automated dispatch engine.');
+              setTimeout(() => setDispatchAlert(null), 5000);
+            }}
             className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-lg text-xs transition-colors cursor-pointer"
           >
             Save Automated Templates
