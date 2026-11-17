@@ -35,8 +35,10 @@ import {
   Table,
   Lock,
   Layers,
+  MessageCircle,
 } from 'lucide-react';
 import crestImage from '../assets/images/school_crest_emblem_1792317813141.jpg';
+import { ParentContactAndReportModal } from './ParentContactAndReportModal';
 
 interface ScoreCardsViewProps {
   initialLearnerId?: string;
@@ -45,6 +47,7 @@ interface ScoreCardsViewProps {
 export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId }) => {
   const {
     learners,
+    parents,
     scoreCards,
     saveScoreCard,
     currentUser,
@@ -104,6 +107,7 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
   const [isEditing, setIsEditing] = useState(false);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [showGradingScaleModal, setShowGradingScaleModal] = useState(false);
+  const [isContactParentModalOpen, setIsContactParentModalOpen] = useState(false);
 
   // Sync initialLearnerId when provided
   React.useEffect(() => {
@@ -891,6 +895,18 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
             <Printer className="w-3.5 h-3.5" />
             <span>Official Print Preview</span>
           </button>
+
+          {currentUser.role !== 'parent' && activeLearner && (
+            <button
+              type="button"
+              onClick={() => setIsContactParentModalOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors cursor-pointer shadow-xs"
+              title="Contact parent directly or send this score performance summary via SMS, Email, or WhatsApp"
+            >
+              <MessageCircle className="w-3.5 h-3.5" />
+              <span>Contact Parent / Send Scores</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -1809,6 +1825,25 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
             </div>
           </div>
         </div>
+      )}
+
+      {/* Unified Parent Contact & Score Summary Dispatch Modal */}
+      {isContactParentModalOpen && activeLearner && (
+        <ParentContactAndReportModal
+          isOpen={isContactParentModalOpen}
+          onClose={() => setIsContactParentModalOpen(false)}
+          learner={activeLearner}
+          parent={parents.find((p) => p.id === activeLearner.parentId)}
+          scoreCard={{
+            ...cardBuffer,
+            assessmentName: activeAssessment?.name || cardBuffer.assessmentName,
+            isExamAbsent: isLearnerAbsentForExam,
+            examAbsentReason: activeAssessment?.absentReasons?.[selectedLearnerId] || cardBuffer.examAbsentReason,
+          }}
+          termLabel={selectedTerm}
+          assessmentName={activeAssessment?.name || cardBuffer.assessmentName}
+          initialMode="score_summary"
+        />
       )}
     </div>
   );

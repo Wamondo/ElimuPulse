@@ -607,6 +607,83 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, [subjects]);
 
+  // Keep any active teacher session (including Owner acting as Class/Senior/Subject Teacher)
+  // synchronized with the live Faculty Teacher Registry and Grade Assignments
+  useEffect(() => {
+    if (!isAuthenticated || currentUser.role !== 'teacher') return;
+
+    const sessionTeacherId = currentUser.id.startsWith('session-teacher-')
+      ? currentUser.id.replace('session-teacher-', '')
+      : '';
+    const userNormPhone = normalizeKenyanPhone(currentUser.phone || '');
+    const userEmail = (currentUser.email || '').trim().toLowerCase();
+
+    const matchedTeacher =
+      teachers.find((t) => sessionTeacherId && t.id === sessionTeacherId) ||
+      teachers.find(
+        (t) =>
+          (t.schoolId || 'sch-001') === currentSchoolId &&
+          ((userNormPhone && normalizeKenyanPhone(t.phone || '') === userNormPhone) ||
+            (userEmail && (t.email || '').trim().toLowerCase() === userEmail))
+      ) ||
+      teachers.find(
+        (t) =>
+          (userNormPhone && normalizeKenyanPhone(t.phone || '') === userNormPhone) ||
+          (userEmail && (t.email || '').trim().toLowerCase() === userEmail)
+      );
+
+    if (!matchedTeacher) return;
+
+    const targetSchId = matchedTeacher.schoolId || currentSchoolId;
+    const matchedGradeObj = grades.find(
+      (g) => g.classTeacherId === matchedTeacher.id && (!g.schoolId || g.schoolId === targetSchId)
+    );
+    const resolvedGrade = (matchedTeacher.assignedGrade || '').trim() || matchedGradeObj?.name || '';
+    const resolvedSubjects =
+      matchedTeacher.registeredSubjects && matchedTeacher.registeredSubjects.length > 0
+        ? matchedTeacher.registeredSubjects
+        : currentUser.registeredSubjects;
+
+    const isOwnerActingOverride =
+      currentUser.isOwner &&
+      (currentUser.ownerDesignation === 'subject_teacher' || currentUser.ownerDesignation === 'senior_teacher');
+
+    const nextTeacherType = isOwnerActingOverride
+      ? currentUser.teacherType
+      : matchedTeacher.teacherType;
+    const nextTeacherGrade =
+      nextTeacherType === 'class_teacher' || resolvedGrade
+        ? resolvedGrade || currentUser.teacherGrade
+        : currentUser.teacherGrade;
+
+    const nextTitle =
+      currentUser.ownerDesignation === 'senior_teacher'
+        ? `Senior Teacher & Academic Lead (${nextTeacherGrade || 'Faculty'})`
+        : nextTeacherType === 'class_teacher'
+        ? `Class Teacher · ${nextTeacherGrade || 'Unassigned'} (${schoolProfile.name})`
+        : `Subject Teacher (${(resolvedSubjects || []).join(', ')}) · ${schoolProfile.name}`;
+
+    const subjectsChanged =
+      JSON.stringify(currentUser.registeredSubjects || []) !== JSON.stringify(resolvedSubjects || []);
+
+    if (
+      currentUser.name !== matchedTeacher.name ||
+      currentUser.teacherType !== nextTeacherType ||
+      currentUser.teacherGrade !== nextTeacherGrade ||
+      currentUser.title !== nextTitle ||
+      subjectsChanged
+    ) {
+      setCurrentUser((prev) => ({
+        ...prev,
+        name: matchedTeacher.name,
+        teacherType: nextTeacherType,
+        teacherGrade: nextTeacherGrade,
+        registeredSubjects: resolvedSubjects,
+        title: nextTitle,
+      }));
+    }
+  }, [isAuthenticated, currentUser, teachers, grades, currentSchoolId, schoolProfile.name]);
+
   // Persistence effects
   useEffect(() => {
     localStorage.setItem(`${STORAGE_KEY_PREFIX}school_profile`, JSON.stringify(schoolProfile));
@@ -889,10 +966,66 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
+  const resolveRegisteredTeacherForOwner = (
+    preferredSchoolId?: string
+  ): { teacher?: TeacherRecord; assignedGrade?: string; schoolId?: string } => {
+    const ownerNormPhone = normalizeKenyanPhone(OWNER_PHONE);
+    const cleanOwnerId = OWNER_ID_NUMBER.trim().toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/^ID/, '');
+    const matchesOwner = (t: TeacherRecord) => {
+      const tPhone = normalizeKenyanPhone(t.phone || '');
+      const tEmail = (t.email || '').trim().toLowerCase();
+      const tId = (t.nationalOrStaffId || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/^ID/, '');
+      return (
+        tPhone === ownerNormPhone ||
+        tEmail === 'dwnwmnd@gmail.com' ||
+        (tId !== '' && tId === cleanOwnerId)
+      );
+    };
+
+    const targetSch = preferredSchoolId || currentSchoolId;
+    const matched =
+      teachers.find((t) => (t.schoolId || 'sch-001') === targetSch && matchesOwner(t)) ||
+      teachers.find(matchesOwner);
+
+    if (!matched) {
+      return {};
+    }
+
+    const resolvedSchoolId = matched.schoolId || targetSch;
+    const gradeById = grades.find(
+      (g) => g.classTeacherId === matched.id && (!g.schoolId || g.schoolId === resolvedSchoolId)
+    );
+    const assignedGrade = (matched.assignedGrade || '').trim() || gradeById?.name || '';
+
+    return {
+      teacher: matched,
+      assignedGrade: assignedGrade || undefined,
+      schoolId: resolvedSchoolId,
+    };
+  };
+
   const buildOwnerSession = (
     designation: OwnerDesignation = 'owner',
-    teacherGrade: string = 'Grade 7A'
+    teacherGrade?: string,
+    teacherProfile?: TeacherRecord,
+    targetSchool?: SchoolProfile
   ): UserSession => {
+    const resolvedOwnerTeacher = teacherProfile || resolveRegisteredTeacherForOwner().teacher;
+    const resolvedSch = targetSchool || schoolProfile;
+    const schoolGrades = grades.filter((g) => (g.schoolId || 'sch-001') === (resolvedSch.id || currentSchoolId));
+    const ownerTeacherInfo = resolveRegisteredTeacherForOwner(resolvedSch.id || currentSchoolId);
+    const resolvedRegisteredGrade =
+      teacherGrade ||
+      resolvedOwnerTeacher?.assignedGrade ||
+      ownerTeacherInfo.assignedGrade ||
+      schoolGrades[0]?.name ||
+      'Grade 7A';
+    const resolvedSubjects =
+      resolvedOwnerTeacher?.registeredSubjects && resolvedOwnerTeacher.registeredSubjects.length > 0
+        ? resolvedOwnerTeacher.registeredSubjects
+        : undefined;
+    const resolvedTeacherName = resolvedOwnerTeacher?.name || 'App Owner & Director';
+
     const base: UserSession = {
       id: 'user-owner-main',
       name: 'App Owner & Director',
@@ -903,6 +1036,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       title: 'App Owner & School Director (Master Executive)',
       isOwner: true,
       ownerDesignation: designation,
+      schoolId: resolvedSch.id || currentSchoolId,
     };
 
     switch (designation) {
@@ -927,28 +1061,32 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       case 'senior_teacher':
         return {
           ...base,
+          name: resolvedTeacherName,
           role: 'teacher',
           teacherType: 'class_teacher',
-          teacherGrade: teacherGrade || 'Grade 7A',
-          registeredSubjects: ['Mathematics', 'Integrated Science', 'Pre-Technical Studies'],
-          title: `Senior Teacher & Academic Lead (${teacherGrade || 'Grade 7A'})`,
+          teacherGrade: resolvedRegisteredGrade,
+          registeredSubjects: resolvedSubjects || ['Mathematics', 'Integrated Science', 'Pre-Technical Studies'],
+          title: `Senior Teacher & Academic Lead (${resolvedRegisteredGrade})`,
         };
       case 'class_teacher':
         return {
           ...base,
+          name: resolvedTeacherName,
           role: 'teacher',
           teacherType: 'class_teacher',
-          teacherGrade: teacherGrade || 'Grade 7A',
-          registeredSubjects: ['Mathematics', 'Creative Arts and Sports'],
-          title: `Class Teacher · ${teacherGrade || 'Grade 7A'} (Junior School)`,
+          teacherGrade: resolvedRegisteredGrade,
+          registeredSubjects: resolvedSubjects || ['Mathematics', 'Creative Arts and Sports'],
+          title: `Class Teacher · ${resolvedRegisteredGrade} (${resolvedSch.name})`,
         };
       case 'subject_teacher':
         return {
           ...base,
+          name: resolvedTeacherName,
           role: 'teacher',
           teacherType: 'subject_teacher',
-          registeredSubjects: ['Mathematics', 'Integrated Science'],
-          title: 'Subject Teacher (Mathematics & Integrated Science)',
+          teacherGrade: resolvedOwnerTeacher?.assignedGrade || ownerTeacherInfo.assignedGrade,
+          registeredSubjects: resolvedSubjects || ['Mathematics', 'Integrated Science'],
+          title: `Subject Teacher (${(resolvedSubjects || ['Mathematics', 'Integrated Science']).join(', ')}) · ${resolvedSch.name}`,
         };
       case 'parent':
         return {
@@ -972,8 +1110,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     designation: OwnerDesignation,
     grade?: string
   ) => {
-    const targetGrade = grade || currentUser.teacherGrade || 'Grade 7A';
-    const updated = buildOwnerSession(designation, targetGrade);
+    const ownerTeacherInfo = resolveRegisteredTeacherForOwner(currentSchoolId);
+    const schoolGrades = grades.filter((g) => (g.schoolId || 'sch-001') === currentSchoolId);
+    const targetGrade =
+      grade ||
+      ownerTeacherInfo.assignedGrade ||
+      currentUser.teacherGrade ||
+      schoolGrades[0]?.name ||
+      'Grade 7A';
+    const updated = buildOwnerSession(designation, targetGrade, ownerTeacherInfo.teacher, schoolProfile);
     setCurrentUser(updated);
     localStorage.setItem(`${STORAGE_KEY_PREFIX}user`, JSON.stringify(updated));
     if (updated.role === 'parent' && updated.parentId) {
@@ -1047,6 +1192,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       // Valid credentials for Owner! Now enforce SINGLE ACTIVE PHONE at a time.
       const currentLock = await getOwnerDeviceLock();
 
+      const effectiveDesignation = actingDesignation || 'owner';
+      const isTeacherContext =
+        effectiveDesignation === 'class_teacher' ||
+        effectiveDesignation === 'senior_teacher' ||
+        effectiveDesignation === 'subject_teacher';
+      const ownerTeacherInfo = resolveRegisteredTeacherForOwner(currentSchoolId);
+      const targetSchoolForTeacher =
+        isTeacherContext && ownerTeacherInfo.schoolId
+          ? registeredSchools.find((s) => s.id === ownerTeacherInfo.schoolId) || schoolProfile
+          : schoolProfile;
+
       // Case A: First-time initialization (no device locked yet)
       if (!currentLock || !currentLock.activeDeviceId) {
         const newLock: OwnerDeviceLock = {
@@ -1062,7 +1218,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         await persistOwnerDeviceLock(newLock);
         setOwnerDeviceLock(newLock);
 
-        const ownerSession = buildOwnerSession(actingDesignation || 'owner');
+        if (isTeacherContext && targetSchoolForTeacher.id !== currentSchoolId) {
+          switchActiveSchool(targetSchoolForTeacher.id, true);
+        }
+
+        const ownerSession = buildOwnerSession(
+          effectiveDesignation,
+          ownerTeacherInfo.assignedGrade,
+          ownerTeacherInfo.teacher,
+          targetSchoolForTeacher
+        );
         setCurrentUser(ownerSession);
         setIsAuthenticated(true);
         if (ownerSession.role === 'parent' && ownerSession.parentId) {
@@ -1084,7 +1249,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         await persistOwnerDeviceLock(currentLock);
         setOwnerDeviceLock(currentLock);
 
-        const ownerSession = buildOwnerSession(actingDesignation || 'owner');
+        if (isTeacherContext && targetSchoolForTeacher.id !== currentSchoolId) {
+          switchActiveSchool(targetSchoolForTeacher.id, true);
+        }
+
+        const ownerSession = buildOwnerSession(
+          effectiveDesignation,
+          ownerTeacherInfo.assignedGrade,
+          ownerTeacherInfo.teacher,
+          targetSchoolForTeacher
+        );
         setCurrentUser(ownerSession);
         setIsAuthenticated(true);
         if (ownerSession.role === 'parent' && ownerSession.parentId) {
@@ -1292,7 +1466,25 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const updatedLock = await getOwnerDeviceLock();
     setOwnerDeviceLock(updatedLock);
 
-    const ownerSession = buildOwnerSession(actingDesignation);
+    const isTeacherContext =
+      actingDesignation === 'class_teacher' ||
+      actingDesignation === 'senior_teacher' ||
+      actingDesignation === 'subject_teacher';
+    const ownerTeacherInfo = resolveRegisteredTeacherForOwner(currentSchoolId);
+    const targetSchoolForTeacher =
+      isTeacherContext && ownerTeacherInfo.schoolId
+        ? registeredSchools.find((s) => s.id === ownerTeacherInfo.schoolId) || schoolProfile
+        : schoolProfile;
+    if (isTeacherContext && targetSchoolForTeacher.id !== currentSchoolId) {
+      switchActiveSchool(targetSchoolForTeacher.id, true);
+    }
+
+    const ownerSession = buildOwnerSession(
+      actingDesignation,
+      ownerTeacherInfo.assignedGrade,
+      ownerTeacherInfo.teacher,
+      targetSchoolForTeacher
+    );
     setCurrentUser(ownerSession);
     setIsAuthenticated(true);
     if (ownerSession.role === 'parent' && ownerSession.parentId) {

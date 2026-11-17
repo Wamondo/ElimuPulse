@@ -48,8 +48,10 @@ import {
   UserX,
   UserCheck,
   BellRing,
-  Calendar
+  Calendar,
+  MessageCircle,
 } from 'lucide-react';
+import { ParentContactAndReportModal } from './ParentContactAndReportModal';
 
 export type { GradeSubjectDef };
 export { getSubjectsForGrade };
@@ -63,7 +65,9 @@ export const GradeBroadsheetView: React.FC<GradeBroadsheetViewProps> = ({
 }) => {
   const {
     learners,
+    parents,
     scoreCards,
+    attendance,
     saveScoreCard,
     currentUser,
     schoolProfile,
@@ -96,6 +100,16 @@ export const GradeBroadsheetView: React.FC<GradeBroadsheetViewProps> = ({
   const [selectedGrade, setSelectedGrade] = useState<string>(defaultGrade);
   const [selectedTerm, setSelectedTerm] = useState<string>('Term 1 - 2026');
   const [activeSubView, setActiveSubView] = useState<'roster' | 'workflow' | 'summary' | 'honours' | 'all'>('roster');
+  const [contactTarget, setContactTarget] = useState<{
+    learner: LearnerRecord;
+    scoreCard: ScoreCard;
+  } | null>(null);
+
+  useEffect(() => {
+    if (currentUser.role === 'teacher' && currentUser.teacherType === 'class_teacher' && currentUser.teacherGrade) {
+      setSelectedGrade(currentUser.teacherGrade);
+    }
+  }, [currentUser.role, currentUser.teacherType, currentUser.teacherGrade]);
 
   // Active Assessment configuration for this Grade & Term
   const activeAssessment: AssessmentRecord = useMemo(() => {
@@ -1959,6 +1973,66 @@ export const GradeBroadsheetView: React.FC<GradeBroadsheetViewProps> = ({
                               Report Card
                             </button>
                           )}
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const existingSc = scoreCards.find(
+                                (sc) => sc.learnerId === row.learner.id && sc.term === selectedTerm
+                              );
+                              const learnerAtt = attendance.filter((a) => a.learnerId === row.learner.id);
+                              const presentCnt = learnerAtt.filter((a) => a.status === 'present' || a.status === 'late').length;
+                              const attRate = learnerAtt.length > 0 ? (presentCnt / learnerAtt.length) * 100 : 96.5;
+                              const builtSubjects: SubjectScore[] = subjectList.map((sub, sidx) => {
+                                const item = row.subjectScores[sub.name];
+                                return {
+                                  id: `bs-${row.learner.id}-${sidx}`,
+                                  subjectName: sub.name,
+                                  catScore: item?.cat || 0,
+                                  midTermScore: item?.mid || 0,
+                                  finalExamScore: item?.fin || 0,
+                                  totalScore: item?.total || 0,
+                                  letterGrade: (item?.letterGrade as SubjectScore['letterGrade']) || 'BE2',
+                                  points: item?.points || 1,
+                                  subjectTeacher: resolveSubjectTeacherName(sub.name, selectedGrade, teachers),
+                                  teacherRemarks: item?.remarks || 'Assessed under CBC curriculum.',
+                                };
+                              });
+                              const builtCard: ScoreCard = {
+                                id: existingSc?.id || `sc-bs-${row.learner.id}`,
+                                learnerId: row.learner.id,
+                                term: selectedTerm,
+                                academicYear: activeAssessment.academicYear || '2025/2026',
+                                issueDate: existingSc?.issueDate || new Date().toISOString().slice(0, 10),
+                                assessmentName: activeAssessment.name,
+                                subjects: existingSc?.subjects?.length ? existingSc.subjects : builtSubjects,
+                                totalMarks: row.totalMarks,
+                                maxPossibleMarks: subjectList.length * 100,
+                                averageScore: row.averageScore,
+                                gpa: row.meanPoints,
+                                classRank: typeof row.position === 'number' ? row.position : 0,
+                                classSize: broadsheetRows.filter((r) => !r.isAbsent).length || broadsheetRows.length,
+                                attendancePercentage: existingSc?.attendancePercentage ?? attRate,
+                                classTeacherRemark:
+                                  existingSc?.classTeacherRemark ||
+                                  'Consistent effort and active participation in class activities.',
+                                principalRemark:
+                                  existingSc?.principalRemark ||
+                                  'Commendable academic commitment.',
+                                isExamAbsent: row.isAbsent,
+                                status: existingSc?.status || 'published',
+                              };
+                              setContactTarget({
+                                learner: row.learner,
+                                scoreCard: builtCard,
+                              });
+                            }}
+                            className="inline-flex items-center gap-1 text-[10px] text-white font-semibold px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-700 transition-colors cursor-pointer"
+                            title="Contact parent or send score performance summary via SMS, Email, or WhatsApp"
+                          >
+                            <MessageCircle className="w-3 h-3" />
+                            <span>Send / Contact</span>
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -2193,6 +2267,20 @@ export const GradeBroadsheetView: React.FC<GradeBroadsheetViewProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Unified Parent Contact & Score Summary Dispatch Modal */}
+      {contactTarget && (
+        <ParentContactAndReportModal
+          isOpen={!!contactTarget}
+          onClose={() => setContactTarget(null)}
+          learner={contactTarget.learner}
+          parent={parents.find((p) => p.id === contactTarget.learner.parentId)}
+          scoreCard={contactTarget.scoreCard}
+          termLabel={selectedTerm}
+          assessmentName={activeAssessment.name}
+          initialMode="score_summary"
+        />
       )}
     </div>
   );

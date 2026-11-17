@@ -90,6 +90,12 @@ export const SubjectScoresheetView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'roster' | 'summary' | 'honours' | 'all'>('roster');
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (currentUser.role === 'teacher' && currentUser.teacherType === 'class_teacher' && currentUser.teacherGrade) {
+      setSelectedGrade(currentUser.teacherGrade);
+    }
+  }, [currentUser.role, currentUser.teacherType, currentUser.teacherGrade]);
+
   // Available subjects for the selected grade
   const gradeSubjects = useMemo(() => {
     return getSubjectsForGrade(selectedGrade);
@@ -1603,7 +1609,6 @@ export const SubjectScoresheetView: React.FC = () => {
                   <th className="py-2.5 px-3 text-center bg-rose-950 font-bold w-20">Girls (F)</th>
                   <th className="py-2.5 px-3 text-center bg-indigo-950 font-bold w-24">Total Learners</th>
                   <th className="py-2.5 px-3 text-center w-24">% of Cohort</th>
-                  <th className="py-2.5 px-4 min-w-[140px]">Visual Gender Proportion</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
@@ -1646,24 +1651,6 @@ export const SubjectScoresheetView: React.FC = () => {
                     </td>
                     <td className="py-2.5 px-3 text-center font-semibold text-slate-700">
                       {lvl.percentage.toFixed(1)}%
-                    </td>
-                    <td className="py-2.5 px-4">
-                      <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden flex">
-                        {lvl.total > 0 && (
-                          <>
-                            <div
-                              style={{ width: `${(lvl.boys / Math.max(1, rowsBuffer.length)) * 100}%` }}
-                              className="bg-blue-600 h-full"
-                              title={`Boys: ${lvl.boys}`}
-                            />
-                            <div
-                              style={{ width: `${(lvl.girls / Math.max(1, rowsBuffer.length)) * 100}%` }}
-                              className="bg-rose-500 h-full"
-                              title={`Girls: ${lvl.girls}`}
-                            />
-                          </>
-                        )}
-                      </div>
                     </td>
                   </tr>
                 ))}

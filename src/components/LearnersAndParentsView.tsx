@@ -28,7 +28,8 @@ import {
   BookOpen,
   Building,
   Pencil,
-  Trash2
+  Trash2,
+  MessageCircle,
 } from 'lucide-react';
 import {
   maskPhoneNumber,
@@ -39,6 +40,7 @@ import {
 } from '../services/cryptoService';
 import { BulkOnboardingModal } from './BulkOnboardingModal';
 import { EditLearnerModal } from './EditLearnerModal';
+import { ParentContactAndReportModal } from './ParentContactAndReportModal';
 
 interface LearnersAndParentsViewProps {
   onOpenAddModal: () => void;
@@ -106,6 +108,11 @@ export const LearnersAndParentsView: React.FC<LearnersAndParentsViewProps> = ({
   const [learnerForDelete, setLearnerForDelete] = useState<LearnerRecord | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [contactTarget, setContactTarget] = useState<{
+    learner: LearnerRecord;
+    parent?: ParentRecord;
+    mode: 'score_summary' | 'direct_message';
+  } | null>(null);
 
   const isLearnerJunior = (l: { grade: string }) => {
     const g = l.grade.toLowerCase();
@@ -518,6 +525,27 @@ export const LearnersAndParentsView: React.FC<LearnersAndParentsViewProps> = ({
                         {isDecrypted ? parent.homeAddress : maskAddress(parent.homeAddress)}
                       </span>
                     </div>
+
+                    {currentUser.role !== 'parent' && (
+                      <div className="pt-2">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setContactTarget({
+                              learner,
+                              parent,
+                              mode: 'direct_message',
+                            });
+                          }}
+                          className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 text-[11px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors cursor-pointer shadow-2xs"
+                          title="Call, SMS, WhatsApp, Email parent directly or send learner's score performance summary"
+                        >
+                          <MessageCircle className="w-3.5 h-3.5" />
+                          <span>Contact Parent / Send Scores</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <p className="text-slate-400 italic">No parent profile linked</p>
@@ -683,20 +711,38 @@ export const LearnersAndParentsView: React.FC<LearnersAndParentsViewProps> = ({
 
                 return (
                   <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 space-y-3">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
                       <div className="flex items-center gap-2">
                         <Shield className="w-4 h-4 text-indigo-600" />
                         <h4 className="font-bold text-slate-900 text-sm">Parent & Guardian Records</h4>
                       </div>
-                      {parent && (
-                        <button
-                          onClick={(e) => handleToggleDecrypt(e, parent.id)}
-                          className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 rounded-md transition-colors cursor-pointer"
-                        >
-                          {isDecrypted ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
-                          <span>{isDecrypted ? 'Lock / Mask Details' : 'Decrypt with AES-256 Key'}</span>
-                        </button>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {parent && currentUser.role !== 'parent' && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setContactTarget({
+                                learner: activeLearnerDetail,
+                                parent,
+                                mode: 'direct_message',
+                              })
+                            }
+                            className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-md transition-colors cursor-pointer shadow-2xs"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                            <span>Contact / Send Scores</span>
+                          </button>
+                        )}
+                        {parent && (
+                          <button
+                            onClick={(e) => handleToggleDecrypt(e, parent.id)}
+                            className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 rounded-md transition-colors cursor-pointer"
+                          >
+                            {isDecrypted ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
+                            <span>{isDecrypted ? 'Lock / Mask Details' : 'Decrypt with AES-256 Key'}</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     {parent && (
@@ -952,6 +998,17 @@ export const LearnersAndParentsView: React.FC<LearnersAndParentsViewProps> = ({
           setTimeout(() => setOnboardSuccessNotice(null), 8000);
         }}
       />
+
+      {/* Unified Parent Contact & Score Summary Dispatch Modal */}
+      {contactTarget && (
+        <ParentContactAndReportModal
+          isOpen={!!contactTarget}
+          onClose={() => setContactTarget(null)}
+          learner={contactTarget.learner}
+          parent={contactTarget.parent}
+          initialMode={contactTarget.mode}
+        />
+      )}
     </div>
   );
 };

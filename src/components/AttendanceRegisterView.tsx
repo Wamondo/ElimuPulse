@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import {
   Calendar,
@@ -95,6 +95,12 @@ export const AttendanceRegisterView: React.FC<AttendanceRegisterViewProps> = ({
   const [selectedStudentId, setSelectedStudentId] = useState(defaultStudentId);
   const [sessionFilter, setSessionFilter] = useState<'both' | 'morning' | 'afternoon'>('both');
   const [actionSuccessNotice, setActionSuccessNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isClassTeacher && currentUser.teacherGrade) {
+      setSelectedGrade(currentUser.teacherGrade);
+    }
+  }, [isClassTeacher, currentUser.teacherGrade]);
 
   // Learners for selected grade
   const classLearners = useMemo(() => {

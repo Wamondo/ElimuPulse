@@ -30,7 +30,7 @@ import {
 import crestImage from '../assets/images/school_crest_emblem_1792317813141.jpg';
 import { resolveComprehensiveSeal } from '../utils/schoolResolvers';
 import { ForgotPasswordModal } from './ForgotPasswordModal';
-import { validateKenyanPhoneNumber } from '../services/cryptoService';
+import { validateKenyanPhoneNumber, normalizeKenyanPhone } from '../services/cryptoService';
 import { OwnerDesignation } from '../types';
 import { PWAInstallButton } from './PWAInstallButton';
 
@@ -50,6 +50,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     registeredSchools,
     currentSchoolId,
     switchActiveSchool,
+    teachers,
+    grades,
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'parent' | 'teacher' | 'admin'>('admin');
@@ -74,6 +76,29 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
 
   const cleanDigits = phoneNumber.replace(/[^0-9]/g, '');
   const isOwnerNumber = cleanDigits.endsWith('716235185') || cleanDigits === '0716235185';
+
+  const ownerRegisteredTeacher = teachers.find((t) => {
+    const tPhone = normalizeKenyanPhone(t.phone || '');
+    const tEmail = (t.email || '').trim().toLowerCase();
+    return tPhone === '0716235185' || tEmail === 'dwnwmnd@gmail.com';
+  });
+  const ownerRegisteredGrade =
+    (ownerRegisteredTeacher?.assignedGrade || '').trim() ||
+    grades.find((g) => g.classTeacherId === ownerRegisteredTeacher?.id)?.name ||
+    '';
+
+  const resolveEffectiveTargetRole = (): OwnerDesignation => {
+    if (isOwnerNumber && ownerDesignation === 'owner') {
+      if (activeTab === 'teacher') {
+        return ownerRegisteredTeacher?.teacherType === 'subject_teacher'
+          ? 'subject_teacher'
+          : 'class_teacher';
+      }
+      if (activeTab === 'parent') return 'parent';
+      return 'owner';
+    }
+    return ownerDesignation;
+  };
 
   // Resend cooldown timer
   useEffect(() => {
@@ -113,12 +138,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     localStorage.removeItem('academias_secure_v1_trial_session');
 
     // Determine target responsibility for the owner
-    let targetRole = ownerDesignation;
-    if (isOwnerNumber && ownerDesignation === 'owner') {
-      if (activeTab === 'teacher') targetRole = 'class_teacher';
-      else if (activeTab === 'parent') targetRole = 'parent';
-      else targetRole = 'owner';
-    }
+    const targetRole = resolveEffectiveTargetRole();
 
     setIsLoading(true);
     try {
@@ -159,7 +179,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
 
     setIsVerifyingOtp(true);
     try {
-      const res = await verifyOwnerOtp(cleanOtp, ownerDesignation);
+      const res = await verifyOwnerOtp(cleanOtp, resolveEffectiveTargetRole());
       setIsVerifyingOtp(false);
       if (res.success) {
         setIsOtpChallenged(false);
@@ -665,7 +685,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                           { id: 'deputy_hoi', label: '📋 Deputy HOI' },
                           { id: 'exam_council', label: '📊 Exam Council' },
                           { id: 'senior_teacher', label: '⭐ Senior Teacher' },
-                          { id: 'class_teacher', label: '🎓 Class Teacher' },
+                          {
+                            id: 'class_teacher',
+                            label: ownerRegisteredGrade
+                              ? `🎓 Class Teacher (${ownerRegisteredGrade})`
+                              : '🎓 Class Teacher',
+                          },
                           { id: 'subject_teacher', label: '📖 Subject Teacher' },
                           { id: 'parent', label: '👨‍👩‍👧 Parent Portal' },
                         ].map((r) => (

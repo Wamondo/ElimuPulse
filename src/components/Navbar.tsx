@@ -53,8 +53,22 @@ export const Navbar: React.FC<NavbarProps> = ({
     registerNewSchool,
     toggleSchoolLock,
     switchActiveSchool,
+    teachers,
+    grades,
   } = useApp();
   const [showOwnerSwitcher, setShowOwnerSwitcher] = useState(false);
+
+  const ownerRegisteredTeacher = teachers.find((t) => {
+    const cleanPhone = (t.phone || '').replace(/[^0-9]/g, '');
+    const tEmail = (t.email || '').trim().toLowerCase();
+    return cleanPhone.endsWith('716235185') || tEmail === 'dwnwmnd@gmail.com';
+  });
+  const ownerRegisteredGrade =
+    (ownerRegisteredTeacher?.assignedGrade || '').trim() ||
+    grades.find((g) => g.classTeacherId === ownerRegisteredTeacher?.id)?.name ||
+    currentUser.teacherGrade ||
+    grades[0]?.name ||
+    'Grade 7A';
   const [showSchoolSwitcher, setShowSchoolSwitcher] = useState(false);
   const [isRegisterSchoolOpen, setIsRegisterSchoolOpen] = useState(false);
   const [isSchoolLockModalOpen, setIsSchoolLockModalOpen] = useState(false);
@@ -145,7 +159,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     },
     {
       id: 'class_teacher',
-      label: 'Class Teacher (Grade 7A)',
+      label: `Class Teacher (${ownerRegisteredGrade})`,
       description: 'Daily roll call, conduct remarks, class fees standing & scorecards',
       icon: Users,
       badge: 'Class Teacher',
@@ -177,7 +191,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       case 'senior_teacher':
         return 'Senior Teacher';
       case 'class_teacher':
-        return `Class Teacher (${user.teacherGrade || '7A'})`;
+        return `Class Teacher (${user.teacherGrade || ownerRegisteredGrade})`;
       case 'subject_teacher':
         return 'Subject Teacher';
       case 'parent':
