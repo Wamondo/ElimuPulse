@@ -43,6 +43,7 @@ const MainLayout: React.FC = () => {
   const [isRecordPaymentOpen, setIsRecordPaymentOpen] = useState(false);
   const [isEnrollModalOpen, setIsEnrollModalOpen] = useState(false);
   const [isProductionCenterOpen, setIsProductionCenterOpen] = useState(false);
+  const [isStaffApprovalsOpen, setIsStaffApprovalsOpen] = useState(false);
   const [targetLearnerId, setTargetLearnerId] = useState<string | undefined>(undefined);
 
   // If user is not authenticated, display the Login Screen
@@ -222,7 +223,23 @@ const MainLayout: React.FC = () => {
         onOpenSmsConfig={() => {}}
         onOpenMpesaConfig={() => {}}
       />
+      {currentUser?.role === 'admin' && (
+        <>
+          <button
+            type="button"
+            onClick={() => setIsStaffApprovalsOpen(true)}
+            className="fixed bottom-5 right-5 z-40 inline-flex items-center gap-2 px-4 py-2.5 rounded-full bg-indigo-700 hover:bg-indigo-800 text-white text-xs font-bold shadow-xl border border-indigo-400/30 transition-all cursor-pointer"
+          >
+            <ShieldCheck className="w-4 h-4 text-amber-300" />
+            <span>Staff Approvals</span>
+          </button>
 
+          <StaffApprovalsModal
+            isOpen={isStaffApprovalsOpen}
+            onClose={() => setIsStaffApprovalsOpen(false)}
+          />
+        </>
+      )}
       {/* Production Grade System Footer */}
       <footer className="mt-auto border-t border-slate-200 bg-white py-4 px-6 text-xs text-slate-500">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
