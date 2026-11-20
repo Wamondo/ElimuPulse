@@ -63,6 +63,9 @@ import {
   firestoreDatabaseId,
   firebaseProjectId,
 } from '../services/firebase';
+import { onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
+import { ref, get } from 'firebase/database';
+import { auth, rtdb } from '../services/firebase';
 import {
   getCurrentDeviceId,
   getCurrentDeviceFriendlyName,
@@ -539,7 +542,49 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
     return false; // Authentication required by default
   });
+  // Sync Firebase Auth + Realtime Database `approved` flag with AppContext
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (!firebaseUser) {
+        const rawSession = localStorage.getItem('elimupulse_staff_session');
+        if (rawSession) {
+          localStorage.removeItem('elimupulse_staff_session');
+          setIsAuthenticated(false);
+        }
+        return;
+      }
 
+      try {
+        const snap = await get(ref(rtdb, `users/${firebaseUser.uid}`));
+        const profile = snap.val() as {
+          name?: string;
+          email?: string;
+          role?: UserRole;
+          approved?: boolean;
+        } | null;
+
+        if (profile && profile.approved === true) {
+          setCurrentUser((prev) => ({
+            ...prev,
+            id: `firebase-${firebaseUser.uid}`,
+            name: profile.name || prev.name,
+            email: firebaseUser.email || profile.email || prev.email,
+            role: profile.role || prev.role || 'teacher',
+            isOwner: profile.role === 'admin' ? prev.isOwner : false,
+          }));
+          setIsAuthenticated(true);
+        } else {
+          // User exists in Auth but is not yet approved in Realtime Database
+          setIsAuthenticated(false);
+        }
+      } catch (err) {
+        console.warn('Realtime Database approval check notice:', err);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+  
   const [decryptedParentIds, setDecryptedParentIds] = useState<Set<string>>(new Set());
   const [ownerDeviceLock, setOwnerDeviceLock] = useState<OwnerDeviceLock | null>(() => {
     try {
