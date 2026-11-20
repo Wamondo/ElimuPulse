@@ -3,217 +3,225 @@ import { useApp } from '../context/AppContext';
 import {
   Shield,
   Lock,
-  Phone,
+  Mail,
   KeyRound,
   Eye,
   EyeOff,
   UserCheck,
-  GraduationCap,
-  Users,
+  UserPlus,
   Building,
-  CheckCircle2,
   AlertCircle,
   ArrowRight,
-  BookOpen,
-  HelpCircle,
-  Crown,
-  Smartphone,
-  ShieldAlert,
-  RefreshCw,
-  Send,
-  ArrowLeft,
   ChevronDown,
   Check,
-  Building2,
-  Unlock,
+  Clock,
+  LogOut,
 } from 'lucide-react';
-import crestImage from '../assets/images/school_crest_emblem_1792317813141.jpg';
-import { resolveComprehensiveSeal } from '../utils/schoolResolvers';
-import { ForgotPasswordModal } from './ForgotPasswordModal';
-import { validateKenyanPhoneNumber, normalizeKenyanPhone } from '../services/cryptoService';
-import { OwnerDesignation } from '../types';
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
+  signOut,
+  User,
+} from 'firebase/auth';
+import { ref, get, set } from 'firebase/database';
+import { auth, rtdb } from '../services/firebase';
+import crestImage from '../assets/images/school_crest_emblem_1793817618141.png';
+import { resolveComprehensiveSeal } from '../utils/schoolBranding';
 import { PWAInstallButton } from './PWAInstallButton';
 
 interface LoginScreenProps {
   onLoginSuccess?: () => void;
 }
 
+interface StaffProfile {
+  name: string;
+  subject?: string;
+  email: string;
+  role: 'admin' | 'teacher';
+  approved: boolean;
+  schoolId?: string;
+  createdAt?: number;
+}
+
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   const {
-    loginWithCredentials,
-    verifyOwnerOtp,
-    resendOwnerOtp,
-    currentDeviceName,
-    deviceKickoutNotice,
-    clearDeviceKickoutNotice,
     schoolProfile,
     registeredSchools,
     currentSchoolId,
     switchActiveSchool,
-    teachers,
-    grades,
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'parent' | 'teacher' | 'admin'>('admin');
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [idNumber, setIdNumber] = useState('');
+  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [fullName, setFullName] = useState('');
+  const [subject, setSubject] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
   const [isLoading, setIsLoading] = useState(false);
-  const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showSchoolDropdown, setShowSchoolDropdown] = useState(false);
-  const [ownerDesignation, setOwnerDesignation] = useState<OwnerDesignation>('owner');
 
-  // OTP Challenge State for Secondary/Third-Party Device Access
-  const [isOtpChallenged, setIsOtpChallenged] = useState(false);
-  const [otpInput, setOtpInput] = useState('');
-  const [otpPhone, setOtpPhone] = useState('0716235185');
-  const [otpPreviewBanner, setOtpPreviewBanner] = useState<string | null>(null);
-  const [otpExpiresAt, setOtpExpiresAt] = useState<number>(0);
-  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
-  const [resendCooldown, setResendCooldown] = useState(0);
-  const [otpError, setOtpError] = useState<string | null>(null);
+  // Pending approval state
+  const [pendingUser, setPendingUser] = useState<User | null>(null);
+  const [pendingProfile, setPendingProfile] = useState<StaffProfile | null>(null);
 
-  const cleanDigits = phoneNumber.replace(/[^0-9]/g, '');
-  const isOwnerNumber = cleanDigits.endsWith('716235185') || cleanDigits === '0716235185';
-
-  const ownerRegisteredTeacher = teachers.find((t) => {
-    const tPhone = normalizeKenyanPhone(t.phone || '');
-    const tEmail = (t.email || '').trim().toLowerCase();
-    return tPhone === '0716235185' || tEmail === 'dwnwmnd@gmail.com';
-  });
-  const ownerRegisteredGrade =
-    (ownerRegisteredTeacher?.assignedGrade || '').trim() ||
-    grades.find((g) => g.classTeacherId === ownerRegisteredTeacher?.id)?.name ||
-    '';
-
-  const resolveEffectiveTargetRole = (): OwnerDesignation => {
-    if (isOwnerNumber && ownerDesignation === 'owner') {
-      if (activeTab === 'teacher') {
-        return ownerRegisteredTeacher?.teacherType === 'subject_teacher'
-          ? 'subject_teacher'
-          : 'class_teacher';
-      }
-      if (activeTab === 'parent') return 'parent';
-      return 'owner';
+  const unlockAppWithProfile = (user: User, profile: StaffProfile) => {
+    localStorage.setItem(
+      'elimupulse_staff_session',
+      JSON.stringify({
+        uid: user.uid,
+        email: user.email,
+        name: profile.name,
+        role: profile.role,
+        approved: true,
+      })
+    );
+    if (onLoginSuccess) {
+      onLoginSuccess();
     }
-    return ownerDesignation;
   };
 
-  // Resend cooldown timer
+  // Check existing Firebase session on load
   useEffect(() => {
-    if (resendCooldown <= 0) return;
-    const timer = setInterval(() => {
-      setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [resendCooldown]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMsg(null);
-    clearDeviceKickoutNotice();
-
-    if (!phoneNumber.trim()) {
-      setErrorMsg('Please enter your registered mobile phone number.');
-      return;
-    }
-
-    const validation = validateKenyanPhoneNumber(phoneNumber);
-    if (!validation.isValid) {
-      setErrorMsg(
-        validation.error ||
-          'The phone number format should start with 07.... Or 01.... Not +2547.... nor +254..... (Example: 0712345678 or 0110445566)'
-      );
-      return;
-    }
-
-    if (!idNumber.trim()) {
-      setErrorMsg('Please enter your ID number as your password.');
-      return;
-    }
-
-    // Remove any other trial sessions or stale logins
-    sessionStorage.clear();
-    localStorage.removeItem('academias_secure_v1_trial_session');
-
-    // Determine target responsibility for the owner
-    const targetRole = resolveEffectiveTargetRole();
-
-    setIsLoading(true);
-    try {
-      const res = await loginWithCredentials(phoneNumber, idNumber, targetRole);
-      setIsLoading(false);
-
-      if (res.requiresOtp && res.challengeDetails) {
-        setIsOtpChallenged(true);
-        setOtpPhone(res.challengeDetails.phone);
-        setOtpExpiresAt(res.challengeDetails.expiresAt);
-        setOtpPreviewBanner(res.challengeDetails.dispatchedOtpPreview || null);
-        setResendCooldown(45);
-        setOtpInput('');
-        setOtpError(null);
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        setPendingUser(null);
+        setPendingProfile(null);
+        setCheckingSession(false);
         return;
       }
 
-      if (res.success) {
-        if (onLoginSuccess) onLoginSuccess();
-      } else {
-        setErrorMsg(res.error || 'Invalid credentials. Please verify your phone number and ID number.');
+      try {
+        const snap = await get(ref(rtdb, `users/${user.uid}`));
+        const profile = snap.val() as StaffProfile | null;
+
+        if (profile && profile.approved === true) {
+          setPendingUser(null);
+          setPendingProfile(null);
+          unlockAppWithProfile(user, profile);
+        } else {
+          setPendingUser(user);
+          setPendingProfile(profile);
+        }
+      } catch (err) {
+        console.error('Error verifying staff approval:', err);
+        setPendingUser(user);
+      } finally {
+        setCheckingSession(false);
       }
-    } catch (err) {
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+    setIsLoading(true);
+
+    try {
+      const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
+      const snap = await get(ref(rtdb, `users/${cred.user.uid}`));
+      const profile = snap.val() as StaffProfile | null;
+
+      if (profile && profile.approved === true) {
+        unlockAppWithProfile(cred.user, profile);
+      } else {
+        setPendingUser(cred.user);
+        setPendingProfile(profile);
+      }
+    } catch (err: any) {
+      const code = err?.code || '';
+      if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {
+        setErrorMsg('Invalid email or password. Please verify your credentials.');
+      } else if (code === 'auth/too-many-requests') {
+        setErrorMsg('Too many failed attempts. Please wait a few minutes and retry.');
+      } else {
+        setErrorMsg(err?.message || 'Unable to sign in. Please check your internet connection.');
+      }
+    } finally {
       setIsLoading(false);
-      setErrorMsg('An unexpected error occurred during authentication. Please retry.');
     }
   };
 
-  const handleVerifyOtp = async (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    setOtpError(null);
-    const cleanOtp = otpInput.trim().replace(/[^0-9]/g, '');
+    setErrorMsg(null);
 
-    if (cleanOtp.length !== 6) {
-      setOtpError('Please enter the complete 6-digit numeric OTP verification code.');
+    if (!fullName.trim()) {
+      setErrorMsg('Please enter your full name.');
       return;
     }
 
-    setIsVerifyingOtp(true);
+    setIsLoading(true);
     try {
-      const res = await verifyOwnerOtp(cleanOtp, resolveEffectiveTargetRole());
-      setIsVerifyingOtp(false);
-      if (res.success) {
-        setIsOtpChallenged(false);
-        if (onLoginSuccess) onLoginSuccess();
+      const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
+      const newProfile: StaffProfile = {
+        name: fullName.trim(),
+        subject: subject.trim() || 'Teaching Staff',
+        email: email.trim().toLowerCase(),
+        role: 'teacher',
+        approved: false,
+        schoolId: currentSchoolId || 'default',
+        createdAt: Date.now(),
+      };
+
+      await set(ref(rtdb, `users/${cred.user.uid}`), newProfile);
+      setPendingUser(cred.user);
+      setPendingProfile(newProfile);
+    } catch (err: any) {
+      const code = err?.code || '';
+      if (code === 'auth/email-already-in-use') {
+        setErrorMsg('An account with this email already exists. Switch to Sign In.');
+      } else if (code === 'auth/weak-password') {
+        setErrorMsg('Password must be at least 6 characters.');
       } else {
-        setOtpError(res.error || 'Invalid OTP code. Please check the SMS dispatched to 0716235185.');
+        setErrorMsg(err?.message || 'Registration failed. Please try again.');
       }
-    } catch {
-      setIsVerifyingOtp(false);
-      setOtpError('System error verifying OTP. Please retry.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleResendOtp = async () => {
-    if (resendCooldown > 0) return;
-    setOtpError(null);
-    setIsVerifyingOtp(true);
+  const handleSignOut = async () => {
+    localStorage.removeItem('elimupulse_staff_session');
+    await signOut(auth);
+    setPendingUser(null);
+    setPendingProfile(null);
+  };
+
+  const recheckApproval = async () => {
+    if (!pendingUser) return;
+    setIsLoading(true);
     try {
-      const res = await resendOwnerOtp();
-      setIsVerifyingOtp(false);
-      if (res.success) {
-        setOtpPreviewBanner(res.dispatchedOtpPreview || null);
-        setResendCooldown(45);
+      const snap = await get(ref(rtdb, `users/${pendingUser.uid}`));
+      const profile = snap.val() as StaffProfile | null;
+      if (profile && profile.approved === true) {
+        unlockAppWithProfile(pendingUser, profile);
       } else {
-        setOtpError(res.error || 'Unable to dispatch SMS. Please try again.');
+        setErrorMsg('Still awaiting Admin approval. Please check again shortly.');
       }
-    } catch {
-      setIsVerifyingOtp(false);
-      setOtpError('Failed to resend OTP.');
+    } finally {
+      setIsLoading(false);
     }
   };
+
+  if (checkingSession) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-slate-100 flex items-center justify-center p-4">
+        <div className="text-center space-y-3">
+          <div className="w-8 h-8 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-xs text-indigo-200">Verifying ElimuPulse authorization...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-slate-900 via-indigo-950 to-slate-900 text-slate-100 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-slate-100 flex flex-col justify-center p-4">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
         {/* Official Institutional Seal */}
         <div className="inline-flex p-2.5 rounded-full bg-white/10 backdrop-blur-md border border-amber-300/30 shadow-2xl mb-4">
@@ -225,546 +233,271 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
           />
         </div>
 
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-200 text-xs font-bold tracking-wide uppercase mb-3">
-          ElimuPulse System
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-200 text-xs font-medium mb-2">
+          <Shield className="w-3.5 h-3.5 text-amber-400" />
+          <span>ElimuPulse School Analytics</span>
         </div>
 
         <h1 className="text-3xl font-black tracking-tight text-white">
           ElimuPulse
         </h1>
-        <p className="mt-1 text-sm text-indigo-100 font-semibold">
+        <p className="mt-1 text-sm text-indigo-200 font-semibold">
           {schoolProfile?.name || 'Comprehensive School Portal'}
-        </p>
-        <p className="mt-0.5 text-xs text-indigo-300 font-medium">
-          {schoolProfile?.primaryWingName || 'Primary Wing'} &amp; {schoolProfile?.juniorWingName || 'Junior Wing'} · Kenyan CBC System
         </p>
       </div>
 
-      <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-lg px-4 sm:px-0">
-        {/* Device Kickout / Single-Phone Concurrency Alert */}
-        {deviceKickoutNotice && (
-          <div className="mb-4 p-4 bg-amber-500/20 border-2 border-amber-400/60 rounded-xl text-amber-100 text-xs shadow-lg flex items-start justify-between gap-3 animate-in fade-in">
-            <div className="flex items-start gap-2.5">
-              <ShieldAlert className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-              <div>
-                <p className="font-bold text-amber-200 text-sm">Single-Phone Access Policy Notice</p>
-                <p className="mt-1 leading-relaxed text-slate-200">{deviceKickoutNotice}</p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={clearDeviceKickoutNotice}
-              className="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded text-[11px] cursor-pointer"
-            >
-              Dismiss
-            </button>
-          </div>
-        )}
-
+      <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-md">
         {/* Institution Selector Bar */}
-        <div className="mb-4 p-3 bg-white/10 backdrop-blur-md border border-white/15 rounded-xl flex items-center justify-between gap-2 text-xs shadow-md">
-          <div className="relative flex-1">
-            <button
-              type="button"
-              onClick={() => setShowSchoolDropdown(!showSchoolDropdown)}
-              className="w-full text-left flex items-center justify-between gap-2 py-1 px-2 rounded-lg bg-slate-900/40 hover:bg-slate-900/60 border border-white/10 text-slate-100 transition-colors cursor-pointer"
-            >
-              <div className="truncate">
-                <span className="text-[10px] text-indigo-300 font-mono block">Selected Institution:</span>
-                <span className="font-bold text-xs truncate block">{schoolProfile?.name || 'Academic Institution'}</span>
-              </div>
-              <div className="flex items-center gap-1.5 shrink-0">
-                {schoolProfile?.isLocked ? (
-                  <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-rose-500/30 text-rose-300 border border-rose-500/40 flex items-center gap-1">
-                    <Lock className="w-2.5 h-2.5" /> LOCKED
+        {registeredSchools && registeredSchools.length > 0 && (
+          <div className="mb-4 bg-white/10 backdrop-blur-md border border-white/15 rounded-xl p-2.5 flex items-center justify-between gap-2">
+            <div className="relative flex-1">
+              <button
+                type="button"
+                onClick={() => setShowSchoolDropdown(!showSchoolDropdown)}
+                className="w-full text-left flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-slate-900/60 hover:bg-slate-900/80 border border-white/10 transition-colors"
+              >
+                <div className="truncate">
+                  <span className="text-[10px] text-indigo-300 font-mono block">Selected Institution:</span>
+                  <span className="text-xs font-bold text-white truncate block">
+                    {schoolProfile?.name || 'Academic Institution'}
                   </span>
-                ) : (
-                  <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> LIVE
-                  </span>
-                )}
-                <ChevronDown className="w-3.5 h-3.5 text-slate-300" />
-              </div>
-            </button>
-
-            {/* Dropdown list of registered schools */}
-            {showSchoolDropdown && (
-              <div className="absolute left-0 top-full mt-1.5 w-full bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-40 p-2 space-y-1">
-                <div className="px-2 py-1 text-[10px] font-mono text-slate-400 uppercase tracking-wider flex items-center justify-between">
-                  <span>Registered Institutions ({registeredSchools?.length || 1})</span>
-                  <span className="text-emerald-400 text-[9px]">Owner Regulated</span>
                 </div>
-                {(registeredSchools || []).map((sch) => (
-                  <button
-                    key={sch.id}
-                    type="button"
-                    onClick={() => {
-                      switchActiveSchool(sch.id);
-                      setShowSchoolDropdown(false);
-                      setErrorMsg(null);
-                    }}
-                    className={`w-full text-left px-2.5 py-2 rounded-lg flex items-center justify-between text-xs transition-colors cursor-pointer ${
-                      sch.id === currentSchoolId
-                        ? 'bg-indigo-600/30 border border-indigo-400/50 text-indigo-200 font-bold'
-                        : 'hover:bg-slate-800 text-slate-300'
-                    }`}
-                  >
-                    <div className="truncate">
-                      <div className="font-semibold truncate">{sch.name}</div>
-                      <div className="text-[10px] text-slate-400">{sch.county} · {sch.registrationNumber || 'MoE Registered'}</div>
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      {sch.isLocked && (
-                        <span className="p-1 rounded bg-rose-900/60 text-rose-300 border border-rose-700" title="School is locked">
-                          <Lock className="w-3 h-3" />
-                        </span>
-                      )}
-                      {sch.id === currentSchoolId && <Check className="w-3.5 h-3.5 text-indigo-400" />}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-300 shrink-0" />
+              </button>
 
-        {/* Institutional Lock Alert Banner when active school is locked */}
-        {schoolProfile?.isLocked && (
-          <div className="mb-4 p-3 bg-linear-to-r from-rose-950/80 via-amber-950/70 to-rose-950/80 border border-rose-500/40 rounded-xl text-rose-200 text-xs shadow-md flex items-center justify-between gap-3 animate-in fade-in">
-            <div className="flex items-center gap-2">
-              <Lock className="w-4 h-4 text-rose-400 shrink-0" />
-              <span>
-                <strong>School Portal Locked:</strong> Faculty &amp; admin logins for <strong>{schoolProfile.name}</strong> are suspended. Only Institution Director / Owner can access and unlock.
-              </span>
+              {showSchoolDropdown && (
+                <div className="absolute left-0 top-full mt-1.5 w-full bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-30 p-1.5 space-y-1">
+                  {registeredSchools.map((sch) => (
+                    <button
+                      key={sch.id}
+                      type="button"
+                      onClick={() => {
+                        switchActiveSchool(sch.id);
+                        setShowSchoolDropdown(false);
+                      }}
+                      className={`w-full text-left px-3 py-2 rounded-lg flex items-center justify-between text-xs ${
+                        sch.id === currentSchoolId
+                          ? 'bg-indigo-600/30 border border-indigo-500/40 text-indigo-200 font-bold'
+                          : 'hover:bg-slate-800 text-slate-300'
+                      }`}
+                    >
+                      <span className="truncate">{sch.name}</span>
+                      {sch.id === currentSchoolId && <Check className="w-3.5 h-3.5 text-indigo-400" />}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
 
-        {/* PWA Install Banner for Phones, Tablets, and Computers */}
         <div className="mb-4">
           <PWAInstallButton variant="banner" />
         </div>
 
-        {/* MAIN CONTAINER */}
+        {/* MAIN AUTH CARD */}
         <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden text-slate-900">
-          
-          {/* VIEW A: OTP VERIFICATION CHALLENGE VIEW (FOR SECONDARY / THIRD-PARTY PHONE) */}
-          {isOtpChallenged ? (
-            <div className="p-6 sm:p-8 space-y-6">
-              {/* Header Badge */}
-              <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
-                <div className="p-2.5 bg-amber-100 border border-amber-300 rounded-xl text-amber-800">
-                  <Smartphone className="w-6 h-6" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-extrabold text-sm text-slate-900">
-                      Owner Account Device Challenge
-                    </span>
-                    <span className="bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded text-[10px] font-bold">
-                      1 Phone at a Time
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500">
-                    Secondary / Third-party device access authorization
-                  </p>
-                </div>
+          {pendingUser ? (
+            /* PENDING ADMIN APPROVAL VIEW */
+            <div className="p-6 space-y-4 text-center">
+              <div className="w-12 h-12 rounded-full bg-amber-100 border border-amber-300 flex items-center justify-center mx-auto text-amber-600">
+                <Clock className="w-6 h-6" />
               </div>
+              <h2 className="text-lg font-extrabold text-slate-900">
+                Account Awaiting Admin Approval
+              </h2>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Hello <strong>{pendingProfile?.name || pendingUser.email}</strong>, your staff account has been created and is locked until the School Administrator approves your access.
+              </p>
 
-              {/* Informative Security Notice */}
-              <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-xl text-xs text-indigo-950 space-y-2">
-                <div className="flex items-center gap-2 font-bold text-indigo-900">
-                  <Shield className="w-4 h-4 text-indigo-600" />
-                  <span>Single-Phone Policy Enforced</span>
-                </div>
-                <p className="leading-relaxed text-indigo-900">
-                  Access to the School Owner Account is protected by single-device security. Only <strong>one authorized phone</strong> can hold active access at a time.
-                </p>
-                <p className="leading-relaxed text-indigo-800">
-                  Because this device (<span className="font-mono font-semibold">{currentDeviceName}</span>) is not the current authorized phone, a 6-digit SMS verification code (OTP) has been dispatched to the Owner's registered mobile number (07•••••185).
-                </p>
-              </div>
-
-              {/* Real-time SMS Dispatch Preview Banner (for verification/testing) */}
-              {otpPreviewBanner && (
-                <div className="p-3.5 bg-emerald-50 border border-emerald-300 rounded-xl text-xs text-emerald-950 space-y-1.5 animate-in fade-in">
-                  <div className="flex items-center justify-between">
-                    <span className="flex items-center gap-1.5 font-bold text-emerald-900">
-                      <Send className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Cellular SMS Dispatched to Owner's Phone</span>
-                    </span>
-                    <span className="font-mono bg-emerald-200 text-emerald-950 px-2 py-0.5 rounded text-[10px] font-bold">
-                      Delivered
-                    </span>
-                  </div>
-                  <div className="p-2 bg-white rounded border border-emerald-200 font-mono text-[11px] text-emerald-900">
-                    MWIVONA SECURITY: Secondary device ({currentDeviceName}) requested access. Verification OTP: <strong>{otpPreviewBanner}</strong> (Expires in 5 minutes).
-                  </div>
-                  <p className="text-[10px] text-emerald-700">
-                    If this is a delegated party, enter the OTP provided by the owner to authorize this device.
-                  </p>
+              {errorMsg && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
+                  {errorMsg}
                 </div>
               )}
 
-              {/* Error Alert */}
-              {otpError && (
-                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-start gap-2.5 animate-in fade-in">
-                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                  <span>{otpError}</span>
-                </div>
-              )}
-
-              {/* OTP Form */}
-              <form onSubmit={handleVerifyOtp} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-800 mb-1">
-                    Enter 6-Digit SMS Verification Code (OTP)
-                  </label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={6}
-                    autoFocus
-                    required
-                    placeholder="e.g. 482915"
-                    value={otpInput}
-                    onChange={(e) => {
-                      const val = e.target.value.replace(/[^0-9]/g, '');
-                      setOtpInput(val);
-                      if (otpError) setOtpError(null);
-                    }}
-                    className="w-full text-center tracking-[0.4em] font-mono text-2xl font-black py-3 px-4 bg-slate-50 border-2 border-indigo-300 rounded-xl focus:outline-none focus:border-indigo-600 focus:bg-white text-slate-950"
-                  />
-                  <p className="text-[11px] text-slate-500 mt-1.5 text-center">
-                    Enter the 6-digit verification code sent to the Owner's phone. Authorizing this device will transfer the active lock and revoke access from the prior phone.
-                  </p>
-                </div>
-
+              <div className="pt-2 space-y-2">
                 <button
-                  type="submit"
-                  disabled={isVerifyingOtp || otpInput.trim().length !== 6}
-                  className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md transition-colors cursor-pointer disabled:opacity-50"
+                  type="button"
+                  onClick={recheckApproval}
+                  disabled={isLoading}
+                  className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition-colors"
                 >
-                  {isVerifyingOtp ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>Validating OTP &amp; Binding Device...</span>
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>Verify OTP &amp; Authorize This Phone</span>
-                    </>
-                  )}
+                  {isLoading ? 'Checking status...' : 'Check Approval Status'}
                 </button>
-
-                <div className="flex items-center justify-between pt-2 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsOtpChallenged(false);
-                      setOtpInput('');
-                      setOtpError(null);
-                    }}
-                    className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-800 font-semibold cursor-pointer"
-                  >
-                    <ArrowLeft className="w-3.5 h-3.5" />
-                    <span>Back to Credentials</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleResendOtp}
-                    disabled={resendCooldown > 0 || isVerifyingOtp}
-                    className="inline-flex items-center gap-1.5 text-indigo-600 hover:text-indigo-800 font-semibold disabled:text-slate-400 cursor-pointer"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${resendCooldown > 0 ? '' : 'hover:rotate-180 transition-transform'}`} />
-                    <span>
-                      {resendCooldown > 0
-                        ? `Resend OTP in ${resendCooldown}s`
-                        : 'Resend SMS OTP to Owner'}
-                    </span>
-                  </button>
-                </div>
-              </form>
+                <button
+                  type="button"
+                  onClick={handleSignOut}
+                  className="w-full py-2 px-4 border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Sign Out</span>
+                </button>
+              </div>
             </div>
           ) : (
-            /* VIEW B: STANDARD CREDENTIALS LOGIN */
             <>
-              {/* Role Header Tabs */}
-              <div className="grid grid-cols-3 border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600">
+              {/* Sign In / Request Access Tabs */}
+              <div className="grid grid-cols-2 border-b border-slate-200 bg-slate-50/80 text-xs font-semibold text-slate-600">
                 <button
                   type="button"
                   onClick={() => {
-                    setActiveTab('admin');
+                    setMode('login');
                     setErrorMsg(null);
                   }}
-                  className={`py-3.5 px-3 flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
-                    activeTab === 'admin'
+                  className={`py-3.5 px-2 flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+                    mode === 'login'
                       ? 'bg-white text-indigo-700 border-b-2 border-indigo-600 font-bold'
                       : 'hover:text-slate-900'
                   }`}
                 >
-                  <Building className="w-3.5 h-3.5" />
-                  <span>Admin / Owner</span>
+                  <UserCheck className="w-3.5 h-3.5" />
+                  <span>Staff Sign In</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => {
-                    setActiveTab('teacher');
+                    setMode('register');
                     setErrorMsg(null);
                   }}
-                  className={`py-3.5 px-3 flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
-                    activeTab === 'teacher'
+                  className={`py-3.5 px-2 flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+                    mode === 'register'
                       ? 'bg-white text-indigo-700 border-b-2 border-indigo-600 font-bold'
                       : 'hover:text-slate-900'
                   }`}
                 >
-                  <GraduationCap className="w-3.5 h-3.5" />
-                  <span>Teacher Login</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTab('parent');
-                    setErrorMsg(null);
-                  }}
-                  className={`py-3.5 px-3 flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
-                    activeTab === 'parent'
-                      ? 'bg-white text-indigo-700 border-b-2 border-indigo-600 font-bold'
-                      : 'hover:text-slate-900'
-                  }`}
-                >
-                  <Users className="w-3.5 h-3.5" />
-                  <span>Parent Login</span>
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>Request Access</span>
                 </button>
               </div>
 
-              {/* Form Container */}
-              <div className="p-6 sm:p-8 space-y-6">
-                
-                {/* Context Info Banner */}
+              <div className="p-6 space-y-4">
                 <div className="p-3 bg-indigo-50/70 border border-indigo-100 rounded-xl text-xs text-indigo-950 flex items-start gap-2.5">
                   <Shield className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
-                  <div className="leading-relaxed">
-                    {activeTab === 'admin' && (
+                  <div>
+                    {mode === 'login' ? (
                       <span>
-                        <strong>Owner &amp; Administrative Authority:</strong> Restricted access for authorized leadership and system officers.
+                        <strong>Authorized Staff Portal:</strong> Sign in with your approved school email and password to access assessment analytics.
                       </span>
-                    )}
-                    {activeTab === 'teacher' && (
+                    ) : (
                       <span>
-                        <strong>Teacher Portal Access:</strong> Log in with registered mobile phone number and staff ID. Class teachers access all records for their grade; subject teachers enter marks.
-                      </span>
-                    )}
-                    {activeTab === 'parent' && (
-                      <span>
-                        <strong>Parent Portal Access:</strong> Log in with your registered phone number and national ID to access the specific dashboard and records of <strong>only your child</strong>.
+                        <strong>New Staff Registration:</strong> Create your account below. Access remains locked until verified by the School Admin.
                       </span>
                     )}
                   </div>
                 </div>
 
-                {/* Error Message */}
                 {errorMsg && (
-                  errorMsg.includes('School Portal Locked') ? (
-                    <div className="p-3.5 bg-rose-50 border-2 border-rose-400 rounded-xl text-rose-950 text-xs flex items-start gap-3 shadow-sm animate-in fade-in">
-                      <div className="p-2 bg-rose-200/80 rounded-lg text-rose-800 shrink-0 mt-0.5">
-                        <Lock className="w-5 h-5" />
-                      </div>
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1.5 font-black uppercase tracking-wider text-[11px] text-rose-900">
-                          <span>Institutional Portal Locked</span>
-                          <span className="bg-rose-200 text-rose-900 border border-rose-300 px-1.5 py-0.2 rounded font-mono text-[9px]">LOCKED</span>
-                        </div>
-                        <p className="leading-relaxed text-rose-900 font-medium">
-                          {errorMsg}
-                        </p>
-                        <p className="text-[11px] text-rose-700 font-semibold pt-1">
-                          Only the <strong>School Owner &amp; Institution Director</strong> can log in to administer school affairs or unlock the portal.
-                        </p>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-start gap-2.5 animate-in fade-in">
-                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                      <span>{errorMsg}</span>
-                    </div>
-                  )
+                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                    <span>{errorMsg}</span>
+                  </div>
                 )}
 
-                {/* Credentials Form */}
-                <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+                <form onSubmit={mode === 'login' ? handleLogin : handleRegister} className="space-y-4">
+                  {mode === 'register' && (
+                    <>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Full Name
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. Mr. Edwin Wamondo"
+                          value={fullName}
+                          onChange={(e) => setFullName(e.target.value)}
+                          className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Department / Learning Areas
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. Mathematics & Business Studies"
+                          value={subject}
+                          onChange={(e) => setSubject(e.target.value)}
+                          className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                    </>
+                  )}
+
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">
-                      Registered Mobile Phone Number
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Staff Email Address
                     </label>
                     <div className="relative">
-                      <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                      <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                       <input
-                        type="tel"
+                        type="email"
                         required
-                        placeholder="0712345678 or 0110445566"
-                        value={phoneNumber}
-                        onChange={(e) => {
-                          setPhoneNumber(e.target.value);
-                          if (errorMsg) setErrorMsg(null);
-                        }}
-                        className="w-full pl-9 pr-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-xs text-slate-900"
+                        placeholder="teacher@school.ac.ke"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       />
                     </div>
-                    <div className="flex items-center justify-between text-[10px] text-slate-500 mt-1">
-                      <span>Format: 10 digits starting with <strong>07....</strong> or <strong>01....</strong></span>
-                      <span className="text-amber-700 font-medium font-mono">No +254</span>
-                    </div>
-                    {(phoneNumber.trim().startsWith('+254') || phoneNumber.trim().startsWith('254') || phoneNumber.trim().startsWith('+')) && (
-                      <p className="text-[11px] text-rose-600 font-medium mt-1">
-                        ⚠️ Invalid format: The phone number should start with 07.... or 01.... Not +254...
-                      </p>
-                    )}
                   </div>
 
                   <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="font-semibold text-slate-700">
-                        Password (National ID or Staff ID Number)
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => setIsForgotPasswordOpen(true)}
-                        className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 transition-colors cursor-pointer flex items-center gap-1"
-                      >
-                        <KeyRound className="w-3 h-3 text-indigo-500" />
-                        <span>Forgot password?</span>
-                      </button>
-                    </div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Password
+                    </label>
                     <div className="relative">
                       <KeyRound className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                       <input
                         type={showPassword ? 'text' : 'password'}
                         required
-                        placeholder="e.g. National ID or Staff ID"
-                        value={idNumber}
-                        onChange={(e) => setIdNumber(e.target.value)}
-                        className="w-full pl-9 pr-10 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-xs text-slate-900"
+                        minLength={6}
+                        placeholder="Enter password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="w-full pl-9 pr-10 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+                        className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
                       >
                         {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
-                    <p className="text-[10px] text-slate-500 mt-1">
-                      Case-insensitive. Prefix "ID-" is optional.
-                    </p>
                   </div>
-
-                  {/* Owner Multi-Responsibility Mode Chooser */}
-                  {isOwnerNumber && (
-                    <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl space-y-2 animate-in fade-in">
-                      <div className="flex items-center justify-between">
-                        <span className="flex items-center gap-1.5 font-bold text-amber-950 text-xs">
-                          <Crown className="w-4 h-4 text-amber-600 fill-amber-500" />
-                          <span>👑 App Owner Account Recognized</span>
-                        </span>
-                        <span className="text-[10px] font-mono bg-amber-200/80 text-amber-900 px-2 py-0.5 rounded font-semibold">
-                          1 Active Phone Protected
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-amber-900 leading-snug">
-                        Log in directly as <strong>Owner</strong> or choose an active responsibility context:
-                      </p>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 pt-1">
-                        {[
-                          { id: 'owner', label: '👑 Owner (Direct)' },
-                          { id: 'hoi', label: '🏫 HOI (Principal)' },
-                          { id: 'deputy_hoi', label: '📋 Deputy HOI' },
-                          { id: 'exam_council', label: '📊 Exam Council' },
-                          { id: 'senior_teacher', label: '⭐ Senior Teacher' },
-                          {
-                            id: 'class_teacher',
-                            label: ownerRegisteredGrade
-                              ? `🎓 Class Teacher (${ownerRegisteredGrade})`
-                              : '🎓 Class Teacher',
-                          },
-                          { id: 'subject_teacher', label: '📖 Subject Teacher' },
-                          { id: 'parent', label: '👨‍👩‍👧 Parent Portal' },
-                        ].map((r) => (
-                          <button
-                            key={r.id}
-                            type="button"
-                            onClick={() => setOwnerDesignation(r.id as OwnerDesignation)}
-                            className={`px-2 py-1.5 text-[11px] rounded-lg border text-left transition-colors cursor-pointer ${
-                              ownerDesignation === r.id
-                                ? 'bg-amber-600 text-white border-amber-700 font-bold shadow-xs'
-                                : 'bg-white text-slate-800 border-amber-200 hover:bg-amber-100/50'
-                            }`}
-                          >
-                            {r.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
 
                   <button
                     type="submit"
                     disabled={isLoading}
-                    className="w-full mt-2 flex items-center justify-center gap-2 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg shadow-sm transition-colors cursor-pointer disabled:opacity-60"
+                    className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-lg shadow-md transition-all cursor-pointer disabled:opacity-50"
                   >
                     {isLoading ? (
                       <>
                         <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        <span>Verifying Device &amp; Credentials...</span>
+                        <span>{mode === 'login' ? 'Verifying Credentials...' : 'Submitting Request...'}</span>
                       </>
                     ) : (
                       <>
-                        <span>
-                          Log In to {activeTab === 'parent' ? 'Parent Portal' : activeTab === 'teacher' ? 'Teacher Portal' : 'Admin & Owner Portal'}
-                        </span>
-                        <ArrowRight className="w-3.5 h-3.5" />
+                        <span>{mode === 'login' ? 'Sign In to ElimuPulse' : 'Submit Access Request'}</span>
+                        <ArrowRight className="w-4 h-4" />
                       </>
                     )}
                   </button>
-
-                  {/* Dedicated Forgotten Password Reset Button */}
-                  <div className="pt-2 text-center border-t border-slate-100">
-                    <button
-                      type="button"
-                      onClick={() => setIsForgotPasswordOpen(true)}
-                      className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold inline-flex items-center gap-1.5 p-1 rounded hover:bg-indigo-50 transition-colors cursor-pointer"
-                    >
-                      <KeyRound className="w-3.5 h-3.5 text-indigo-600" />
-                      <span>Forgotten Password? Request SMS Reset Link</span>
-                    </button>
-                  </div>
                 </form>
               </div>
             </>
           )}
         </div>
-
-        {/* Security & Cryptographic Notice */}
+        
         <div className="mt-4 text-center text-[11px] text-slate-400 flex items-center justify-center gap-1.5">
           <Lock className="w-3 h-3 text-slate-400" />
-          <span>Single-Phone Device Lock · Cellular SMS OTP Challenge · AES-256 Storage</span>
+          <span>Protected Academic Workspace • Admin-Verified Access</span>
         </div>
       </div>
-
-      {/* Forgot Password Modal */}
-      <ForgotPasswordModal
-        isOpen={isForgotPasswordOpen}
-        onClose={() => setIsForgotPasswordOpen(false)}
-        onSuccessLoginPrefill={(phone, newPass) => {
-          setPhoneNumber(phone);
-          setIdNumber(newPass);
-          setErrorMsg(null);
-        }}
-      />
     </div>
   );
 };
