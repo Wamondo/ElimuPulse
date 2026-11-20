@@ -29,7 +29,7 @@ import { auth, rtdb } from '../services/firebase';
 const crestImage =
   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="%231e1b4b"/><text x="32" y="39" text-anchor="middle" fill="%23fbbf24" font-size="22" font-family="sans-serif" font-weight="bold">EP</text></svg>';
 
-import { resolveComprehensiveSeal } from '../utils/schoolBranding';
+const resolveComprehensiveSeal = (_name?: string) => crestImage;
 import { PWAInstallButton } from './PWAInstallButton';
 
 interface LoginScreenProps {
