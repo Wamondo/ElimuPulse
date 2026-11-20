@@ -26,10 +26,7 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({ variant = 'n
 
   const handleClick = async () => {
     if (isInstallable) {
-      const accepted = await install();
-      if (!accepted) {
-        setIsModalOpen(true);
-      }
+      await install();
     } else {
       setIsModalOpen(true);
     }

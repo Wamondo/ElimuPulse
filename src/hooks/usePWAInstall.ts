@@ -30,15 +30,22 @@ export function usePWAInstall() {
     setIsAndroid(isAndroidDevice);
     setIsDesktop(isDesktopDevice);
 
-    // 3. Capture Chromium beforeinstallprompt event
+    // 3. Capture Chromium beforeinstallprompt event and cache on window
+    const win = window as unknown as { __elimupulseDeferredPrompt?: BeforeInstallPromptEvent | null };
+    if (win.__elimupulseDeferredPrompt) {
+      setDeferredPrompt(win.__elimupulseDeferredPrompt);
+    }
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
-      setDeferredPrompt(e as BeforeInstallPromptEvent);
+      const promptEvent = e as BeforeInstallPromptEvent;
+      win.__elimupulseDeferredPrompt = promptEvent;
+      setDeferredPrompt(promptEvent);
     };
 
     // 4. Capture appinstalled event
     const handleAppInstalled = () => {
       setIsInstalled(true);
+      const winClear = window as unknown as { __elimupulseDeferredPrompt?: BeforeInstallPromptEvent | null }; winClear.__elimupulseDeferredPrompt = null;
       setDeferredPrompt(null);
     };
 
@@ -58,7 +65,8 @@ export function usePWAInstall() {
       const choice = await deferredPrompt.userChoice;
       if (choice.outcome === 'accepted') {
         setIsInstalled(true);
-        setDeferredPrompt(null);
+        const winClear = window as unknown as { __elimupulseDeferredPrompt?: BeforeInstallPromptEvent | null }; winClear.__elimupulseDeferredPrompt = null;
+      setDeferredPrompt(null);
         return true;
       }
     } catch (err) {
