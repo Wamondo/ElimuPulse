@@ -240,7 +240,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+              <table className="w-full min-w-[640px] whitespace-nowrap text-left text-xs">
                 <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-100">
                   <tr>
                     <th className="py-2.5 px-4">Subject</th>
@@ -494,7 +494,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="w-full min-w-[640px] whitespace-nowrap text-left text-xs">
               <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-100">
                 <tr>
                   <th className="py-2.5 px-4">Student Name</th>
@@ -661,7 +661,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="w-full min-w-[640px] whitespace-nowrap text-left text-xs">
               <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-100">
                 <tr>
                   <th className="py-2.5 px-4">Student</th>
@@ -964,7 +964,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {/* Main Grid: Pending Tuition & Action Items vs Academic/Attendance Feeds */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left 2 Cols: Pending Tuition Due */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 min-w-0 max-w-full overflow-x-hidden space-y-6">
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
               <div>
@@ -981,7 +981,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+              <table className="w-full min-w-[640px] whitespace-nowrap text-left text-xs">
                 <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-100">
                   <tr>
                     <th className="py-2.5 px-4">Learner & Grade</th>

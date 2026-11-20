@@ -463,40 +463,11 @@ export const Navbar: React.FC<NavbarProps> = ({
           </nav>
 
           {/* Zone 3: Primary Action & Active Role Switcher */}
-          <div className="flex items-center gap-2.5 shrink-0">
+          <div className="flex items-center gap-2.5 overflow-x-auto max-w-full min-w-0 whitespace-nowrap py-0.5">
             {/* Quick School Register & Lock Buttons for Owner */}
             {isOwnerAccountActive && (
               <div className="hidden sm:flex items-center gap-1.5">
-                <button
-                  onClick={() => setIsRegisterSchoolOpen(true)}
-                  className="flex items-center gap-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1.5 rounded-md border border-emerald-200 transition-colors cursor-pointer shadow-xs"
-                  title="App Owner: Review and approve new school registration"
-                >
-                  <Plus className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>+ Register School (Owner Approval)</span>
-                </button>
 
-                <button
-                  onClick={() => setIsSchoolLockModalOpen(true)}
-                  className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-md border transition-colors cursor-pointer shadow-xs ${
-                    schoolProfile?.isLocked
-                      ? 'text-white bg-rose-600 hover:bg-rose-700 border-rose-700 animate-pulse'
-                      : 'text-slate-700 bg-slate-50 hover:bg-slate-100 border-slate-300'
-                  }`}
-                  title={schoolProfile?.isLocked ? 'School portal is locked. Click to unlock logins.' : 'Click to lock faculty & admin logins for this school.'}
-                >
-                  {schoolProfile?.isLocked ? (
-                    <>
-                      <Lock className="w-3.5 h-3.5 text-white" />
-                      <span>Locked · Unlock</span>
-                    </>
-                  ) : (
-                    <>
-                      <Unlock className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Lock School</span>
-                    </>
-                  )}
-                </button>
               </div>
             )}
 
