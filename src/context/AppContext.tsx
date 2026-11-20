@@ -1863,6 +1863,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const logout = () => {
     clearAllTrialAndStaleSessions();
+    localStorage.removeItem('elimupulse_staff_session');
+    firebaseSignOut(auth).catch(() => {});
     setIsAuthenticated(false);
     localStorage.removeItem(`${STORAGE_KEY_PREFIX}auth`);
     localStorage.removeItem(`${STORAGE_KEY_PREFIX}user`);
