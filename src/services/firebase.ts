@@ -1,5 +1,6 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
+import { getDatabase } from 'firebase/database';
 import {
   getFirestore,
   initializeFirestore,
@@ -24,6 +25,7 @@ export const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getA
 
 // Initialize Auth
 export const auth = getAuth(app);
+export const rtdb = getDatabase(app);
 
 export const firestoreDatabaseId = firebaseConfig.firestoreDatabaseId || '(default)';
 export const firebaseProjectId = firebaseConfig.projectId;
