@@ -3210,6 +3210,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setDecryptedParentIds(new Set());
   };
 
+  // Ensure superadmin session objects carry isOwner = true everywhere
+  React.useEffect(() => {
+    if (currentUser && currentUser.role === 'superadmin' && !currentUser.isOwner) {
+      setCurrentUser((prev) => (prev ? { ...prev, isOwner: true } : prev));
+    }
+  }, [currentUser]);
+
   const isOwner = Boolean(currentUser?.isOwner || currentUser?.role === 'superadmin' || currentUser?.role === 'superadmin' ||
     (currentUser?.phone && (normalizeKenyanPhone(currentUser?.phone) === '0716235185' || currentUser?.phone === '0716235185'))
   );
