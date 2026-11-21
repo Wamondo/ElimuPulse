@@ -89,10 +89,10 @@ const MainLayout: React.FC = () => {
             <div className="flex items-center gap-2 text-slate-600 flex-wrap">
               <span className="font-semibold text-slate-900">Active Login:</span>
               <span className="capitalize font-mono px-2 py-0.5 rounded bg-white border border-slate-300 text-slate-800">
-                {currentUser.role.toUpperCase()}
+                {currentUser?.role?.toUpperCase() || ''}
               </span>
               <span className="text-slate-400">·</span>
-              <span className="text-slate-900 font-semibold">{currentUser.name}</span>
+              <span className="text-slate-900 font-semibold">{currentUser?.name || ''}</span>
               <span className="inline-flex items-center gap-1.5 text-amber-900 font-bold bg-amber-100 px-2 py-0.5 rounded border border-amber-300 font-mono text-[11px]">
                 <span>👑 App Owner</span>
                 <span className="text-amber-400">·</span>
