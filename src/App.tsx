@@ -34,7 +34,7 @@ const MainLayout: React.FC = () => {
   } = useApp();
 
   const isOwnerAccountActive = Boolean(
-    isOwner && (!currentUser.ownerDesignation || currentUser.ownerDesignation === 'owner')
+    isOwner && (!currentUser?.ownerDesignation || currentUser?.ownerDesignation === 'owner')
   );
 
   const [activeTab, setActiveTab] = useState<string>('dashboard');
