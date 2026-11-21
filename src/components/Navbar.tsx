@@ -258,7 +258,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               referrerPolicy="no-referrer"
             />
             <div className="relative">
-              {isOwner ? (
+              {(isOwner || currentUser?.role === 'superadmin') ? (
                 <button
                   onClick={() => setShowSchoolSwitcher(!showSchoolSwitcher)}
                   className="text-left cursor-pointer hover:opacity-90 transition-opacity flex items-center gap-1.5 group"
@@ -318,7 +318,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
 
               {/* School Switcher & Management Dropdown - Owner Access Only */}
-              {isOwner && showSchoolSwitcher && (
+              {(isOwner || currentUser?.role === 'superadmin') && showSchoolSwitcher && (
                 <div className="absolute left-0 top-full mt-2 w-72 bg-white rounded-xl shadow-2xl border border-slate-200 z-50 p-2 text-xs">
                   <div className="p-2 border-b border-slate-100 flex items-center justify-between">
                     <span className="font-bold text-slate-800 uppercase tracking-wider text-[10px]">
@@ -510,7 +510,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
 
             {/* Authenticated User Badge / Owner Responsibility Switcher */}
-            {isOwner ? (
+            {(isOwner || currentUser?.role === 'superadmin') ? (
               <div className="flex items-center gap-2">
                 {isOwnerAccountActive && (
                   <span

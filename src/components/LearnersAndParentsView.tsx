@@ -241,7 +241,7 @@ export const LearnersAndParentsView: React.FC<LearnersAndParentsViewProps> = ({
           </p>
         </div>
 
-        {currentUser?.role === 'admin' && (
+        {(currentUser?.role === 'admin' || currentUser?.role === 'superadmin') && (
           <div className="flex items-center gap-2 self-start md:self-auto flex-wrap">
             <button
               onClick={() => setIsBulkOnboardOpen(true)}
