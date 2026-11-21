@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ref, onValue, update, remove } from 'firebase/database';
-import { rtdb } from '../services/firebase';
+import { rtdb, fetchCollectionFromFirestore, saveDocumentToFirestore, deleteDocumentFromFirestore } from '../services/firebase';
 import { useApp } from '../context/AppContext';
 import {
   Building,
@@ -56,32 +56,80 @@ export const SchoolAcademicSetupView: React.FC = () => {
     createdAt?: number;
   }>>([]);
 
+  const loadStaffRequests = async () => {
+    const merged = new Map<string, any>();
+    try {
+      const allSettings = await fetchCollectionFromFirestore<any>('settings');
+      allSettings
+        .filter((item) => item?.type === 'staff_access_request' || String(item?.id || '').startsWith('staff_request_'))
+        .forEach((item) => {
+          const uid = item.uid || String(item.id).replace('staff_request_', '');
+          merged.set(uid, {
+            uid,
+            name: item.name || 'Unnamed Staff',
+            email: item.email || '',
+            subject: item.subject || 'Teaching Staff',
+            role: item.role === 'admin' ? 'admin' : 'teacher',
+            approved: item.approved === true,
+            schoolId: item.schoolId || 'default',
+            createdAt: item.createdAt || 0,
+          });
+        });
+    } catch (e) {
+      console.warn('Firestore staff requests read fallback:', e);
+    }
+    setStaffRequests(Array.from(merged.values()).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)));
+  };
+
   useEffect(() => {
+    loadStaffRequests();
     const usersRef = ref(rtdb, 'users');
-    const unsub = onValue(usersRef, (snap) => {
-      const val = snap.val() || {};
-      const list = Object.entries(val).map(([uid, data]: [string, any]) => ({
-        uid,
-        name: data?.name || 'Unnamed Staff',
-        email: data?.email || '',
-        subject: data?.subject || 'Teaching Staff',
-        role: data?.role === 'admin' ? 'admin' : 'teacher',
-        approved: data?.approved === true,
-        schoolId: data?.schoolId || 'default',
-        createdAt: data?.createdAt || 0,
-      }));
-      list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-      setStaffRequests(list);
-    });
+    const unsub = onValue(
+      usersRef,
+      (snap) => {
+        const val = snap.val() || {};
+        setStaffRequests((prev) => {
+          const merged = new Map(prev.map((r) => [r.uid, r]));
+          Object.entries(val).forEach(([uid, data]: [string, any]) => {
+            merged.set(uid, {
+              uid,
+              name: data?.name || merged.get(uid)?.name || 'Unnamed Staff',
+              email: data?.email || merged.get(uid)?.email || '',
+              subject: data?.subject || merged.get(uid)?.subject || 'Teaching Staff',
+              role: data?.role === 'admin' ? 'admin' : 'teacher',
+              approved: data?.approved === true,
+              schoolId: data?.schoolId || merged.get(uid)?.schoolId || 'default',
+              createdAt: data?.createdAt || merged.get(uid)?.createdAt || 0,
+            });
+          });
+          return Array.from(merged.values()).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        });
+      },
+      () => {
+        // Ignore RTDB root permission error when logged in via phone/owner session; Firestore list handles it
+      }
+    );
     return () => unsub();
   }, []);
 
   const handleApproveStaffRequest = async (uid: string, role: 'teacher' | 'admin') => {
-    await update(ref(rtdb, `users/${uid}`), { approved: true, role });
+    const existing = staffRequests.find((r) => r.uid === uid);
+    await saveDocumentToFirestore('settings', {
+      id: `staff_request_${uid}`,
+      type: 'staff_access_request',
+      uid,
+      ...(existing || {}),
+      approved: true,
+      role,
+    });
+    await update(ref(rtdb, `users/${uid}`), { approved: true, role }).catch(() => {});
+    setStaffRequests((prev) => prev.map((r) => (r.uid === uid ? { ...r, approved: true, role } : r)));
   };
 
   const handleRejectStaffRequest = async (uid: string) => {
-    await remove(ref(rtdb, `users/${uid}`));
+    await deleteDocumentFromFirestore('settings', `staff_request_${uid}`).catch(() => {});
+    await remove(ref(rtdb, `users/${uid}`)).catch(() => {});
+    setStaffRequests((prev) => prev.filter((r) => r.uid !== uid));
   };
 
   const {

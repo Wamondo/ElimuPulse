@@ -25,7 +25,7 @@ import {
   User,
 } from 'firebase/auth';
 import { ref, get, set } from 'firebase/database';
-import { auth, rtdb } from '../services/firebase';
+import { auth, rtdb, saveDocumentToFirestore, fetchDocumentFromFirestore } from '../services/firebase';
 const crestImage =
   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="%231e1b4b"/><text x="32" y="39" text-anchor="middle" fill="%23fbbf24" font-size="22" font-family="sans-serif" font-weight="bold">EP</text></svg>';
 
@@ -172,6 +172,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
       };
 
       await set(ref(rtdb, `users/${cred.user.uid}`), newProfile);
+      await saveDocumentToFirestore('settings', {
+        id: `staff_request_${cred.user.uid}`,
+        type: 'staff_access_request',
+        uid: cred.user.uid,
+        ...newProfile,
+      });
       setPendingUser(cred.user);
       setPendingProfile(newProfile);
     } catch (err: any) {
@@ -199,6 +205,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     if (!pendingUser) return;
     setIsLoading(true);
     try {
+      const fsReq = await fetchDocumentFromFirestore<any>('settings', `staff_request_${pendingUser.uid}`);
+      if (fsReq && fsReq.approved === true) {
+        await set(ref(rtdb, `users/${pendingUser.uid}`), { ...fsReq, approved: true }).catch(() => {});
+        unlockAppWithProfile(pendingUser, fsReq as StaffProfile);
+        return;
+      }
       const snap = await get(ref(rtdb, `users/${pendingUser.uid}`));
       const profile = snap.val() as StaffProfile | null;
       if (profile && profile.approved === true) {
