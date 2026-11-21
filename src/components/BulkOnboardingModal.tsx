@@ -66,9 +66,7 @@ Faith,Wanjiku,${gNames[2] || 'Grade 6'},James Kamau,Father,0711556677,ID-1982049
   const [importedCount, setImportedCount] = useState(0);
 
   React.useEffect(() => {
-    if (sampleCsv && csvContent === SAMPLE_CSV) {
-      setCsvContent(sampleCsv);
-    }
+    
   }, [sampleCsv]);
 
   if (!isOpen) return null;
@@ -93,7 +91,7 @@ Faith,Wanjiku,${gNames[2] || 'Grade 6'},James Kamau,Father,0711556677,ID-1982049
       const rel = (cols[4] || 'Mother') as 'Mother' | 'Father' | 'Guardian';
       const parentPhone = cols[5] || '';
       const parentNationalId = cols[6] || `ID-${Math.floor(10000000 + Math.random() * 90000000)}`;
-      const parentEmail = cols[7] || `${parentName.toLowerCase().replace(/\s+/g, '.')}@example.com`;
+      const parentEmail = cols[7] || '';
       const initialTuition = Number(cols[8]) || 1200;
 
       // Validate Phone strictly according to Kenyan 07... and 01... rule

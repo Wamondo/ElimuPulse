@@ -289,9 +289,7 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
                 {/* Explicit Kenyan Phone Requirement Notice */}
                 <div className="mt-2 p-2.5 bg-amber-50/80 border border-amber-200 rounded-lg text-[11px] text-amber-900 flex items-start gap-2">
                   <ShieldCheck className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-semibold">Format Requirement:</span> Phone number must start with <strong className="font-mono">07....</strong> or <strong className="font-mono">01....</strong> (10 digits). Do <span className="underline font-semibold">NOT</span> use <code className="bg-amber-100 px-1 py-0.5 rounded font-mono">+2547...</code> nor <code className="bg-amber-100 px-1 py-0.5 rounded font-mono">+254...</code>.
-                  </div>
+                  
                 </div>
 
                 {/* Live validation indicator */}
