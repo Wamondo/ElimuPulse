@@ -60,12 +60,12 @@ export const AttendanceRegisterView: React.FC<AttendanceRegisterViewProps> = ({
     grades: configuredGrades,
   } = useApp();
 
-  const isParent = currentUser.role === 'parent';
-  const isClassTeacher = currentUser.role === 'teacher' && currentUser.teacherType === 'class_teacher';
+  const isParent = currentUser?.role === 'parent';
+  const isClassTeacher = currentUser?.role === 'teacher' && currentUser?.teacherType === 'class_teacher';
 
   const grades = useMemo(() => {
-    if (isClassTeacher && currentUser.teacherGrade) {
-      return [currentUser.teacherGrade];
+    if (isClassTeacher && currentUser?.teacherGrade) {
+      return [currentUser?.teacherGrade];
     }
     if (configuredGrades && configuredGrades.length > 0) {
       return [...configuredGrades]
@@ -74,12 +74,12 @@ export const AttendanceRegisterView: React.FC<AttendanceRegisterViewProps> = ({
     }
     const fromLearners = Array.from(new Set(learners.map((l) => l.grade))).filter(Boolean);
     return fromLearners.length > 0 ? fromLearners : ['Grade 7'];
-  }, [isClassTeacher, currentUser.teacherGrade, configuredGrades, learners]);
+  }, [isClassTeacher, currentUser?.teacherGrade, configuredGrades, learners]);
 
-  const defaultGrade = isClassTeacher && currentUser.teacherGrade ? currentUser.teacherGrade : (grades[0] || 'Grade 7');
+  const defaultGrade = isClassTeacher && currentUser.teacherGrade ? currentUser?.teacherGrade : (grades[0] || 'Grade 7');
 
   const parentLearner = learners.find(
-    (l) => l.id === currentUser.learnerId || (currentUser.parentId && l.parentId === currentUser.parentId)
+    (l) => l.id === currentUser?.learnerId || (currentUser?.parentId && l.parentId === currentUser?.parentId)
   );
   const defaultStudentId = isParent
     ? parentLearner?.id || ''
@@ -97,10 +97,10 @@ export const AttendanceRegisterView: React.FC<AttendanceRegisterViewProps> = ({
   const [actionSuccessNotice, setActionSuccessNotice] = useState<string | null>(null);
 
   useEffect(() => {
-    if (isClassTeacher && currentUser.teacherGrade) {
-      setSelectedGrade(currentUser.teacherGrade);
+    if (isClassTeacher && currentUser?.teacherGrade) {
+      setSelectedGrade(currentUser?.teacherGrade);
     }
-  }, [isClassTeacher, currentUser.teacherGrade]);
+  }, [isClassTeacher, currentUser?.teacherGrade]);
 
   // Learners for selected grade
   const classLearners = useMemo(() => {
@@ -456,7 +456,7 @@ export const AttendanceRegisterView: React.FC<AttendanceRegisterViewProps> = ({
             </div>
 
             {/* Quick Batch Actions */}
-            {(currentUser.role === 'admin' || currentUser.role === 'teacher') && (
+            {(currentUser?.role === 'admin' || currentUser?.role === 'teacher') && (
               <div className="flex items-center gap-2">
                 <button
                   type="button"

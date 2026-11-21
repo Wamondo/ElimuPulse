@@ -654,13 +654,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Keep any active teacher session (including Owner acting as Class/Senior/Subject Teacher)
   // synchronized with the live Faculty Teacher Registry and Grade Assignments
   useEffect(() => {
-    if (!isAuthenticated || currentUser.role !== 'teacher') return;
+    if (!isAuthenticated || currentUser?.role !== 'teacher') return;
 
-    const sessionTeacherId = currentUser.id.startsWith('session-teacher-')
-      ? currentUser.id.replace('session-teacher-', '')
+    const sessionTeacherId = currentUser?.id.startsWith('session-teacher-')
+      ? currentUser?.id.replace('session-teacher-', '')
       : '';
-    const userNormPhone = normalizeKenyanPhone(currentUser.phone || '');
-    const userEmail = (currentUser.email || '').trim().toLowerCase();
+    const userNormPhone = normalizeKenyanPhone(currentUser?.phone || '');
+    const userEmail = (currentUser?.email || '').trim().toLowerCase();
 
     const matchedTeacher =
       teachers.find((t) => sessionTeacherId && t.id === sessionTeacherId) ||
@@ -686,35 +686,35 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const resolvedSubjects =
       matchedTeacher.registeredSubjects && matchedTeacher.registeredSubjects.length > 0
         ? matchedTeacher.registeredSubjects
-        : currentUser.registeredSubjects;
+        : currentUser?.registeredSubjects;
 
     const isOwnerActingOverride =
       currentUser?.isOwner &&
-      (currentUser.ownerDesignation === 'subject_teacher' || currentUser.ownerDesignation === 'senior_teacher');
+      (currentUser?.ownerDesignation === 'subject_teacher' || currentUser?.ownerDesignation === 'senior_teacher');
 
     const nextTeacherType = isOwnerActingOverride
-      ? currentUser.teacherType
+      ? currentUser?.teacherType
       : matchedTeacher.teacherType;
     const nextTeacherGrade =
       nextTeacherType === 'class_teacher' || resolvedGrade
-        ? resolvedGrade || currentUser.teacherGrade
-        : currentUser.teacherGrade;
+        ? resolvedGrade || currentUser?.teacherGrade
+        : currentUser?.teacherGrade;
 
     const nextTitle =
-      currentUser.ownerDesignation === 'senior_teacher'
+      currentUser?.ownerDesignation === 'senior_teacher'
         ? `Senior Teacher & Academic Lead (${nextTeacherGrade || 'Faculty'})`
         : nextTeacherType === 'class_teacher'
         ? `Class Teacher · ${nextTeacherGrade || 'Unassigned'} (${schoolProfile.name})`
         : `Subject Teacher (${(resolvedSubjects || []).join(', ')}) · ${schoolProfile.name}`;
 
     const subjectsChanged =
-      JSON.stringify(currentUser.registeredSubjects || []) !== JSON.stringify(resolvedSubjects || []);
+      JSON.stringify(currentUser?.registeredSubjects || []) !== JSON.stringify(resolvedSubjects || []);
 
     if (
-      currentUser.name !== matchedTeacher.name ||
-      currentUser.teacherType !== nextTeacherType ||
-      currentUser.teacherGrade !== nextTeacherGrade ||
-      currentUser.title !== nextTitle ||
+      currentUser?.name !== matchedTeacher.name ||
+      currentUser?.teacherType !== nextTeacherType ||
+      currentUser?.teacherGrade !== nextTeacherGrade ||
+      currentUser?.title !== nextTitle ||
       subjectsChanged
     ) {
       setCurrentUser((prev) => ({
@@ -1036,8 +1036,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const newEntry: AuditLogEntry = {
       id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       timestamp: formattedTime,
-      userName: currentUser.name,
-      userRole: currentUser.role,
+      userName: currentUser?.name,
+      userRole: currentUser?.role,
       action,
       details,
       securityFlag,
@@ -1239,7 +1239,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const targetGrade =
       grade ||
       ownerTeacherInfo.assignedGrade ||
-      currentUser.teacherGrade ||
+      currentUser?.teacherGrade ||
       schoolGrades[0]?.name ||
       'Grade 7A';
     const updated = buildOwnerSession(designation, targetGrade, ownerTeacherInfo.teacher, schoolProfile);
@@ -1873,8 +1873,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const toggleParentDecryption = async (parentId: string): Promise<boolean> => {
-    const allowed = canRoleDecryptSensitivePII(currentUser.role);
-    if (!allowed && currentUser.role !== 'parent') {
+    const allowed = canRoleDecryptSensitivePII(currentUser?.role);
+    if (!allowed && currentUser?.role !== 'parent') {
       alert("Access Denied: Your assigned role lacks permissions to decrypt sensitive PII.");
       return false;
     }
@@ -1902,10 +1902,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const isParentDecrypted = (parentId: string) => {
     // If user is parent and this is their child's parent or themselves, always allow
-    if (currentUser.role === 'parent') {
-      if (currentUser.parentId === parentId) return true;
-      if (currentUser.learnerId) {
-        const learner = learners.find((l) => l.id === currentUser.learnerId);
+    if (currentUser?.role === 'parent') {
+      if (currentUser?.parentId === parentId) return true;
+      if (currentUser?.learnerId) {
+        const learner = learners.find((l) => l.id === currentUser?.learnerId);
         if (learner && learner.parentId === parentId) return true;
       }
     }
@@ -2103,7 +2103,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       paymentDate: new Date().toISOString().slice(0, 10),
       method,
       status: 'completed',
-      recordedBy: currentUser.name,
+      recordedBy: currentUser?.name,
       notes,
       schoolId: currentSchoolId,
     };
@@ -2334,7 +2334,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       ...recordData,
       session,
       id,
-      markedBy: currentUser.name,
+      markedBy: currentUser?.name,
       schoolId: currentSchoolId,
     };
 
@@ -2366,7 +2366,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           date,
           session: sess,
           status,
-          markedBy: currentUser.name,
+          markedBy: currentUser?.name,
           schoolId: currentSchoolId,
         });
       });
@@ -2829,7 +2829,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
           if (changed) {
             saveDocumentToFirestore('teachers', nextT).catch(() => {});
-            if (currentUser.id === nextT.id || currentUser.phone === nextT.phone) {
+            if (currentUser?.id === nextT.id || currentUser?.phone === nextT.phone) {
               setCurrentUser((u) => ({
                 ...u,
                 teacherType: nextT.teacherType,
@@ -3129,7 +3129,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
 
       // Sync active session if logged in / impersonating this teacher
-      if (currentUser.id === id || currentUser.phone === oldTeacher.phone) {
+      if (currentUser?.id === id || currentUser?.phone === oldTeacher.phone) {
         setCurrentUser((u) => ({
           ...u,
           name: nextTeacher.name,
@@ -3212,7 +3212,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const isOwner = Boolean(
     currentUser?.isOwner ||
-    (currentUser.phone && (normalizeKenyanPhone(currentUser.phone) === '0716235185' || currentUser.phone === '0716235185'))
+    (currentUser?.phone && (normalizeKenyanPhone(currentUser?.phone) === '0716235185' || currentUser?.phone === '0716235185'))
   );
 
   // Scoped data arrays strictly isolated to current active school AND valid existing learners

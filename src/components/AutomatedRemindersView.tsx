@@ -92,7 +92,7 @@ export const AutomatedRemindersView: React.FC = () => {
           </p>
         </div>
 
-        {(currentUser.role === 'admin' || currentUser.role === 'bursar') && (
+        {(currentUser?.role === 'admin' || currentUser?.role === 'bursar') && (
           <div className="flex items-center gap-2.5 self-start md:self-auto flex-wrap">
             <button
               onClick={() => setIsSmsGatewayOpen(true)}

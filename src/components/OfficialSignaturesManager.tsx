@@ -404,7 +404,7 @@ export const OfficialSignaturesManager: React.FC<OfficialSignaturesManagerProps>
           <div className="flex items-center gap-2 text-xs">
             <span className="text-slate-500 font-medium">Logged in Authority:</span>
             <span className="font-bold text-slate-900 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
-              {currentUser.name} ({currentUser.role.toUpperCase()})
+              {currentUser?.name} ({currentUser?.role.toUpperCase()})
             </span>
           </div>
         </div>

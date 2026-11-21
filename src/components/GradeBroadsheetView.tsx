@@ -91,8 +91,8 @@ export const GradeBroadsheetView: React.FC<GradeBroadsheetViewProps> = ({
 
   // Initial grade selection based on user role
   const defaultGrade = useMemo(() => {
-    if (currentUser.role === 'teacher' && currentUser.teacherGrade) {
-      return currentUser.teacherGrade;
+    if (currentUser?.role === 'teacher' && currentUser?.teacherGrade) {
+      return currentUser?.teacherGrade;
     }
     return availableGrades.includes('Grade 7A') ? 'Grade 7A' : availableGrades[0] || 'Grade 7A';
   }, [currentUser, availableGrades]);
@@ -106,10 +106,10 @@ export const GradeBroadsheetView: React.FC<GradeBroadsheetViewProps> = ({
   } | null>(null);
 
   useEffect(() => {
-    if (currentUser.role === 'teacher' && currentUser.teacherType === 'class_teacher' && currentUser.teacherGrade) {
-      setSelectedGrade(currentUser.teacherGrade);
+    if (currentUser?.role === 'teacher' && currentUser?.teacherType === 'class_teacher' && currentUser?.teacherGrade) {
+      setSelectedGrade(currentUser?.teacherGrade);
     }
-  }, [currentUser.role, currentUser.teacherType, currentUser.teacherGrade]);
+  }, [currentUser?.role, currentUser?.teacherType, currentUser?.teacherGrade]);
 
   // Active Assessment configuration for this Grade & Term
   const activeAssessment: AssessmentRecord = useMemo(() => {
@@ -181,15 +181,15 @@ export const GradeBroadsheetView: React.FC<GradeBroadsheetViewProps> = ({
   const assignedClassTeacher = useMemo(() => {
     const resolved = resolveClassTeacherForGrade(selectedGrade, grades, teachers, schoolProfile);
     if (resolved !== 'Class Teacher') return resolved;
-    if (currentUser.role === 'teacher' && currentUser.teacherGrade === selectedGrade) {
-      return currentUser.name;
+    if (currentUser?.role === 'teacher' && currentUser?.teacherGrade === selectedGrade) {
+      return currentUser?.name;
     }
     return resolved;
   }, [grades, teachers, selectedGrade, currentUser, schoolProfile]);
 
   // Coordinator / Exam Council Lead
   const coordinatorName = useMemo(() => {
-    if (currentUser.ownerDesignation === 'exam_council') return currentUser.name;
+    if (currentUser?.ownerDesignation === 'exam_council') return currentUser?.name;
     return 'Examination Council Chair / Academic Coordinator';
   }, [currentUser]);
 

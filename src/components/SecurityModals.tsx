@@ -112,8 +112,8 @@ export const SecurityModal: React.FC<SecurityModalProps> = ({ isOpen, onClose })
           <div className="flex items-center justify-between p-3.5 bg-indigo-50/70 border border-indigo-200 rounded-lg">
             <div>
               <span className="text-[11px] uppercase tracking-wider text-indigo-800 font-semibold">Active Session</span>
-              <p className="text-sm font-bold text-indigo-950">{currentUser.name}</p>
-              <p className="text-xs text-indigo-700">{currentUser.title} · <span className="font-semibold uppercase">{currentUser.role}</span></p>
+              <p className="text-sm font-bold text-indigo-950">{currentUser?.name}</p>
+              <p className="text-xs text-indigo-700">{currentUser?.title} · <span className="font-semibold uppercase">{currentUser?.role}</span></p>
             </div>
             <div className="text-right">
               <span className="inline-block px-2.5 py-1 rounded text-xs font-mono font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300">

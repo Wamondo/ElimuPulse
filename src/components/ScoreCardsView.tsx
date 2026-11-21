@@ -67,12 +67,12 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
 
   // Role-based accessible learners scoping
   const accessibleLearners = React.useMemo(() => {
-    if (currentUser.role === 'parent') {
-      return learners.filter((l) => l.id === currentUser.learnerId || l.parentId === currentUser.parentId);
+    if (currentUser?.role === 'parent') {
+      return learners.filter((l) => l.id === currentUser?.learnerId || l.parentId === currentUser?.parentId);
     }
-    if (currentUser.role === 'teacher' && currentUser.teacherType === 'class_teacher' && currentUser.teacherGrade) {
+    if (currentUser?.role === 'teacher' && currentUser?.teacherType === 'class_teacher' && currentUser?.teacherGrade) {
       // Class teacher has access to all learners in their represented grade
-      return learners.filter((l) => l.grade === currentUser.teacherGrade);
+      return learners.filter((l) => l.grade === currentUser?.teacherGrade);
     }
     return learners;
   }, [currentUser, learners]);
@@ -88,16 +88,16 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
   const defaultLearnerId = displayedLearners[0] ? displayedLearners[0].id : (accessibleLearners[0] ? accessibleLearners[0].id : '');
 
   const isPureSubjectTeacher =
-    currentUser.role === 'teacher' &&
-    currentUser.teacherType === 'subject_teacher' &&
+    currentUser?.role === 'teacher' &&
+    currentUser?.teacherType === 'subject_teacher' &&
     !currentUser?.isOwner &&
-    !['hoi', 'deputy_hoi', 'exam_council', 'senior_teacher'].includes(currentUser.ownerDesignation || '');
+    !['hoi', 'deputy_hoi', 'exam_council', 'senior_teacher'].includes(currentUser?.ownerDesignation || '');
 
-  const canAccessBroadsheet = !isPureSubjectTeacher && currentUser.role !== 'parent';
+  const canAccessBroadsheet = !isPureSubjectTeacher && currentUser?.role !== 'parent';
 
   const [viewMode, setViewMode] = useState<'broadsheet' | 'subject_scoresheet' | 'report_card'>(() => {
     if (initialLearnerId) return 'report_card';
-    if (currentUser.role === 'parent') return 'report_card';
+    if (currentUser?.role === 'parent') return 'report_card';
     if (isPureSubjectTeacher) return 'subject_scoresheet';
     return 'broadsheet';
   });
@@ -174,19 +174,19 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
 
   // Permission helpers
   const canEditSubject = (sub: SubjectScore) => {
-    if (currentUser.role === 'admin') return true;
-    if (currentUser.role === 'teacher') {
-      if (currentUser.teacherType === 'class_teacher') {
+    if (currentUser?.role === 'admin') return true;
+    if (currentUser?.role === 'teacher') {
+      if (currentUser?.teacherType === 'class_teacher') {
         return (
           currentUser.registeredSubjects?.includes(sub.subjectName) ||
-          sub.subjectTeacher === currentUser.name ||
-          currentUser.teacherGrade === activeLearner?.grade
+          sub.subjectTeacher === currentUser?.name ||
+          currentUser?.teacherGrade === activeLearner?.grade
         );
       }
-      if (currentUser.teacherType === 'subject_teacher') {
+      if (currentUser?.teacherType === 'subject_teacher') {
         return (
           currentUser.registeredSubjects?.includes(sub.subjectName) ||
-          sub.subjectTeacher === currentUser.name
+          sub.subjectTeacher === currentUser?.name
         );
       }
     }
@@ -194,12 +194,12 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
   };
 
   const canEditClassTeacherRemarks =
-    currentUser.role === 'admin' ||
-    (currentUser.role === 'teacher' &&
-      currentUser.teacherType === 'class_teacher' &&
-      currentUser.teacherGrade === activeLearner?.grade);
+    currentUser?.role === 'admin' ||
+    (currentUser?.role === 'teacher' &&
+      currentUser?.teacherType === 'class_teacher' &&
+      currentUser?.teacherGrade === activeLearner?.grade);
 
-  const canEditPrincipalRemarks = currentUser.role === 'admin';
+  const canEditPrincipalRemarks = currentUser?.role === 'admin';
 
   // Calculate term attendance rate for this student
   const studentAttendance = attendance.filter((a) => a.learnerId === selectedLearnerId);
@@ -761,7 +761,7 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
             </div>
           )}
 
-          {currentUser.role !== 'parent' && (
+          {currentUser?.role !== 'parent' && (
             <button
               onClick={() => setViewMode('subject_scoresheet')}
               className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
@@ -804,7 +804,7 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
         />
       )}
 
-      {viewMode === 'subject_scoresheet' && currentUser.role !== 'parent' && (
+      {viewMode === 'subject_scoresheet' && currentUser?.role !== 'parent' && (
         <SubjectScoresheetView />
       )}
 
@@ -835,7 +835,7 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
             <span>Rubric</span>
           </button>
 
-          {(currentUser.role === 'admin' || currentUser.role === 'teacher') && (
+          {(currentUser?.role === 'admin' || currentUser?.role === 'teacher') && (
             <button
               onClick={() => {
                 if (isEditing) handleSave();
@@ -872,7 +872,7 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
             <span>Download 1-Page PDF</span>
           </button>
 
-          {currentUser.role !== 'parent' && (
+          {currentUser?.role !== 'parent' && (
             <button
               onClick={handleExportBatchPdf}
               disabled={isGeneratingBatchPdf}
@@ -896,7 +896,7 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
             <span>Official Print Preview</span>
           </button>
 
-          {currentUser.role !== 'parent' && activeLearner && (
+          {currentUser?.role !== 'parent' && activeLearner && (
             <button
               type="button"
               onClick={() => setIsContactParentModalOpen(true)}
@@ -975,7 +975,7 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
             </label>
             <select
               value={selectedLearnerId}
-              disabled={currentUser.role === 'parent'}
+              disabled={currentUser?.role === 'parent'}
               onChange={(e) => setSelectedLearnerId(e.target.value)}
               className="text-xs font-semibold text-slate-900 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-60 cursor-pointer min-w-64"
             >
@@ -1418,7 +1418,7 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
                   <FileDown className="w-3.5 h-3.5" />
                   <span>Download 1-Page PDF</span>
                 </button>
-                {currentUser.role !== 'parent' && (
+                {currentUser?.role !== 'parent' && (
                   <button
                     onClick={handleExportBatchPdf}
                     disabled={isGeneratingBatchPdf}

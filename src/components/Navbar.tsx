@@ -58,7 +58,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   } = useApp();
   const [showOwnerSwitcher, setShowOwnerSwitcher] = useState(false);
   const isOwnerAccountActive = Boolean(
-    isOwner && (!currentUser.ownerDesignation || currentUser.ownerDesignation === 'owner')
+    isOwner && (!currentUser?.ownerDesignation || currentUser?.ownerDesignation === 'owner')
   );
 
   const ownerRegisteredTeacher = teachers.find((t) => {
@@ -69,7 +69,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const ownerRegisteredGrade =
     (ownerRegisteredTeacher?.assignedGrade || '').trim() ||
     grades.find((g) => g.classTeacherId === ownerRegisteredTeacher?.id)?.name ||
-    currentUser.teacherGrade ||
+    currentUser?.teacherGrade ||
     grades[0]?.name ||
     'Grade 7A';
   const [showSchoolSwitcher, setShowSchoolSwitcher] = useState(false);
@@ -80,7 +80,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   // Dynamic Navigation Links based on logged-in role
   const getNavLinks = () => {
-    if (currentUser.role === 'parent') {
+    if (currentUser?.role === 'parent') {
       return [
         { id: 'dashboard', label: 'Learner Dashboard' },
         { id: 'scorecards', label: 'Learner Score Card' },
@@ -88,9 +88,9 @@ export const Navbar: React.FC<NavbarProps> = ({
         { id: 'fees', label: 'Tuition & Receipts' },
       ];
     }
-    if (currentUser.role === 'teacher') {
-      if (currentUser.teacherType === 'class_teacher') {
-        const gradeLabel = currentUser.teacherGrade || 'Class';
+    if (currentUser?.role === 'teacher') {
+      if (currentUser?.teacherType === 'class_teacher') {
+        const gradeLabel = currentUser?.teacherGrade || 'Class';
         return [
           { id: 'dashboard', label: `Dashboard (${gradeLabel})` },
           { id: 'learners', label: `Class Learners (${gradeLabel})` },
@@ -545,7 +545,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-md transition-colors cursor-pointer"
                     >
                       <div className="w-2 h-2 rounded-full bg-emerald-600" />
-                      <span className="max-w-[130px] truncate font-semibold text-slate-800">{currentUser.name}</span>
+                      <span className="max-w-[130px] truncate font-semibold text-slate-800">{currentUser?.name}</span>
                       <span className="text-slate-400">·</span>
                       <span className="font-semibold text-indigo-700">{getRoleBadge(currentUser)}</span>
                       <ChevronDown className="w-3.5 h-3.5 text-slate-500 shrink-0" />
@@ -570,7 +570,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <div className="max-h-96 overflow-y-auto py-1 divide-y divide-slate-50">
                       {OWNER_RESPONSIBILITIES.map((resp) => {
                         const Icon = resp.icon;
-                        const isCurrent = currentUser.ownerDesignation === resp.id || (!currentUser.ownerDesignation && resp.id === 'owner');
+                        const isCurrent = currentUser?.ownerDesignation === resp.id || (!currentUser?.ownerDesignation && resp.id === 'owner');
                         return (
                           <button
                             key={resp.id}
@@ -627,7 +627,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             ) : (
               <div className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 border border-slate-300 rounded-md">
                 <div className="w-2 h-2 rounded-full bg-emerald-600" />
-                <span className="max-w-[130px] truncate font-semibold text-slate-800">{currentUser.name}</span>
+                <span className="max-w-[130px] truncate font-semibold text-slate-800">{currentUser?.name}</span>
                 <span className="text-slate-400">·</span>
                 <span className="font-semibold text-indigo-700">{getRoleBadge(currentUser)}</span>
               </div>

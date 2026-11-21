@@ -102,7 +102,7 @@ export const ParentContactAndReportModal: React.FC<ParentContactAndReportModalPr
 
   const buildScoreSummaryText = () => {
     const parentGreeting = parent?.fullName ? `Dear ${parent.fullName},` : 'Dear Parent/Guardian,';
-    const senderSignoff = `${currentUser.name} (${currentUser.teacherType === 'class_teacher' ? `Class Teacher, ${learner.grade}` : 'Subject Teacher'})\n${wingName}`;
+    const senderSignoff = `${currentUser?.name} (${currentUser?.teacherType === 'class_teacher' ? `Class Teacher, ${learner.grade}` : 'Subject Teacher'})\n${wingName}`;
 
     if (!resolvedScoreCard) {
       return `${parentGreeting}\n\n${wingName} · ${effectiveTerm}\nLearner: ${learner.firstName} ${learner.lastName} (${learner.studentId} · ${learner.grade})\nAssessment: ${effectiveAssessmentName}\n\nScore records for this learner are currently being finalized. Please contact us if you need an interim academic update.\n\nRegards,\n${senderSignoff}`;
@@ -123,7 +123,7 @@ export const ParentContactAndReportModal: React.FC<ParentContactAndReportModalPr
   const buildDirectMessageText = (template: 'checkin' | 'attendance' | 'meeting' | 'commendation' = 'checkin') => {
     const parentGreeting = parent?.fullName ? `Dear ${parent.fullName},` : 'Dear Parent/Guardian,';
     const studentRef = `${learner.firstName} ${learner.lastName} (${learner.grade})`;
-    const signoff = `Regards,\n${currentUser.name}\n${wingName}`;
+    const signoff = `Regards,\n${currentUser?.name}\n${wingName}`;
 
     switch (template) {
       case 'attendance':
@@ -203,7 +203,7 @@ export const ParentContactAndReportModal: React.FC<ParentContactAndReportModalPr
   const logChannelAction = (channel: string) => {
     addAuditLog(
       `Parent Contacted (${channel})`,
-      `${currentUser.name} initiated ${channel} ${mode === 'score_summary' ? 'score summary' : 'direct message'} to ${parent?.fullName || 'Parent'} (${activeDialPhone || parentEmail || 'N/A'}) for ${learner.firstName} ${learner.lastName} (${learner.grade}).`
+      `${currentUser?.name} initiated ${channel} ${mode === 'score_summary' ? 'score summary' : 'direct message'} to ${parent?.fullName || 'Parent'} (${activeDialPhone || parentEmail || 'N/A'}) for ${learner.firstName} ${learner.lastName} (${learner.grade}).`
     );
   };
 

@@ -74,14 +74,14 @@ export const LearnersAndParentsView: React.FC<LearnersAndParentsViewProps> = ({
     if (!currentUser) return false;
     // 1. Verified App Owner
     if (currentUser?.isOwner) return true;
-    if (currentUser.ownerDesignation === 'owner' || currentUser.ownerDesignation === 'hoi') return true;
-    if (currentUser.id === 'user-owner-main') return true;
+    if (currentUser?.ownerDesignation === 'owner' || currentUser?.ownerDesignation === 'hoi') return true;
+    if (currentUser?.id === 'user-owner-main') return true;
 
     // 2. Head of Institution (HOI / Principal)
-    if (currentUser.role === 'admin') {
-      const title = (currentUser.title || '').toLowerCase();
-      const email = (currentUser.email || '').toLowerCase();
-      const id = currentUser.id || '';
+    if (currentUser?.role === 'admin') {
+      const title = (currentUser?.title || '').toLowerCase();
+      const email = (currentUser?.email || '').toLowerCase();
+      const id = currentUser?.id || '';
       return (
         id === 'user-admin-1' ||
         title.includes('head of') ||
@@ -133,17 +133,17 @@ export const LearnersAndParentsView: React.FC<LearnersAndParentsViewProps> = ({
   // 2. Class Teacher: only learners in their represented grade
   // 3. Subject Teacher: learners taking their registered subjects
   const accessibleLearners = React.useMemo(() => {
-    if (currentUser.role === 'parent') {
+    if (currentUser?.role === 'parent') {
       return learners.filter(
-        (l) => l.id === currentUser.learnerId || (currentUser.parentId && l.parentId === currentUser.parentId)
+        (l) => l.id === currentUser?.learnerId || (currentUser?.parentId && l.parentId === currentUser?.parentId)
       );
     }
-    if (currentUser.role === 'teacher') {
-      if (currentUser.teacherType === 'class_teacher' && currentUser.teacherGrade) {
-        return learners.filter((l) => l.grade === currentUser.teacherGrade);
+    if (currentUser?.role === 'teacher') {
+      if (currentUser?.teacherType === 'class_teacher' && currentUser?.teacherGrade) {
+        return learners.filter((l) => l.grade === currentUser?.teacherGrade);
       }
-      if (currentUser.teacherType === 'subject_teacher' && currentUser.registeredSubjects?.length) {
-        const subjects = currentUser.registeredSubjects;
+      if (currentUser?.teacherType === 'subject_teacher' && currentUser.registeredSubjects?.length) {
+        const subjects = currentUser?.registeredSubjects;
         return learners.filter((l) => {
           const learnerCards = scoreCards.filter((sc) => sc.learnerId === l.id);
           const hasSubjectInScorecard = learnerCards.some((sc) =>
@@ -241,7 +241,7 @@ export const LearnersAndParentsView: React.FC<LearnersAndParentsViewProps> = ({
           </p>
         </div>
 
-        {currentUser.role === 'admin' && (
+        {currentUser?.role === 'admin' && (
           <div className="flex items-center gap-2 self-start md:self-auto flex-wrap">
             <button
               onClick={() => setIsBulkOnboardOpen(true)}
@@ -526,7 +526,7 @@ export const LearnersAndParentsView: React.FC<LearnersAndParentsViewProps> = ({
                       </span>
                     </div>
 
-                    {currentUser.role !== 'parent' && (
+                    {currentUser?.role !== 'parent' && (
                       <div className="pt-2">
                         <button
                           type="button"
@@ -654,7 +654,7 @@ export const LearnersAndParentsView: React.FC<LearnersAndParentsViewProps> = ({
                   <h3 className="text-base font-bold text-slate-900">
                     {activeLearnerDetail.firstName} {activeLearnerDetail.lastName}
                   </h3>
-                  {currentUser.role === 'admin' ? (
+                  {currentUser?.role === 'admin' ? (
                     <div className="flex items-center gap-1.5 mt-0.5">
                       <span className="text-[11px] text-slate-500 font-medium">Class:</span>
                       <select
@@ -717,7 +717,7 @@ export const LearnersAndParentsView: React.FC<LearnersAndParentsViewProps> = ({
                         <h4 className="font-bold text-slate-900 text-sm">Parent & Guardian Records</h4>
                       </div>
                       <div className="flex items-center gap-2">
-                        {parent && currentUser.role !== 'parent' && (
+                        {parent && currentUser?.role !== 'parent' && (
                           <button
                             type="button"
                             onClick={() =>

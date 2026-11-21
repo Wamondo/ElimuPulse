@@ -65,10 +65,10 @@ export const SubjectScoresheetView: React.FC = () => {
 
   // Role detection: Is the current user strictly a Subject Teacher?
   const isSubjectTeacherOnly =
-    currentUser.role === 'teacher' &&
-    currentUser.teacherType === 'subject_teacher' &&
+    currentUser?.role === 'teacher' &&
+    currentUser?.teacherType === 'subject_teacher' &&
     !currentUser?.isOwner &&
-    !['hoi', 'deputy_hoi', 'exam_council', 'senior_teacher'].includes(currentUser.ownerDesignation || '');
+    !['hoi', 'deputy_hoi', 'exam_council', 'senior_teacher'].includes(currentUser?.ownerDesignation || '');
 
   // Available grades
   const availableGrades = useMemo(() => {
@@ -79,8 +79,8 @@ export const SubjectScoresheetView: React.FC = () => {
   }, [learners, grades]);
 
   const defaultGrade = useMemo(() => {
-    if (currentUser.role === 'teacher' && currentUser.teacherGrade) {
-      return currentUser.teacherGrade;
+    if (currentUser?.role === 'teacher' && currentUser?.teacherGrade) {
+      return currentUser?.teacherGrade;
     }
     return availableGrades.includes('Grade 7A') ? 'Grade 7A' : availableGrades[0] || 'Grade 7A';
   }, [currentUser, availableGrades]);
@@ -91,10 +91,10 @@ export const SubjectScoresheetView: React.FC = () => {
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    if (currentUser.role === 'teacher' && currentUser.teacherType === 'class_teacher' && currentUser.teacherGrade) {
-      setSelectedGrade(currentUser.teacherGrade);
+    if (currentUser?.role === 'teacher' && currentUser?.teacherType === 'class_teacher' && currentUser?.teacherGrade) {
+      setSelectedGrade(currentUser?.teacherGrade);
     }
-  }, [currentUser.role, currentUser.teacherType, currentUser.teacherGrade]);
+  }, [currentUser?.role, currentUser?.teacherType, currentUser?.teacherGrade]);
 
   // Available subjects for the selected grade
   const gradeSubjects = useMemo(() => {
@@ -104,7 +104,7 @@ export const SubjectScoresheetView: React.FC = () => {
   // If user is pure Subject Teacher, strictly filter to their authorized subjects
   const authorizedSubjects = useMemo(() => {
     if (isSubjectTeacherOnly) {
-      const teacherRegistered = currentUser.registeredSubjects || [];
+      const teacherRegistered = currentUser?.registeredSubjects || [];
       const matched = gradeSubjects.filter((s) =>
         teacherRegistered.some((r) => r.toLowerCase().includes(s.name.toLowerCase()) || s.name.toLowerCase().includes(r.toLowerCase()))
       );
@@ -133,9 +133,9 @@ export const SubjectScoresheetView: React.FC = () => {
 
   // Evaluator teacher name (live lookup from registered faculty first, then curriculum fallback)
   const evaluatorName = useMemo(() => {
-    if (isSubjectTeacherOnly) return currentUser.name;
+    if (isSubjectTeacherOnly) return currentUser?.name;
     const subObj = gradeSubjects.find((s) => s.name === selectedSubject);
-    return resolveSubjectTeacherName(selectedSubject, selectedGrade, teachers, subObj?.teacher || currentUser.name);
+    return resolveSubjectTeacherName(selectedSubject, selectedGrade, teachers, subObj?.teacher || currentUser?.name);
   }, [isSubjectTeacherOnly, currentUser, gradeSubjects, selectedSubject, selectedGrade, teachers]);
 
   // Active Assessment configuration for this Grade & Term
