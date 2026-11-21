@@ -1,0 +1,87 @@
+import { useEffect, useState } from 'react';
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
+}
+
+export function usePWAInstall() {
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [isInstalled, setIsInstalled] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
+  const [isAndroid, setIsAndroid] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  useEffect(() => {
+    // 1. Detect standalone mode (already installed as PWA or native app)
+    const isStandalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      (window.navigator as unknown as { standalone?: boolean }).standalone === true ||
+      document.referrer.includes('android-app://');
+    setIsInstalled(isStandalone);
+
+    // 2. Platform detection
+    const userAgent = (window.navigator.userAgent || '').toLowerCase();
+    const isIOSDevice = /iphone|ipad|ipod/.test(userAgent);
+    const isAndroidDevice = /android/.test(userAgent);
+    const isDesktopDevice = !isIOSDevice && !isAndroidDevice;
+
+    setIsIOS(isIOSDevice);
+    setIsAndroid(isAndroidDevice);
+    setIsDesktop(isDesktopDevice);
+
+    // 3. Capture Chromium beforeinstallprompt event and cache on window
+    const win = window as unknown as { __elimupulseDeferredPrompt?: BeforeInstallPromptEvent | null };
+    if (win.__elimupulseDeferredPrompt) {
+      setDeferredPrompt(win.__elimupulseDeferredPrompt);
+    }
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      const promptEvent = e as BeforeInstallPromptEvent;
+      win.__elimupulseDeferredPrompt = promptEvent;
+      setDeferredPrompt(promptEvent);
+    };
+
+    // 4. Capture appinstalled event
+    const handleAppInstalled = () => {
+      setIsInstalled(true);
+      const winClear = window as unknown as { __elimupulseDeferredPrompt?: BeforeInstallPromptEvent | null }; winClear.__elimupulseDeferredPrompt = null;
+      setDeferredPrompt(null);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
+  const install = async (): Promise<boolean> => {
+    if (!deferredPrompt) return false;
+    try {
+      await deferredPrompt.prompt();
+      const choice = await deferredPrompt.userChoice;
+      if (choice.outcome === 'accepted') {
+        setIsInstalled(true);
+        const winClear = window as unknown as { __elimupulseDeferredPrompt?: BeforeInstallPromptEvent | null }; winClear.__elimupulseDeferredPrompt = null;
+      setDeferredPrompt(null);
+        return true;
+      }
+    } catch (err) {
+      console.warn('Install prompt error:', err);
+    }
+    return false;
+  };
+
+  return {
+    isInstallable: !!deferredPrompt,
+    isInstalled,
+    isIOS,
+    isAndroid,
+    isDesktop,
+    install,
+    deferredPrompt,
+  };
+}
