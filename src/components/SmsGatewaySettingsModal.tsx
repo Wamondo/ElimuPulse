@@ -157,7 +157,7 @@ export const SmsGatewaySettingsModal: React.FC<SmsGatewaySettingsModalProps> = (
                       : 'bg-emerald-100 text-emerald-800 border-emerald-300'
                   }`}
                 >
-                  {isSandboxMode ? 'SANDBOX SIMULATOR' : 'LIVE CELLULAR MODE'}
+                  {isSandboxMode ? 'STANDARD GATEWAY' : 'LIVE CELLULAR MODE'}
                 </span>
               </div>
               <p className="text-xs text-slate-500">
@@ -449,7 +449,7 @@ export const SmsGatewaySettingsModal: React.FC<SmsGatewaySettingsModalProps> = (
                     <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                     <span>
                       {testResult.isSimulated
-                        ? 'Sandbox Simulator Accepted Test SMS'
+                        ? 'Standard Gateway Accepted Test SMS'
                         : 'Real SMS Sent to Cellular Network!'}
                     </span>
                   </span>

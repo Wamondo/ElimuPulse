@@ -376,7 +376,7 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
             </form>
           )}
 
-          {/* STEP 2: SIMULATED INCOMING CELLULAR SMS & RESET LINK */}
+          {/* STEP 2: RESET LINK DISPATCHED */}
           {step === 'sms_sent' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between text-xs">
@@ -388,36 +388,6 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
                   <Clock className="w-3.5 h-3.5 text-slate-400" />
                   <span>Expires in: {formatTimer(secondsRemaining)}</span>
                 </span>
-              </div>
-
-              {/* Realistic Incoming Smartphone SMS Preview Card */}
-              <div className="rounded-xl border border-slate-300 bg-linear-to-b from-slate-100 to-slate-200/80 p-3 shadow-inner">
-                <div className="flex items-center justify-between text-[11px] text-slate-500 pb-2 border-b border-slate-300/60 mb-2.5">
-                  <div className="flex items-center gap-1.5 font-semibold text-slate-700">
-                    <MessageSquare className="w-3.5 h-3.5 text-indigo-600" />
-                    <span>Incoming SMS: {schoolProfile?.name ? schoolProfile.name.slice(0, 15).toUpperCase() : 'PORTAL'}</span>
-                  </div>
-                  <span className="font-mono text-[10px]">Just Now · Delivered</span>
-                </div>
-
-                <div className="bg-white rounded-xl p-3.5 shadow-sm border border-slate-200/80 space-y-2">
-                  <p className="text-xs text-slate-800 leading-relaxed">
-                    <strong>{schoolProfile?.name || 'Comprehensive School'}:</strong> Hi {targetAccount?.name}, tap the secure link below to reset your password for mobile <strong>{targetAccount?.phone}</strong>:
-                  </p>
-
-                  <div className="p-2.5 bg-indigo-50/80 rounded-lg border border-indigo-200 flex items-center justify-between">
-                    <div className="font-mono text-indigo-700 font-semibold truncate text-[11px] max-w-[280px]">
-                      {resetLink}
-                    </div>
-                    <span className="px-1.5 py-0.5 rounded text-[10px] bg-indigo-600 text-white font-mono shrink-0">
-                      Token: {resetToken}
-                    </span>
-                  </div>
-
-                  <p className="text-[10px] text-slate-400">
-                    This link expires in 15 minutes. If you did not request this, please notify the school office.
-                  </p>
-                </div>
               </div>
 
               {/* Target User Confirmation Box */}

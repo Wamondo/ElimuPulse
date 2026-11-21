@@ -370,7 +370,7 @@ export const BulkRemindersModal: React.FC<BulkRemindersModalProps> = ({
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                3. Live Delivery Preview (Simulated Dispatch)
+                3. Message Delivery Preview
               </label>
               <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-md text-xs">
                 <button

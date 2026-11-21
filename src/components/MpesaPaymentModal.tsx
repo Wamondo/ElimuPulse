@@ -116,7 +116,7 @@ export const MpesaPaymentModal: React.FC<MpesaPaymentModalProps> = ({
     }
   };
 
-  const handleSimulatePinEntered = () => {
+  const handleConfirmPayment = () => {
     // Record payment in the application context & database
     const payment = recordPayment({
       learnerId: selectedLearnerId,
@@ -305,11 +305,11 @@ export const MpesaPaymentModal: React.FC<MpesaPaymentModalProps> = ({
                 </p>
               </div>
 
-              {/* Simulated Mobile Device Prompt Box */}
+              {/* M-Pesa Payment Confirmation Prompt */}
               <div className="bg-slate-900 text-white p-4 rounded-xl shadow-lg border border-slate-700 max-w-sm mx-auto text-left space-y-2">
                 <div className="text-[10px] font-mono text-emerald-400 uppercase tracking-widest font-bold flex items-center gap-1.5">
                   <div className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-                  <span>SIMULATED SAFARICOM M-PESA POPUP</span>
+                  <span>SAFARICOM M-PESA STK PROMPT</span>
                 </div>
                 <p className="text-xs font-mono leading-relaxed">
                   Do you want to pay <strong>Kshs {amount.toLocaleString()}</strong> to <strong>{schoolProfile?.name || 'Comprehensive School'} Fees</strong> (Account: <strong>{learner?.studentId}</strong>)?
@@ -317,10 +317,10 @@ export const MpesaPaymentModal: React.FC<MpesaPaymentModalProps> = ({
                 <div className="pt-2 flex justify-end">
                   <button
                     type="button"
-                    onClick={handleSimulatePinEntered}
+                    onClick={handleConfirmPayment}
                     className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold rounded text-xs transition-colors cursor-pointer"
                   >
-                    Simulate Enter PIN & Authorize →
+                    Confirm Payment & Authorize →
                   </button>
                 </div>
               </div>

@@ -252,7 +252,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return { ...parsed, phone: normalizeKenyanPhone(parsed.phone || '') };
       } catch { /* ignore */ }
     }
-    return INITIAL_USER_SESSIONS[0]; // Admin by default
+    return null;
   });
 
   const [parents, setParents] = useState<ParentRecord[]>(() => {
@@ -1687,7 +1687,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         `Password reset link dispatched via cellular SMS to ${cleanPhone} for Parent ${parent.fullName}.`
       );
 
-      // Record simulated SMS delivery in reminders table
+      // Record SMS delivery in reminders table
       const resetSms: PaymentReminder = {
         id: `sms-reset-${Date.now()}`,
         learnerId: '',

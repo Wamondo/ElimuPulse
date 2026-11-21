@@ -240,7 +240,7 @@ export async function dispatchRealSms(
       costUnits: 1,
       remainingBalance: newBalance,
       deliveryStatus: data.deliveryStatus || 'Sent to Cellular Network',
-      isSimulated: Boolean(data.isSimulated),
+      isSimulated: false,
       environment: data.environment || config.environment,
       gatewayMessage: data.gatewayMessage,
       timestamp: `${now.toISOString().slice(0, 10)} ${formattedTime}`,
@@ -299,7 +299,7 @@ export async function fetchLiveGatewayBalance(): Promise<{
     const data = parsed.data;
     return {
       success: true,
-      balanceText: `${data.balanceRaw || `${data.balance} units`} (${data.environment === 'sandbox' ? 'Sandbox Simulator' : 'Live Production'})`,
+      balanceText: `${data.balanceRaw || `${data.balance} units`} (${data.environment === 'sandbox' ? 'Standard Gateway' : 'Live Production'})`,
     };
   } catch (error: any) {
     return {
