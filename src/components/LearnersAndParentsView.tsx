@@ -78,7 +78,7 @@ export const LearnersAndParentsView: React.FC<LearnersAndParentsViewProps> = ({
     if (currentUser?.id === 'user-owner-main') return true;
 
     // 2. Head of Institution (HOI / Principal)
-    if (currentUser?.role === 'admin') {
+    if ((currentUser?.role === 'admin' || currentUser?.role === 'superadmin' || currentUser?.isOwner)) {
       const title = (currentUser?.title || '').toLowerCase();
       const email = (currentUser?.email || '').toLowerCase();
       const id = currentUser?.id || '';
@@ -654,7 +654,7 @@ export const LearnersAndParentsView: React.FC<LearnersAndParentsViewProps> = ({
                   <h3 className="text-base font-bold text-slate-900">
                     {activeLearnerDetail.firstName} {activeLearnerDetail.lastName}
                   </h3>
-                  {currentUser?.role === 'admin' ? (
+                  {(currentUser?.role === 'admin' || currentUser?.role === 'superadmin' || currentUser?.isOwner) ? (
                     <div className="flex items-center gap-1.5 mt-0.5">
                       <span className="text-[11px] text-slate-500 font-medium">Class:</span>
                       <select

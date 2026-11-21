@@ -165,7 +165,7 @@ export const TuitionFeesView: React.FC<TuitionFeesViewProps> = ({
           </p>
         </div>
 
-        {(currentUser?.role === 'admin' || currentUser?.role === 'bursar') && (
+        {((currentUser?.role === 'admin' || currentUser?.role === 'superadmin' || currentUser?.isOwner) || currentUser?.role === 'bursar') && (
           <div className="flex items-center gap-2.5 self-start md:self-auto flex-wrap">
             <button
               onClick={() => setIsSmsGatewayModalOpen(true)}
@@ -239,7 +239,7 @@ export const TuitionFeesView: React.FC<TuitionFeesViewProps> = ({
       )}
 
       {/* Overdue Tuition Alert Notice */}
-      {overdueCount > 0 && (currentUser?.role === 'admin' || currentUser?.role === 'bursar') && (
+      {overdueCount > 0 && ((currentUser?.role === 'admin' || currentUser?.role === 'superadmin' || currentUser?.isOwner) || currentUser?.role === 'bursar') && (
         <div className="bg-amber-50/80 border border-amber-200/90 rounded-xl p-3.5 px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-xs">
           <div className="flex items-center gap-2.5 text-amber-950">
             <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
@@ -369,7 +369,7 @@ export const TuitionFeesView: React.FC<TuitionFeesViewProps> = ({
                 <th className="py-2.5 px-3 text-right">Balance</th>
                 <th className="py-2.5 px-3">Due Date</th>
                 <th className="py-2.5 px-3">Status</th>
-                {(currentUser?.role === 'admin' || currentUser?.role === 'bursar') && (
+                {((currentUser?.role === 'admin' || currentUser?.role === 'superadmin' || currentUser?.isOwner) || currentUser?.role === 'bursar') && (
                   <th className="py-2.5 px-4 text-right">Action</th>
                 )}
               </tr>
@@ -378,7 +378,7 @@ export const TuitionFeesView: React.FC<TuitionFeesViewProps> = ({
               {filteredStructures.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={currentUser?.role === 'admin' || currentUser?.role === 'bursar' ? 10 : 9}
+                    colSpan={(currentUser?.role === 'admin' || currentUser?.role === 'superadmin' || currentUser?.isOwner) || currentUser?.role === 'bursar' ? 10 : 9}
                     className="py-8 px-4 text-center text-slate-500"
                   >
                     {learners.length === 0
@@ -440,7 +440,7 @@ export const TuitionFeesView: React.FC<TuitionFeesViewProps> = ({
                           {fs.balance <= 0 ? 'Paid' : isOverdue ? 'Overdue' : 'Partial'}
                         </span>
                       </td>
-                      {(currentUser?.role === 'admin' || currentUser?.role === 'bursar') && (
+                      {((currentUser?.role === 'admin' || currentUser?.role === 'superadmin' || currentUser?.isOwner) || currentUser?.role === 'bursar') && (
                         <td className="py-3 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
                             {fs.balance > 0 && (

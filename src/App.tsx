@@ -223,7 +223,7 @@ const MainLayout: React.FC = () => {
         onOpenSmsConfig={() => {}}
         onOpenMpesaConfig={() => {}}
       />
-      {currentUser?.role === 'admin' && (
+      {(currentUser?.role === 'admin' || currentUser?.role === 'superadmin' || currentUser?.isOwner) && (
         <>
           <button
             type="button"

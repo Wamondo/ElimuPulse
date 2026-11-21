@@ -174,7 +174,7 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
 
   // Permission helpers
   const canEditSubject = (sub: SubjectScore) => {
-    if (currentUser?.role === 'admin') return true;
+    if ((currentUser?.role === 'admin' || currentUser?.role === 'superadmin' || currentUser?.isOwner)) return true;
     if (currentUser?.role === 'teacher') {
       if (currentUser?.teacherType === 'class_teacher') {
         return (
@@ -194,12 +194,12 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
   };
 
   const canEditClassTeacherRemarks =
-    currentUser?.role === 'admin' ||
+    (currentUser?.role === 'admin' || currentUser?.role === 'superadmin' || currentUser?.isOwner) ||
     (currentUser?.role === 'teacher' &&
       currentUser?.teacherType === 'class_teacher' &&
       currentUser?.teacherGrade === activeLearner?.grade);
 
-  const canEditPrincipalRemarks = currentUser?.role === 'admin';
+  const canEditPrincipalRemarks = (currentUser?.role === 'admin' || currentUser?.role === 'superadmin' || currentUser?.isOwner);
 
   // Calculate term attendance rate for this student
   const studentAttendance = attendance.filter((a) => a.learnerId === selectedLearnerId);
@@ -835,7 +835,7 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
             <span>Rubric</span>
           </button>
 
-          {(currentUser?.role === 'admin' || currentUser?.role === 'teacher') && (
+          {((currentUser?.role === 'admin' || currentUser?.role === 'superadmin' || currentUser?.isOwner) || currentUser?.role === 'teacher') && (
             <button
               onClick={() => {
                 if (isEditing) handleSave();

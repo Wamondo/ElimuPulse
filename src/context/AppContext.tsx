@@ -3210,8 +3210,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setDecryptedParentIds(new Set());
   };
 
-  const isOwner = Boolean(
-    currentUser?.isOwner ||
+  const isOwner = Boolean(currentUser?.isOwner || currentUser?.role === 'superadmin' || currentUser?.role === 'superadmin' ||
     (currentUser?.phone && (normalizeKenyanPhone(currentUser?.phone) === '0716235185' || currentUser?.phone === '0716235185'))
   );
 

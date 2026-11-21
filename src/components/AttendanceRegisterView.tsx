@@ -456,7 +456,7 @@ export const AttendanceRegisterView: React.FC<AttendanceRegisterViewProps> = ({
             </div>
 
             {/* Quick Batch Actions */}
-            {(currentUser?.role === 'admin' || currentUser?.role === 'teacher') && (
+            {((currentUser?.role === 'admin' || currentUser?.role === 'superadmin' || currentUser?.isOwner) || currentUser?.role === 'teacher') && (
               <div className="flex items-center gap-2">
                 <button
                   type="button"
