@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { ref, onValue, update, remove } from 'firebase/database';
+import { rtdb } from '../services/firebase';
 import { useApp } from '../context/AppContext';
 import {
   Building,
@@ -43,6 +45,45 @@ import {
 type TabKey = 'school' | 'admins' | 'teachers' | 'grades' | 'subjects' | 'guide';
 
 export const SchoolAcademicSetupView: React.FC = () => {
+  const [staffRequests, setStaffRequests] = useState<Array<{
+    uid: string;
+    name: string;
+    email: string;
+    subject: string;
+    role: 'teacher' | 'admin';
+    approved: boolean;
+    schoolId?: string;
+    createdAt?: number;
+  }>>([]);
+
+  useEffect(() => {
+    const usersRef = ref(rtdb, 'users');
+    const unsub = onValue(usersRef, (snap) => {
+      const val = snap.val() || {};
+      const list = Object.entries(val).map(([uid, data]: [string, any]) => ({
+        uid,
+        name: data?.name || 'Unnamed Staff',
+        email: data?.email || '',
+        subject: data?.subject || 'Teaching Staff',
+        role: data?.role === 'admin' ? 'admin' : 'teacher',
+        approved: data?.approved === true,
+        schoolId: data?.schoolId || 'default',
+        createdAt: data?.createdAt || 0,
+      }));
+      list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      setStaffRequests(list);
+    });
+    return () => unsub();
+  }, []);
+
+  const handleApproveStaffRequest = async (uid: string, role: 'teacher' | 'admin') => {
+    await update(ref(rtdb, `users/${uid}`), { approved: true, role });
+  };
+
+  const handleRejectStaffRequest = async (uid: string) => {
+    await remove(ref(rtdb, `users/${uid}`));
+  };
+
   const {
     schoolProfile,
     updateSchoolProfile,
@@ -990,6 +1031,90 @@ export const SchoolAcademicSetupView: React.FC = () => {
       {/* TAB 2: SCHOOL ADMINISTRATORS                             */}
       {/* ============================= */}
       {activeTab === 'admins' && (
+        <div className="space-y-6">
+          <div className="bg-white rounded-xl border border-indigo-200 p-6 space-y-4 text-xs shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+              <div>
+                <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <span>Staff Portal Access Requests</span>
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800">
+                    {staffRequests.filter((r) => !r.approved && (isOwner || r.schoolId === (schoolProfile?.id || 'default') || r.schoolId === 'default')).length} Pending
+                  </span>
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Approve or decline staff who requested portal access from the login screen.
+                </p>
+              </div>
+            </div>
+
+            {staffRequests.filter((r) => isOwner || r.schoolId === (schoolProfile?.id || 'default') || r.schoolId === 'default').length === 0 ? (
+              <p className="text-xs text-slate-400 italic py-2">No portal access requests submitted yet.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
+                    <tr>
+                      <th className="py-2.5 px-3">Applicant</th>
+                      <th className="py-2.5 px-3">Department / Subject</th>
+                      <th className="py-2.5 px-3">Email</th>
+                      <th className="py-2.5 px-3">Status</th>
+                      <th className="py-2.5 px-3 text-right">Approval Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {staffRequests
+                      .filter((r) => isOwner || r.schoolId === (schoolProfile?.id || 'default') || r.schoolId === 'default')
+                      .map((req) => (
+                        <tr key={req.uid} className="hover:bg-slate-50/70">
+                          <td className="py-2.5 px-3 font-semibold text-slate-900">{req.name}</td>
+                          <td className="py-2.5 px-3 text-slate-600">{req.subject}</td>
+                          <td className="py-2.5 px-3 text-slate-600">{req.email}</td>
+                          <td className="py-2.5 px-3">
+                            {req.approved ? (
+                              <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800">
+                                Approved ({req.role})
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800">
+                                Pending Review
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-right space-x-1.5 whitespace-nowrap">
+                            {!req.approved && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleApproveStaffRequest(req.uid, 'teacher')}
+                                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg cursor-pointer"
+                                >
+                                  Approve Teacher
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleApproveStaffRequest(req.uid, 'admin')}
+                                  className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg cursor-pointer"
+                                >
+                                  Approve Admin
+                                </button>
+                              </>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleRejectStaffRequest(req.uid)}
+                              className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold rounded-lg border border-rose-200 cursor-pointer"
+                            >
+                              {req.approved ? 'Revoke' : 'Decline'}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
         <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-5 text-xs">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
             <div>
@@ -1063,6 +1188,7 @@ export const SchoolAcademicSetupView: React.FC = () => {
               </tbody>
             </table>
           </div>
+        </div>
         </div>
       )}
 
