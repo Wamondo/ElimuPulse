@@ -73,7 +73,7 @@ export const LearnersAndParentsView: React.FC<LearnersAndParentsViewProps> = ({
   const isHoiOrOwner = React.useMemo(() => {
     if (!currentUser) return false;
     // 1. Verified App Owner
-    if (currentUser.isOwner) return true;
+    if (currentUser?.isOwner) return true;
     if (currentUser.ownerDesignation === 'owner' || currentUser.ownerDesignation === 'hoi') return true;
     if (currentUser.id === 'user-owner-main') return true;
 

@@ -570,7 +570,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             name: profile.name || prev.name,
             email: firebaseUser.email || profile.email || prev.email,
             role: profile.role || prev.role || 'teacher',
-            isOwner: profile.role === 'admin' ? prev.isOwner : false,
+            isOwner: profile.role === 'admin' ? prev?.isOwner : false,
           }));
           setIsAuthenticated(true);
         } else {
@@ -689,7 +689,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         : currentUser.registeredSubjects;
 
     const isOwnerActingOverride =
-      currentUser.isOwner &&
+      currentUser?.isOwner &&
       (currentUser.ownerDesignation === 'subject_teacher' || currentUser.ownerDesignation === 'senior_teacher');
 
     const nextTeacherType = isOwnerActingOverride
@@ -3211,7 +3211,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const isOwner = Boolean(
-    currentUser.isOwner ||
+    currentUser?.isOwner ||
     (currentUser.phone && (normalizeKenyanPhone(currentUser.phone) === '0716235185' || currentUser.phone === '0716235185'))
   );
 

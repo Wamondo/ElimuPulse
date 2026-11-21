@@ -167,7 +167,7 @@ export const SecurityModal: React.FC<SecurityModalProps> = ({ isOpen, onClose })
               <strong>Secondary Device Policy:</strong> If any second or third party attempts to log in to the Owner Account from another phone or browser, access is blocked until a 6-digit SMS OTP is sent to the Owner's registered phone and verified. Upon OTP verification, active access is transferred to the new device and revoked from the previous phone.
             </div>
 
-            {currentUser.isOwner && (
+            {currentUser?.isOwner && (
               <div className="flex items-center gap-2 pt-1 flex-wrap">
                 <button
                   type="button"

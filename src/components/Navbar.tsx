@@ -208,7 +208,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const navLinks = getNavLinks();
 
   const getRoleBadge = (user: UserSession) => {
-    if (user.isOwner) {
+    if (user?.isOwner) {
       return getOwnerDesignationLabel(user);
     }
     if (user.role === 'admin') return 'Head of School';

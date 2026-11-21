@@ -67,7 +67,7 @@ export const SubjectScoresheetView: React.FC = () => {
   const isSubjectTeacherOnly =
     currentUser.role === 'teacher' &&
     currentUser.teacherType === 'subject_teacher' &&
-    !currentUser.isOwner &&
+    !currentUser?.isOwner &&
     !['hoi', 'deputy_hoi', 'exam_council', 'senior_teacher'].includes(currentUser.ownerDesignation || '');
 
   // Available grades

@@ -90,7 +90,7 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
   const isPureSubjectTeacher =
     currentUser.role === 'teacher' &&
     currentUser.teacherType === 'subject_teacher' &&
-    !currentUser.isOwner &&
+    !currentUser?.isOwner &&
     !['hoi', 'deputy_hoi', 'exam_council', 'senior_teacher'].includes(currentUser.ownerDesignation || '');
 
   const canAccessBroadsheet = !isPureSubjectTeacher && currentUser.role !== 'parent';
