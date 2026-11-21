@@ -55,7 +55,7 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
-  // Simulated countdown for SMS link expiration (15 mins)
+  // Countdown for SMS link expiration (15 mins)
   const [secondsRemaining, setSecondsRemaining] = useState(900);
 
   useEffect(() => {
@@ -303,49 +303,7 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
               </div>
 
               {/* Quick Sample Selector for Convenience */}
-              <div>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block mb-1.5 flex items-center gap-1">
-                  <Sparkles className="w-3 h-3 text-indigo-600" />
-                  <span>Or Pick a Registered Demo Number to Test:</span>
-                </span>
-                <div className="grid grid-cols-2 gap-1.5 text-[11px]">
-                  <button
-                    type="button"
-                    onClick={() => handleSelectSample('0712345678')}
-                    className="p-1.5 text-left border border-slate-200 hover:border-indigo-400 bg-slate-50 hover:bg-indigo-50/50 rounded-lg transition-colors cursor-pointer"
-                  >
-                    <span className="font-bold text-slate-800 block">Catherine Mwangi</span>
-                    <span className="text-slate-500 font-mono">0712345678 (Parent)</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleSelectSample('0722101202')}
-                    className="p-1.5 text-left border border-slate-200 hover:border-emerald-400 bg-slate-50 hover:bg-emerald-50/50 rounded-lg transition-colors cursor-pointer"
-                  >
-                    <span className="font-bold text-slate-800 block">Mr. Marcus Thorne</span>
-                    <span className="text-slate-500 font-mono">0722101202 (Class Tch)</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleSelectSample('0112345678')}
-                    className="p-1.5 text-left border border-slate-200 hover:border-indigo-400 bg-slate-50 hover:bg-indigo-50/50 rounded-lg transition-colors cursor-pointer"
-                  >
-                    <span className="font-bold text-slate-800 block">Mr. Kevin Ochieng</span>
-                    <span className="text-indigo-600 font-mono font-semibold">0112345678 (01... Tch)</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleSelectSample('0110445566')}
-                    className="p-1.5 text-left border border-slate-200 hover:border-purple-400 bg-slate-50 hover:bg-purple-50/50 rounded-lg transition-colors cursor-pointer"
-                  >
-                    <span className="font-bold text-slate-800 block">Beatrice Chen</span>
-                    <span className="text-purple-600 font-mono font-semibold">0110445566 (01... Par)</span>
-                  </button>
-                </div>
-              </div>
+              
 
               <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
                 <button

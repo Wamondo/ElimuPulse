@@ -261,7 +261,7 @@ export const SmsGatewaySettingsModal: React.FC<SmsGatewaySettingsModalProps> = (
                   className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                 >
                   <option value="production">Production (Real Cellular Handset Delivery)</option>
-                  <option value="sandbox">Sandbox Testing (Simulator Only - No Real Phone)</option>
+                  
                 </select>
               </div>
 
@@ -428,7 +428,7 @@ export const SmsGatewaySettingsModal: React.FC<SmsGatewaySettingsModalProps> = (
                 <span>Live Test Dispatch Tool</span>
               </h4>
               <span className="text-[11px] text-slate-500">
-                {isSandboxMode ? 'Routes to Africa\'s Talking Simulator' : 'Dispatches real SMS to phone handset'}
+                {isSandboxMode ? 'Routes to Africa\'s Talking Gateway' : 'Dispatches real SMS to phone handset'}
               </span>
             </div>
 

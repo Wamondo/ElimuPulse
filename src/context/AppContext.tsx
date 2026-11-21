@@ -276,7 +276,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
       } catch { /* ignore */ }
     }
-    return INITIAL_PARENTS;
+    return [];
   });
 
   const [learners, setLearners] = useState<LearnerRecord[]>(() => {
@@ -289,7 +289,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
       } catch { /* ignore */ }
     }
-    return INITIAL_LEARNERS;
+    return [];
   });
 
   const [feeStructures, setFeeStructures] = useState<FeeStructure[]>(() => {
@@ -297,7 +297,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (saved) {
       try { return JSON.parse(saved); } catch { /* ignore */ }
     }
-    return INITIAL_FEE_STRUCTURES;
+    return [];
   });
 
   const [feePayments, setFeePayments] = useState<FeePayment[]>(() => {
@@ -305,7 +305,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (saved) {
       try { return JSON.parse(saved); } catch { /* ignore */ }
     }
-    return INITIAL_PAYMENTS;
+    return [];
   });
 
   const [reminders, setReminders] = useState<PaymentReminder[]>(() => {
@@ -313,7 +313,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (saved) {
       try { return JSON.parse(saved); } catch { /* ignore */ }
     }
-    return INITIAL_REMINDERS;
+    return [];
   });
 
   const [scoreCards, setScoreCards] = useState<ScoreCard[]>(() => {
@@ -328,7 +328,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
       } catch { /* ignore */ }
     }
-    return INITIAL_SCORE_CARDS;
+    return [];
   });
 
   const [attendance, setAttendance] = useState<AttendanceRecord[]>(() => {
@@ -358,7 +358,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
       } catch { /* ignore */ }
     }
-    return INITIAL_ATTENDANCE;
+    return [];
   });
 
   const [assessments, setAssessments] = useState<AssessmentRecord[]>(() => {
@@ -369,7 +369,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       } catch { /* ignore */ }
     }
-    return INITIAL_ASSESSMENTS;
+    return [];
   });
 
   const [subjectSubmissions, setSubjectSubmissions] = useState<SubjectMarksSubmission[]>(() => {
@@ -380,7 +380,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       } catch { /* ignore */ }
     }
-    return INITIAL_SUBJECT_SUBMISSIONS;
+    return [];
   });
 
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>(() => {
@@ -388,7 +388,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (saved) {
       try { return JSON.parse(saved); } catch { /* ignore */ }
     }
-    return INITIAL_AUDIT_LOGS;
+    return [];
   });
 
   const [teachers, setTeachers] = useState<TeacherRecord[]>(() => {
@@ -402,7 +402,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }));
       } catch { /* ignore */ }
     }
-    return INITIAL_TEACHERS;
+    return [];
   });
 
   const [registeredSchools, setRegisteredSchools] = useState<SchoolProfile[]>(() => {
@@ -854,22 +854,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (isBrandNewFirestore) {
           console.log('Bootstrapping Firestore with Mwivona Comprehensive School initial dataset...');
           await Promise.all([
-            batchSyncToFirestore('learners', INITIAL_LEARNERS),
-            batchSyncToFirestore('parents', INITIAL_PARENTS),
-            batchSyncToFirestore('teachers', INITIAL_TEACHERS),
-            batchSyncToFirestore('feeStructures', INITIAL_FEE_STRUCTURES),
-            batchSyncToFirestore('feePayments', INITIAL_PAYMENTS),
-            batchSyncToFirestore('paymentReminders', INITIAL_REMINDERS),
-            batchSyncToFirestore('scoreCards', INITIAL_SCORE_CARDS),
-            batchSyncToFirestore('attendance', INITIAL_ATTENDANCE),
-            batchSyncToFirestore('auditLogs', INITIAL_AUDIT_LOGS),
+            batchSyncToFirestore('learners', []),
+            batchSyncToFirestore('parents', []),
+            batchSyncToFirestore('teachers', []),
+            batchSyncToFirestore('feeStructures', []),
+            batchSyncToFirestore('feePayments', []),
+            batchSyncToFirestore('paymentReminders', []),
+            batchSyncToFirestore('scoreCards', []),
+            batchSyncToFirestore('attendance', []),
+            batchSyncToFirestore('auditLogs', []),
             saveDocumentToFirestore('settings', { ...INITIAL_SCHOOL_PROFILE, id: 'school_config' }),
             saveDocumentToFirestore('schools', { ...INITIAL_SCHOOL_PROFILE, id: 'sch-001', isLocked: false }),
             batchSyncToFirestore('grades', INITIAL_GRADES),
             batchSyncToFirestore('subjects', INITIAL_SUBJECTS),
             batchSyncToFirestore('admins', INITIAL_ADMIN_ACCOUNTS),
-            batchSyncToFirestore('assessments', INITIAL_ASSESSMENTS),
-            batchSyncToFirestore('subjectSubmissions', INITIAL_SUBJECT_SUBMISSIONS),
+            batchSyncToFirestore('assessments', []),
+            batchSyncToFirestore('subjectSubmissions', []),
           ]);
         } else {
           // Hydrate live state from Firestore (respecting empty collections when learners were deleted)
@@ -3193,20 +3193,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const resetToDefault = () => {
     localStorage.clear();
-    setParents(INITIAL_PARENTS);
-    setLearners(INITIAL_LEARNERS);
-    setFeeStructures(INITIAL_FEE_STRUCTURES);
-    setFeePayments(INITIAL_PAYMENTS);
-    setReminders(INITIAL_REMINDERS);
-    setScoreCards(INITIAL_SCORE_CARDS);
-    setAttendance(INITIAL_ATTENDANCE);
-    setAuditLogs(INITIAL_AUDIT_LOGS);
+    setParents([]);
+    setLearners([]);
+    setFeeStructures([]);
+    setFeePayments([]);
+    setReminders([]);
+    setScoreCards([]);
+    setAttendance([]);
+    setAuditLogs([]);
     setSchoolProfile(INITIAL_SCHOOL_PROFILE);
     setGrades(INITIAL_GRADES);
     setSubjects(INITIAL_SUBJECTS);
     setAdminAccounts(INITIAL_ADMIN_ACCOUNTS);
-    setTeachers(INITIAL_TEACHERS);
-    setCurrentUser(INITIAL_USER_SESSIONS[0]);
+    setTeachers([]);
+    setCurrentUser(null);
     setDecryptedParentIds(new Set());
   };
 
