@@ -171,13 +171,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         createdAt: Date.now(),
       };
 
-      await set(ref(rtdb, `users/${cred.user.uid}`), newProfile);
       await saveDocumentToFirestore('settings', {
         id: `staff_request_${cred.user.uid}`,
         type: 'staff_access_request',
         uid: cred.user.uid,
         ...newProfile,
       });
+      await set(ref(rtdb, `users/${cred.user.uid}`), newProfile).catch(() => {});
       setPendingUser(cred.user);
       setPendingProfile(newProfile);
     } catch (err: any) {
@@ -216,6 +216,18 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
       if (profile && profile.approved === true) {
         unlockAppWithProfile(pendingUser, profile);
       } else {
+        await saveDocumentToFirestore('settings', {
+          id: `staff_request_${pendingUser.uid}`,
+          type: 'staff_access_request',
+          uid: pendingUser.uid,
+          name: pendingProfile?.name || pendingUser.email?.split('@')[0] || 'Staff Applicant',
+          email: pendingUser.email || '',
+          subject: pendingProfile?.subject || 'Teaching Staff',
+          role: 'teacher',
+          approved: false,
+          schoolId: pendingProfile?.schoolId || currentSchoolId || 'default',
+          createdAt: pendingProfile?.createdAt || Date.now(),
+        }).catch(() => {});
         setErrorMsg('Still awaiting Admin approval. Please check again shortly.');
       }
     } finally {
