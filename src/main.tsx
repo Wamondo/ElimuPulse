@@ -3,20 +3,30 @@ import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 
-class RootErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: Error | null }> {
+class RootErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
   constructor(props: { children: React.ReactNode }) {
     super(props);
-    this.state = { error: null };
+    this.state = { hasError: false };
   }
-  static getDerivedStateFromError(error: Error) {
-    return { error };
+  static getDerivedStateFromError() {
+    return { hasError: true };
   }
   render() {
-    if (this.state.error) {
+    if (this.state.hasError) {
       return (
-        <div style={{ padding: 20, fontFamily: 'monospace', background: '#fef2f2', color: '#991b1b', minHeight: '100vh' }}>
-          <h2 style={{ fontWeight: 'bold', marginBottom: 8 }}>ElimuPulse Startup Error</h2>
-          <pre style={{ whiteSpace: 'pre-wrap', fontSize: 12 }}>{this.state.error.stack || this.state.error.message}</pre>
+        <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6 text-center">
+          <div className="max-w-sm bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+            <h2 className="text-base font-bold text-slate-900 mb-2">Session Reset Required</h2>
+            <p className="text-xs text-slate-600 mb-4">
+              Local browser state was cleared or interrupted. Reload to restore your workspace.
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700"
+            >
+              Reload ElimuPulse
+            </button>
+          </div>
         </div>
       );
     }
