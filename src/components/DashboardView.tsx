@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { calculateCompetencyGrade } from '../services/gradingService';
 import {
@@ -29,6 +29,15 @@ import {
   Receipt
 } from 'lucide-react';
 import { maskPhoneNumber } from '../services/cryptoService';
+import {
+  AssignmentQuestion,
+  LearningAreaAssignmentItem,
+  LearnerAssignmentSubmission,
+  loadLocalAssignments,
+  saveAssignments,
+  subscribeAssignments,
+  calculateAssignmentTotalMarks,
+} from '../services/assignmentService';
 
 interface DashboardViewProps {
   onNavigateTab: (tab: string) => void;
@@ -59,44 +68,58 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   } = useApp();
 
   const [dispatchNotice, setDispatchNotice] = useState<string | null>(null);
-  const [subjectAssignments, setSubjectAssignments] = useState<Array<{
-    id: string;
-    learningArea: string;
-    grade: string;
-    title: string;
-    instructions: string;
-    dueDate: string;
-    teacherName: string;
-    status: 'todo' | 'marked';
-    score?: string;
-    feedback?: string;
-    createdAt: string;
-  }>>(() => {
-    try {
-      const raw = localStorage.getItem('elimupulse_learning_area_assignments');
-      return raw ? JSON.parse(raw) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [subjectAssignments, setSubjectAssignments] = useState<LearningAreaAssignmentItem[]>(() =>
+    loadLocalAssignments()
+  );
   const [selectedTeacherArea, setSelectedTeacherArea] = useState<string>('');
   const [assignGrade, setAssignGrade] = useState<string>('All Grades');
   const [assignTitle, setAssignTitle] = useState<string>('');
   const [assignInstructions, setAssignInstructions] = useState<string>('');
   const [assignDueDate, setAssignDueDate] = useState<string>('');
+  const [draftQuestions, setDraftQuestions] = useState<AssignmentQuestion[]>([]);
+  const [onlyMySets, setOnlyMySets] = useState<boolean>(true);
   const [markingId, setMarkingId] = useState<string | null>(null);
-  const [markScoreInput, setMarkScoreInput] = useState<string>('EE1 (88%)');
+  const [selectedSubmissionLearnerId, setSelectedSubmissionLearnerId] = useState<string>('');
+  const [markScoreInput, setMarkScoreInput] = useState<string>('');
   const [markFeedbackInput, setMarkFeedbackInput] = useState<string>('Well done; meets competency expectations.');
   const [assignToast, setAssignToast] = useState<string | null>(null);
 
-  const persistSubjectAssignments = (nextList: typeof subjectAssignments) => {
+  useEffect(() => {
+    const unsubscribe = subscribeAssignments((items) => {
+      setSubjectAssignments(items);
+    });
+    return unsubscribe;
+  }, []);
+
+  const persistSubjectAssignments = (nextList: LearningAreaAssignmentItem[]) => {
     setSubjectAssignments(nextList);
-    try {
-      localStorage.setItem('elimupulse_learning_area_assignments', JSON.stringify(nextList));
-      window.dispatchEvent(new Event('elimupulse-assignments-updated'));
-    } catch {
-      // ignore storage errors
-    }
+    saveAssignments(nextList);
+  };
+
+  const addDraftQuestion = (type: 'mcq' | 'text') => {
+    const newQ: AssignmentQuestion = {
+      id: `q-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+      prompt: '',
+      type,
+      marks: type === 'mcq' ? 2 : 5,
+      ...(type === 'mcq'
+        ? {
+            options: { A: '', B: '', C: '', D: '' },
+            correctOption: 'A' as const,
+          }
+        : {}),
+    };
+    setDraftQuestions((prev) => [...prev, newQ]);
+  };
+
+  const updateDraftQuestion = (id: string, patch: Partial<AssignmentQuestion>) => {
+    setDraftQuestions((prev) =>
+      prev.map((q) => (q.id === id ? { ...q, ...patch } : q))
+    );
+  };
+
+  const removeDraftQuestion = (id: string) => {
+    setDraftQuestions((prev) => prev.filter((q) => q.id !== id));
   };
 
   // =====================
@@ -786,84 +809,160 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
           {(() => {
             const activeArea = selectedTeacherArea || registeredSubjects[0];
-            const areaItems = subjectAssignments.filter(
-              (a) => a.learningArea.trim().toLowerCase() === activeArea.trim().toLowerCase()
-            );
-            const toDoItems = areaItems.filter((a) => a.status === 'todo');
-            const markedItems = areaItems.filter((a) => a.status === 'marked');
+            const currentTeacherId = currentUser?.id || '';
+            const currentTeacherName = (currentUser?.name || '').trim().toLowerCase();
+
+            const areaItems = subjectAssignments.filter((a) => {
+              const areaMatches = a.learningArea.trim().toLowerCase() === activeArea.trim().toLowerCase();
+              if (!areaMatches) return false;
+              if (!onlyMySets) return true;
+              if (a.teacherId && currentTeacherId) return a.teacherId === currentTeacherId;
+              return (a.teacherName || '').trim().toLowerCase() === currentTeacherName;
+            });
+
+            const toDoItems = areaItems.filter((a) => {
+              const subs = Object.values(a.submissions || {});
+              if (subs.length === 0) return a.status === 'todo';
+              return subs.some((s) => s.status === 'submitted') || a.status === 'todo';
+            });
+
+            const markedEntries: Array<{
+              assignment: LearningAreaAssignmentItem;
+              submission?: LearnerAssignmentSubmission;
+            }> = [];
+
+            areaItems.forEach((item) => {
+              const subs = Object.values(item.submissions || {});
+              const markedSubs = subs.filter((s) => s.status === 'marked');
+              if (markedSubs.length > 0) {
+                markedSubs.forEach((sub) => {
+                  markedEntries.push({ assignment: item, submission: sub });
+                });
+              } else if (item.status === 'marked') {
+                markedEntries.push({ assignment: item });
+              }
+            });
+
+            const draftTotalMarks = calculateAssignmentTotalMarks(draftQuestions);
 
             return (
               <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 bg-indigo-50/60 border border-indigo-100 px-3.5 py-2 rounded-xl">
+                  <div className="text-xs text-indigo-950 font-semibold">
+                    {activeArea} · Multiple Assignment Sets ({areaItems.length} {areaItems.length === 1 ? 'Set' : 'Sets'})
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setOnlyMySets(true)}
+                      className={`px-2.5 py-1 rounded-md text-[11px] font-semibold cursor-pointer ${
+                        onlyMySets
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-white text-slate-700 border border-slate-200'
+                      }`}
+                    >
+                      My Sets ({currentUser?.name || 'Teacher'})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setOnlyMySets(false)}
+                      className={`px-2.5 py-1 rounded-md text-[11px] font-semibold cursor-pointer ${
+                        !onlyMySets
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-white text-slate-700 border border-slate-200'
+                      }`}
+                    >
+                      All Departmental Sets
+                    </button>
+                  </div>
+                </div>
+
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
                     if (!assignTitle.trim()) return;
-                    const created = {
+                    const cleanedQuestions = draftQuestions
+                      .filter((q) => q.prompt.trim().length > 0)
+                      .map((q) => ({
+                        ...q,
+                        prompt: q.prompt.trim(),
+                        marks: Number(q.marks) > 0 ? Number(q.marks) : 2,
+                      }));
+                    const totalMarks = calculateAssignmentTotalMarks(cleanedQuestions);
+
+                    const created: LearningAreaAssignmentItem = {
                       id: `asgn-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
                       learningArea: activeArea,
                       grade: assignGrade || 'All Grades',
                       title: assignTitle.trim(),
                       instructions:
                         assignInstructions.trim() ||
-                        `Complete the ${activeArea} task and submit your work before the due date.`,
+                        (cleanedQuestions.length > 0
+                          ? `Answer all ${cleanedQuestions.length} interactive questions directly below and submit.`
+                          : `Complete the ${activeArea} task directly on your portal and submit before the due date.`),
                       dueDate: assignDueDate.trim() || 'Due This Week',
+                      teacherId: currentUser?.id || '',
                       teacherName: currentUser?.name || 'Subject Teacher',
-                      status: 'todo' as const,
+                      status: 'todo',
+                      questions: cleanedQuestions,
+                      totalMarks,
+                      submissions: {},
                       createdAt: new Date().toISOString(),
                     };
                     persistSubjectAssignments([created, ...subjectAssignments]);
                     setAssignTitle('');
                     setAssignInstructions('');
                     setAssignDueDate('');
+                    setDraftQuestions([]);
                     setAssignToast(
-                      `Sent "${created.title}" to Learner Portal under ${activeArea} (${created.grade}).`
+                      `Sent "${created.title}" (${cleanedQuestions.length} questions · ${totalMarks} marks) to Learner Portal under ${activeArea} (${created.grade}).`
                     );
                   }}
-                  className="grid grid-cols-1 md:grid-cols-4 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200"
+                  className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-3"
                 >
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                      Target Grade / Class
-                    </label>
-                    <select
-                      value={assignGrade}
-                      onChange={(e) => setAssignGrade(e.target.value)}
-                      className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
-                    >
-                      <option value="All Grades">All Grades</option>
-                      {grades.map((g) => (
-                        <option key={g.id} value={g.name}>
-                          {g.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                      Assignment Title *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={assignTitle}
-                      onChange={(e) => setAssignTitle(e.target.value)}
-                      placeholder={`e.g. ${activeArea} Task 1`}
-                      className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                      Instructions / Questions
-                    </label>
-                    <input
-                      type="text"
-                      value={assignInstructions}
-                      onChange={(e) => setAssignInstructions(e.target.value)}
-                      placeholder="Describe exercises or pages..."
-                      className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
-                    />
-                  </div>
-                  <div className="flex flex-col justify-between gap-2">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                        Target Grade / Class
+                      </label>
+                      <select
+                        value={assignGrade}
+                        onChange={(e) => setAssignGrade(e.target.value)}
+                        className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                      >
+                        <option value="All Grades">All Grades</option>
+                        {grades.map((g) => (
+                          <option key={g.id} value={g.name}>
+                            {g.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                        Assignment Set Title *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={assignTitle}
+                        onChange={(e) => setAssignTitle(e.target.value)}
+                        placeholder={`e.g. ${activeArea} Set 1: Algebra`}
+                        className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                        General Instructions
+                      </label>
+                      <input
+                        type="text"
+                        value={assignInstructions}
+                        onChange={(e) => setAssignInstructions(e.target.value)}
+                        placeholder="Optional instructions for learners..."
+                        className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                      />
+                    </div>
                     <div>
                       <label className="block text-[11px] font-semibold text-slate-700 mb-1">
                         Due Date
@@ -876,15 +975,130 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
                       />
                     </div>
-                    <button
-                      type="submit"
-                      className="w-full py-1.5 px-3 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg cursor-pointer"
-                    >
-                      Send to Learners ({activeArea})
-                    </button>
                   </div>
-                </form>
 
+                  {/* Interactive In-App Questions Builder */}
+                  <div className="bg-white border border-slate-200 rounded-lg p-3 space-y-2.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <p className="text-xs font-bold text-slate-900">
+                          Interactive Questions ({draftQuestions.length}) · Total: {draftTotalMarks} Marks
+                        </p>
+                        <p className="text-[11px] text-slate-500">
+                          Learners answer these questions directly on their phones without downloading or printing.
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => addDraftQuestion('mcq')}
+                          className="px-2.5 py-1 text-[11px] font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-md cursor-pointer"
+                        >
+                          + Multiple Choice (Auto-Marked)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => addDraftQuestion('text')}
+                          className="px-2.5 py-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-md cursor-pointer"
+                        >
+                          + Written / Working Question
+                        </button>
+                      </div>
+                    </div>
+
+                    {draftQuestions.length > 0 && (
+                      <div className="space-y-2.5 pt-1">
+                        {draftQuestions.map((q, idx) => (
+                          <div
+                            key={q.id}
+                            className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 space-y-2"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[11px] font-bold text-indigo-900">
+                                Question {idx + 1} ({q.type === 'mcq' ? 'Multiple Choice' : 'Written Answer'})
+                              </span>
+                              <div className="flex items-center gap-2">
+                                <label className="text-[11px] text-slate-600 flex items-center gap-1">
+                                  Marks:
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    max={100}
+                                    value={q.marks}
+                                    onChange={(e) =>
+                                      updateDraftQuestion(q.id, { marks: Number(e.target.value) || 1 })
+                                    }
+                                    className="w-14 px-1.5 py-0.5 text-xs bg-white border border-slate-300 rounded"
+                                  />
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={() => removeDraftQuestion(q.id)}
+                                  className="text-[11px] font-semibold text-rose-600 hover:underline cursor-pointer"
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            </div>
+
+                            <input
+                              type="text"
+                              value={q.prompt}
+                              onChange={(e) => updateDraftQuestion(q.id, { prompt: e.target.value })}
+                              placeholder={`Type Question ${idx + 1} here...`}
+                              className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md"
+                            />
+
+                            {q.type === 'mcq' && q.options && (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                                {(['A', 'B', 'C', 'D'] as const).map((optKey) => (
+                                  <div key={optKey} className="flex items-center gap-1.5">
+                                    <input
+                                      type="radio"
+                                      name={`correct-${q.id}`}
+                                      checked={q.correctOption === optKey}
+                                      onChange={() =>
+                                        updateDraftQuestion(q.id, { correctOption: optKey })
+                                      }
+                                      title={`Mark Option ${optKey} as correct`}
+                                    />
+                                    <span className="text-[11px] font-bold text-slate-700 w-4">
+                                      {optKey}.
+                                    </span>
+                                    <input
+                                      type="text"
+                                      value={q.options?.[optKey] || ''}
+                                      onChange={(e) =>
+                                        updateDraftQuestion(q.id, {
+                                          options: {
+                                            ...(q.options || { A: '', B: '', C: '', D: '' }),
+                                            [optKey]: e.target.value,
+                                          },
+                                        })
+                                      }
+                                      placeholder={`Option ${optKey}`}
+                                      className="flex-1 px-2 py-1 text-xs bg-white border border-slate-300 rounded"
+                                    />
+                                  </div>
+                                ))}
+                                <p className="sm:col-span-2 text-[10px] text-indigo-700">
+                                  Selected correct answer: <strong>Option {q.correctOption || 'A'}</strong> (auto-scored when learner submits)
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full py-2 px-3 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg cursor-pointer"
+                  >
+                    Send Assignment Set to Learners ({activeArea})
+                  </button>
+                </form>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Assignments to Be Done */}
@@ -902,75 +1116,239 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         No active assignments sent in {activeArea} yet.
                       </p>
                     ) : (
-                      <div className="space-y-2">
-                        {toDoItems.map((item) => (
-                          <div
-                            key={item.id}
-                            className="p-2.5 bg-white border border-amber-200 rounded-lg space-y-2"
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <div>
-                                <p className="text-xs font-bold text-slate-900">{item.title}</p>
-                                <p className="text-[11px] text-slate-600">{item.instructions}</p>
-                                <p className="text-[10px] font-semibold text-amber-800 mt-0.5">
-                                  {item.grade} · {item.dueDate}
-                                </p>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setMarkingId(markingId === item.id ? null : item.id);
-                                }}
-                                className="px-2.5 py-1 text-[11px] font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-md shrink-0 cursor-pointer"
-                              >
-                                Mark Assignment
-                              </button>
-                            </div>
-                            {markingId === item.id && (
-                              <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row gap-2">
-                                <input
-                                  type="text"
-                                  value={markScoreInput}
-                                  onChange={(e) => setMarkScoreInput(e.target.value)}
-                                  placeholder="Score e.g. EE1 (90%)"
-                                  className="px-2 py-1 text-xs border border-slate-300 rounded-md sm:w-28"
-                                />
-                                <input
-                                  type="text"
-                                  value={markFeedbackInput}
-                                  onChange={(e) => setMarkFeedbackInput(e.target.value)}
-                                  placeholder="Teacher remarks..."
-                                  className="px-2 py-1 text-xs border border-slate-300 rounded-md flex-1"
-                                />
+                      <div className="space-y-2.5">
+                        {toDoItems.map((item) => {
+                          const allSubs = Object.values(item.submissions || {});
+                          const pendingSubs = allSubs.filter((s) => s.status === 'submitted');
+                          const markedCount = allSubs.filter((s) => s.status === 'marked').length;
+                          const totalMarks = item.totalMarks || calculateAssignmentTotalMarks(item.questions);
+                          const activeSub =
+                            pendingSubs.find((s) => s.learnerId === selectedSubmissionLearnerId) ||
+                            pendingSubs[0];
+
+                          return (
+                            <div
+                              key={item.id}
+                              className="p-3 bg-white border border-amber-200 rounded-lg space-y-2"
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    <p className="text-xs font-bold text-slate-900">{item.title}</p>
+                                    <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-slate-100 text-slate-700 rounded">
+                                      {(item.questions || []).length} Qs · {totalMarks} Marks
+                                    </span>
+                                  </div>
+                                  <p className="text-[11px] text-slate-600 mt-0.5">{item.instructions}</p>
+                                  <p className="text-[10px] font-semibold text-amber-800 mt-1">
+                                    {item.grade} · {item.dueDate} · By {item.teacherName}
+                                  </p>
+                                  <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] font-semibold">
+                                    <span className="text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full">
+                                      {pendingSubs.length} Submitted to Mark
+                                    </span>
+                                    <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                                      {markedCount} Marked & Pushed
+                                    </span>
+                                  </div>
+                                </div>
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    const updated = subjectAssignments.map((a) =>
-                                      a.id === item.id
-                                        ? {
-                                            ...a,
-                                            status: 'marked' as const,
-                                            score: markScoreInput.trim() || 'Marked',
-                                            feedback:
-                                              markFeedbackInput.trim() ||
-                                              'Marked by subject teacher.',
-                                          }
-                                        : a
-                                    );
-                                    persistSubjectAssignments(updated);
-                                    setMarkingId(null);
-                                    setAssignToast(
-                                      `Marked "${item.title}" and published to Learner Portal under ${activeArea}.`
-                                    );
+                                    if (markingId === item.id) {
+                                      setMarkingId(null);
+                                    } else {
+                                      setMarkingId(item.id);
+                                      const firstSub = pendingSubs[0];
+                                      if (firstSub) {
+                                        setSelectedSubmissionLearnerId(firstSub.learnerId);
+                                        setMarkScoreInput(`${firstSub.autoScore}/${totalMarks}`);
+                                      } else {
+                                        setSelectedSubmissionLearnerId('');
+                                        setMarkScoreInput(`${totalMarks}/${totalMarks}`);
+                                      }
+                                    }
                                   }}
-                                  className="px-2.5 py-1 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-md cursor-pointer"
+                                  className="px-2.5 py-1 text-[11px] font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-md shrink-0 cursor-pointer"
                                 >
-                                  Publish Marked
+                                  {pendingSubs.length > 0
+                                    ? `Review & Mark (${pendingSubs.length})`
+                                    : 'Mark Assignment'}
                                 </button>
                               </div>
-                            )}
-                          </div>
-                        ))}
+
+                              {markingId === item.id && (
+                                <div className="pt-2.5 border-t border-slate-200 space-y-2.5">
+                                  {pendingSubs.length > 0 && activeSub ? (
+                                    <div className="space-y-2 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                                      <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <label className="text-[11px] font-bold text-slate-800">
+                                          Learner Submission:
+                                        </label>
+                                        <select
+                                          value={activeSub.learnerId}
+                                          onChange={(e) => {
+                                            const nextSub = pendingSubs.find(
+                                              (s) => s.learnerId === e.target.value
+                                            );
+                                            setSelectedSubmissionLearnerId(e.target.value);
+                                            if (nextSub) {
+                                              setMarkScoreInput(`${nextSub.autoScore}/${totalMarks}`);
+                                            }
+                                          }}
+                                          className="px-2 py-1 text-xs bg-white border border-slate-300 rounded-md font-semibold"
+                                        >
+                                          {pendingSubs.map((sub) => (
+                                            <option key={sub.learnerId} value={sub.learnerId}>
+                                              {sub.learnerName} ({sub.studentId})
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </div>
+
+                                      <div className="text-[11px] text-indigo-800 font-semibold">
+                                        Auto-Marked MCQ Score: {activeSub.autoScore} / {totalMarks} marks
+                                      </div>
+
+                                      {(item.questions || []).length > 0 ? (
+                                        <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                                          {(item.questions || []).map((q, qIdx) => {
+                                            const ans = activeSub.answers?.[q.id] || 'No answer provided';
+                                            const isCorrectMcq =
+                                              q.type === 'mcq' && q.correctOption === ans;
+                                            return (
+                                              <div
+                                                key={q.id}
+                                                className="p-2 bg-white border border-slate-200 rounded text-[11px]"
+                                              >
+                                                <p className="font-bold text-slate-800">
+                                                  Q{qIdx + 1}. {q.prompt} ({q.marks} mks)
+                                                </p>
+                                                <p className="text-slate-700 mt-0.5">
+                                                  Learner Answer: <strong>{ans}</strong>
+                                                  {q.type === 'mcq' && (
+                                                    <span
+                                                      className={`ml-2 px-1.5 py-0.2 rounded text-[10px] font-bold ${
+                                                        isCorrectMcq
+                                                          ? 'bg-emerald-100 text-emerald-800'
+                                                          : 'bg-rose-100 text-rose-800'
+                                                      }`}
+                                                    >
+                                                      {isCorrectMcq
+                                                        ? `Correct (+${q.marks})`
+                                                        : `Key: ${q.correctOption}`}
+                                                    </span>
+                                                  )}
+                                                </p>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      ) : (
+                                        <div className="p-2 bg-white border border-slate-200 rounded text-[11px]">
+                                          <p className="font-semibold text-slate-700">Learner Response:</p>
+                                          <p className="text-slate-900 mt-0.5 whitespace-pre-wrap">
+                                            {activeSub.generalResponse || 'No written text submitted.'}
+                                          </p>
+                                        </div>
+                                      )}
+
+                                      <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                                        <input
+                                          type="text"
+                                          value={markScoreInput}
+                                          onChange={(e) => setMarkScoreInput(e.target.value)}
+                                          placeholder={`Score e.g. 18/${totalMarks}`}
+                                          className="px-2 py-1 text-xs bg-white border border-slate-300 rounded-md sm:w-28"
+                                        />
+                                        <input
+                                          type="text"
+                                          value={markFeedbackInput}
+                                          onChange={(e) => setMarkFeedbackInput(e.target.value)}
+                                          placeholder="Teacher remarks..."
+                                          className="px-2 py-1 text-xs bg-white border border-slate-300 rounded-md flex-1"
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const finalScore =
+                                              markScoreInput.trim() || `${activeSub.autoScore}/${totalMarks}`;
+                                            const finalFeedback =
+                                              markFeedbackInput.trim() || 'Marked by subject teacher.';
+                                            const updated = subjectAssignments.map((a) => {
+                                              if (a.id !== item.id) return a;
+                                              const nextSubs = { ...(a.submissions || {}) };
+                                              nextSubs[activeSub.learnerId] = {
+                                                ...activeSub,
+                                                status: 'marked',
+                                                awardedScore: finalScore,
+                                                teacherFeedback: finalFeedback,
+                                                markedAt: new Date().toISOString(),
+                                              };
+                                              return {
+                                                ...a,
+                                                submissions: nextSubs,
+                                              };
+                                            });
+                                            persistSubjectAssignments(updated);
+                                            setAssignToast(
+                                              `Marked ${activeSub.learnerName}'s "${item.title}" (${finalScore}) and pushed to Learner Marked Assignments.`
+                                            );
+                                          }}
+                                          className="px-2.5 py-1 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-md cursor-pointer"
+                                        >
+                                          Mark & Push to Learner
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="flex flex-col sm:flex-row gap-2">
+                                      <input
+                                        type="text"
+                                        value={markScoreInput}
+                                        onChange={(e) => setMarkScoreInput(e.target.value)}
+                                        placeholder="Score e.g. EE1 (90%)"
+                                        className="px-2 py-1 text-xs border border-slate-300 rounded-md sm:w-28"
+                                      />
+                                      <input
+                                        type="text"
+                                        value={markFeedbackInput}
+                                        onChange={(e) => setMarkFeedbackInput(e.target.value)}
+                                        placeholder="Teacher remarks..."
+                                        className="px-2 py-1 text-xs border border-slate-300 rounded-md flex-1"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const updated = subjectAssignments.map((a) =>
+                                            a.id === item.id
+                                              ? {
+                                                  ...a,
+                                                  status: 'marked' as const,
+                                                  score: markScoreInput.trim() || 'Marked',
+                                                  feedback:
+                                                    markFeedbackInput.trim() ||
+                                                    'Marked by subject teacher.',
+                                                }
+                                              : a
+                                          );
+                                          persistSubjectAssignments(updated);
+                                          setMarkingId(null);
+                                          setAssignToast(
+                                            `Marked "${item.title}" and pushed to Learner Portal under ${activeArea}.`
+                                          );
+                                        }}
+                                        className="px-2.5 py-1 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-md cursor-pointer"
+                                      >
+                                        Publish Marked
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -979,30 +1357,37 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <div className="border border-emerald-200 bg-emerald-50/30 rounded-xl p-3.5 space-y-2.5">
                     <div className="flex items-center justify-between">
                       <h3 className="text-xs font-bold text-emerald-950">
-                        Assignments Marked ({markedItems.length})
+                        Assignments Marked ({markedEntries.length})
                       </h3>
                       <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">
-                        Published to Learners
+                        Pushed to Learners
                       </span>
                     </div>
-                    {markedItems.length === 0 ? (
+                    {markedEntries.length === 0 ? (
                       <p className="text-xs text-slate-500">
                         No marked assignments published in {activeArea} yet.
                       </p>
                     ) : (
                       <div className="space-y-2">
-                        {markedItems.map((item) => (
+                        {markedEntries.map(({ assignment, submission }, idx) => (
                           <div
-                            key={item.id}
+                            key={`${assignment.id}-${submission?.learnerId || idx}`}
                             className="p-2.5 bg-white border border-emerald-200 rounded-lg flex items-start justify-between gap-2"
                           >
                             <div>
-                              <p className="text-xs font-bold text-slate-900">{item.title}</p>
-                              <p className="text-[11px] text-slate-600">{item.feedback}</p>
-                              <p className="text-[10px] text-slate-500 mt-0.5">{item.grade}</p>
+                              <p className="text-xs font-bold text-slate-900">
+                                {assignment.title}
+                                {submission ? ` · ${submission.learnerName}` : ''}
+                              </p>
+                              <p className="text-[11px] text-slate-600">
+                                {submission ? submission.teacherFeedback : assignment.feedback}
+                              </p>
+                              <p className="text-[10px] text-slate-500 mt-0.5">
+                                {assignment.grade} · By {assignment.teacherName}
+                              </p>
                             </div>
                             <span className="px-2 py-0.5 text-[11px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-200 rounded shrink-0">
-                              {item.score}
+                              {submission ? submission.awardedScore : assignment.score}
                             </span>
                           </div>
                         ))}
