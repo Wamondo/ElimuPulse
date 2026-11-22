@@ -157,41 +157,66 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     const cleanPhone = normPhone(cleanIdentifier);
     const cleanPwd = password.trim();
 
-    const candidateTeachers: any[] = Array.isArray(teachers) && teachers.length > 0
-      ? teachers
-      : (() => {
-          try {
-            const raw = localStorage.getItem('elimupulse_teachers') || localStorage.getItem('teachers');
-            return raw ? JSON.parse(raw) : [];
-          } catch {
-            return [];
+    const findTeacherMatch = (list: any[]) =>
+      (Array.isArray(list) ? list : []).find((t: any) => {
+        const tEmail = String(t.email || '').trim().toLowerCase();
+        const tPhone = normPhone(
+          t.phone || t.phoneNumber || t.registeredPhone || t.mobile || t.contact || ''
+        );
+        const matchesLogin =
+          (cleanEmail.includes('@') && tEmail === cleanEmail) ||
+          (cleanPhone.length >= 9 && tPhone.length >= 9 && tPhone === cleanPhone);
+        if (!matchesLogin) return false;
+
+        const idCandidates = [
+          t.nationalOrStaffId,
+          t.staffId,
+          t.idNumber,
+          t.nationalId,
+          t.tscNumber,
+          t.password,
+          t.id,
+        ]
+          .map((v) => String(v || '').trim().toLowerCase())
+          .filter(Boolean);
+
+        return idCandidates.includes(cleanPwd.toLowerCase());
+      });
+
+    let candidateTeachers: any[] = Array.isArray(teachers) ? [...teachers] : [];
+    try {
+      const raw =
+        localStorage.getItem('academias_secure_v1_teachers') ||
+        localStorage.getItem('elimupulse_teachers') ||
+        localStorage.getItem('teachers');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          candidateTeachers = [...candidateTeachers, ...parsed];
+        }
+      }
+    } catch { /* ignore */ }
+
+    let matchedTeacher = findTeacherMatch(candidateTeachers);
+
+    if (!matchedTeacher) {
+      try {
+        const schoolKey = currentSchoolId || 'sch-001';
+        const snaps = await Promise.all([
+          get(ref(rtdb, `schools/${schoolKey}/teachers`)),
+          get(ref(rtdb, 'teachers')),
+        ]);
+        const rtdbTeachers: any[] = [];
+        snaps.forEach((s) => {
+          if (s && s.exists()) {
+            const val = s.val();
+            if (Array.isArray(val)) rtdbTeachers.push(...val.filter(Boolean));
+            else if (val && typeof val === 'object') rtdbTeachers.push(...Object.values(val).filter(Boolean));
           }
-        })();
-
-    const matchedTeacher = candidateTeachers.find((t: any) => {
-      const tEmail = String(t.email || '').trim().toLowerCase();
-      const tPhone = normPhone(
-        t.phone || t.phoneNumber || t.registeredPhone || t.mobile || t.contact || ''
-      );
-      const matchesLogin =
-        (cleanEmail.includes('@') && tEmail === cleanEmail) ||
-        (cleanPhone.length >= 9 && tPhone.length >= 9 && tPhone === cleanPhone);
-      if (!matchesLogin) return false;
-
-      const idCandidates = [
-        t.nationalOrStaffId,
-        t.staffId,
-        t.idNumber,
-        t.nationalId,
-        t.tscNumber,
-        t.password,
-        t.id,
-      ]
-        .map((v) => String(v || '').trim().toLowerCase())
-        .filter(Boolean);
-
-      return idCandidates.includes(cleanPwd.toLowerCase());
-    });
+        });
+        matchedTeacher = findTeacherMatch(rtdbTeachers);
+      } catch { /* ignore */ }
+    }
 
     if (matchedTeacher) {
       localStorage.setItem(
