@@ -146,8 +146,64 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     setErrorMsg(null);
     setIsLoading(true);
 
+    const normPhone = (val: string) => {
+      const digits = String(val || '').replace(/\D/g, '');
+      if (digits.startsWith('254') && digits.length === 12) return `0${digits.slice(3)}`;
+      return digits;
+    };
+
+    const cleanIdentifier = email.trim();
+    const cleanEmail = cleanIdentifier.toLowerCase();
+    const cleanPhone = normPhone(cleanIdentifier);
+    const cleanPwd = password.trim();
+
+    const matchedTeacher = (teachers || []).find((t: any) => {
+      const tEmail = String(t.email || '').trim().toLowerCase();
+      const tPhone = normPhone(t.phone || t.phoneNumber || '');
+      const matchesLogin =
+        (cleanEmail.includes('@') && tEmail === cleanEmail) ||
+        (cleanPhone.length >= 9 && tPhone.length >= 9 && tPhone === cleanPhone);
+      if (!matchesLogin) return false;
+
+      const idCandidates = [
+        t.staffId,
+        t.idNumber,
+        t.nationalId,
+        t.tscNumber,
+        t.password,
+      ]
+        .map((v) => String(v || '').trim())
+        .filter(Boolean);
+
+      return idCandidates.includes(cleanPwd);
+    });
+
+    if (matchedTeacher) {
+      localStorage.setItem(
+        'elimupulse_staff_session',
+        JSON.stringify({
+          uid: matchedTeacher.id || `teacher-${cleanPhone || cleanEmail}`,
+          email: matchedTeacher.email || cleanIdentifier,
+          name: matchedTeacher.name || 'Teaching Staff',
+          role: 'teacher',
+          approved: true,
+        })
+      );
+      if (matchedTeacher.phone || matchedTeacher.email) {
+        await loginWithCredentials(
+          String(matchedTeacher.phone || matchedTeacher.email).trim(),
+          cleanPwd
+        );
+      }
+      if (onLoginSuccess) {
+        onLoginSuccess();
+      }
+      setIsLoading(false);
+      return;
+    }
+
     try {
-      const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
+      const cred = await signInWithEmailAndPassword(auth, cleanIdentifier, password);
       const snap = await get(ref(rtdb, `users/${cred.user.uid}`));
       const profile = snap.val() as StaffProfile | null;
 
@@ -160,24 +216,22 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     } catch (err: any) {
       const code = err?.code || '';
       if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {
-        const cleanEmail = email.trim().toLowerCase();
-        const cleanPwd = password.trim();
-        const matchedTeacher = (teachers || []).find(
+        const fallbackTeacher = (teachers || []).find(
           (t: any) =>
             String(t.email || '').trim().toLowerCase() === cleanEmail &&
             (String(t.tscNumber || '').trim() === cleanPwd ||
               String(t.password || '').trim() === cleanPwd ||
               (cleanPwd.length >= 6 && String(t.tscNumber || '').trim().length > 0))
         );
-        if (matchedTeacher) {
+        if (fallbackTeacher && cleanEmail.includes('@')) {
           const authPwd = cleanPwd.length >= 6 ? cleanPwd : `${cleanPwd}000000`.slice(0, 6);
           try {
             const newCred = await createUserWithEmailAndPassword(auth, cleanEmail, authPwd);
             const autoProfile: StaffProfile = {
-              name: matchedTeacher.name || 'Teaching Staff',
-              subject: Array.isArray(matchedTeacher.registeredSubjects) && matchedTeacher.registeredSubjects.length > 0
-                ? matchedTeacher.registeredSubjects.join(', ')
-                : matchedTeacher.subject || 'Teaching Staff',
+              name: fallbackTeacher.name || 'Teaching Staff',
+              subject: Array.isArray(fallbackTeacher.registeredSubjects) && fallbackTeacher.registeredSubjects.length > 0
+                ? fallbackTeacher.registeredSubjects.join(', ')
+                : fallbackTeacher.subject || 'Teaching Staff',
               email: cleanEmail,
               role: 'teacher',
               approved: true,
@@ -195,7 +249,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
             }
           }
         } else {
-          setErrorMsg('Invalid email or password. Registered teachers may sign in with their school email and TSC number.');
+          setErrorMsg('Invalid login details. Registered teachers may sign in with their Registered Phone (or Email) and Staff / National ID.');
         }
       } else if (code === 'auth/too-many-requests') {
         setErrorMsg('Too many failed attempts. Please wait a few minutes and retry.');
