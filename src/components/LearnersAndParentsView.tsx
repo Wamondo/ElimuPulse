@@ -68,31 +68,61 @@ export const LearnersAndParentsView: React.FC<LearnersAndParentsViewProps> = ({
     grades: configuredGrades,
     updateLearner,
     deleteLearner,
+    requestLearnerDeletion,
+    approveLearnerDeletion,
+    rejectLearnerDeletion,
   } = useApp();
 
-  // Strict Permission Check: Only HOI (Head of Institution) and App Owner are authorized to edit and delete registered learners
-  const isHoiOrOwner = React.useMemo(() => {
+  const isHoiOrAdminOrOwner = React.useMemo(() => {
+    if (isOwner) return true;
     if (!currentUser) return false;
-    // 1. Verified App Owner
-    if (currentUser?.isOwner) return true;
-    if (currentUser?.ownerDesignation === 'owner' || currentUser?.ownerDesignation === 'hoi') return true;
-    if (currentUser?.id === 'user-owner-main') return true;
+    return Boolean(currentUser.isOwner) || currentUser.role === 'admin';
+  }, [currentUser, isOwner]);
 
-    // 2. Head of Institution (HOI / Principal)
-    if ((currentUser?.role === 'admin' || currentUser?.isOwner)) {
-      const title = (currentUser?.title || '').toLowerCase();
-      const email = (currentUser?.email || '').toLowerCase();
-      const id = currentUser?.id || '';
-      return (
-        id === 'user-admin-1' ||
-        title.includes('head of') ||
-        title.includes('principal') ||
-        title.includes('hoi') ||
-        email.includes('principal')
-      );
+  const isClassTeacher = React.useMemo(() => {
+    if (!currentUser) return false;
+    const u = currentUser as Record<string, unknown>;
+    if (Boolean(u.isClassTeacher) || Boolean(u.assignedClass) || Boolean(u.classTeacherFor)) {
+      return true;
     }
-    return false;
-  }, [currentUser]);
+    const userId = currentUser.id;
+    const userName = (currentUser.name || '').trim().toLowerCase();
+    return Array.isArray(configuredGrades) && configuredGrades.some((g: Record<string, unknown>) => {
+      const ctId = String(g.classTeacherId || '');
+      const ctName = String(g.classTeacher || g.classTeacherName || '').trim().toLowerCase();
+      return (userId && ctId === userId) || (userName && ctName === userName);
+    });
+  }, [currentUser, configuredGrades]);
+
+  // Only Owner, Admins, and Class Teachers (not plain subject teachers) can manage learner edit/delete
+  const canManageLearnerRecords = isHoiOrAdminOrOwner || isClassTeacher;
+
+  const handleLearnerDeleteClick = async (learner: LearnerRecord) => {
+    const learnerAny = learner as LearnerRecord & { pendingHoiDeletion?: boolean };
+    if (learnerAny.pendingHoiDeletion && isHoiOrAdminOrOwner) {
+      if (window.confirm(`Approve permanent deletion of ${learner.firstName} ${learner.lastName} (${learner.studentId})?`)) {
+        await approveLearnerDeletion(learner.id);
+      }
+      return;
+    }
+
+    if (isHoiOrAdminOrOwner) {
+      if (window.confirm(`Delete ${learner.firstName} ${learner.lastName} (${learner.studentId}) permanently?`)) {
+        await deleteLearner(learner.id);
+      }
+      return;
+    }
+
+    if (isClassTeacher) {
+      if (
+        window.confirm(
+          `Submit deletion request for ${learner.firstName} ${learner.lastName} (${learner.studentId}) for HOI approval? The learner will remain virtually in the school until HOI approves.`
+        )
+      ) {
+        requestLearnerDeletion(learner.id);
+      }
+    }
+  };
 
   // Persistent search query in localStorage for fast navigation across tabs
   const [searchQuery, setSearchQueryState] = useState(() => {
@@ -577,12 +607,44 @@ export const LearnersAndParentsView: React.FC<LearnersAndParentsViewProps> = ({
                 </div>
               </div>
 
-              {/* Exclusive Action Bar: Restricted to HOI and Owner accounts ONLY */}
-              {isHoiOrOwner && (
+              {(learner as LearnerRecord & { pendingHoiDeletion?: boolean }).pendingHoiDeletion && (
+                <div className="px-4 py-2 bg-amber-50 border-t border-amber-200 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                  <span className="font-semibold text-amber-900">
+                    Pending HOI Deletion Approval (Virtually Active in School)
+                  </span>
+                  {isHoiOrAdminOrOwner && (
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          approveLearnerDeletion(learner.id);
+                        }}
+                        className="px-2 py-0.5 font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded cursor-pointer"
+                      >
+                        Approve Delete
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          rejectLearnerDeletion(learner.id);
+                        }}
+                        className="px-2 py-0.5 font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 rounded cursor-pointer"
+                      >
+                        Keep Learner
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Action Bar: Restricted to Owner, Admins, and Class Teachers */}
+              {canManageLearnerRecords && (
                 <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-2">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
                     <Shield className="w-3 h-3 text-indigo-500" />
-                    HOI &amp; Owner
+                    {isHoiOrAdminOrOwner ? 'Owner / Admin' : 'Class Teacher'}
                   </span>
                   <div className="flex items-center gap-2">
                     <button
@@ -845,7 +907,7 @@ export const LearnersAndParentsView: React.FC<LearnersAndParentsViewProps> = ({
 
             {/* Footer with HOI and Owner Actions */}
             <div className="px-6 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between gap-3">
-              {isHoiOrOwner ? (
+              {canManageLearnerRecords ? (
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
@@ -856,7 +918,7 @@ export const LearnersAndParentsView: React.FC<LearnersAndParentsViewProps> = ({
                     title="Edit Learner and Parent Record (HOI and Owner only)"
                   >
                     <Pencil className="w-3.5 h-3.5 text-indigo-600" />
-                    <span>Edit Profile (HOI/Owner)</span>
+                    <span>Edit Profile</span>
                   </button>
                   <button
                     type="button"

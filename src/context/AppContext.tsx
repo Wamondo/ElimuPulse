@@ -181,6 +181,9 @@ interface AppContextType {
   ) => Promise<void>;
   updateLearner: (id: string, updates: Partial<LearnerRecord>) => void;
   deleteLearner: (id: string) => Promise<void>;
+  requestLearnerDeletion: (learnerId: string) => void;
+  approveLearnerDeletion: (learnerId: string) => Promise<void>;
+  rejectLearnerDeletion: (learnerId: string) => void;
   updateParent: (id: string, updates: Partial<ParentRecord>) => void;
   
   // Fee Payments
@@ -2084,6 +2087,39 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     addAuditLog('Updated Learner Profile', `Modified details for learner ${id}`);
   };
 
+  const requestLearnerDeletion = (learnerId: string) => {
+    const target = learners.find((l) => l.id === learnerId);
+    if (!target) return;
+    const requestedBy = currentUser?.name || currentUser?.email || 'Class Teacher';
+    updateLearner(learnerId, {
+      pendingHoiDeletion: true,
+      deletionRequestedBy: requestedBy,
+      deletionRequestedAt: new Date().toISOString(),
+    } as Partial<LearnerRecord>);
+    addAuditLog(
+      'Learner Deletion Pending HOI Approval',
+      `Class teacher ${requestedBy} requested deletion for ${target.firstName} ${target.lastName} (${target.studentId}). Learner remains active in the school until HOI approves.`
+    );
+  };
+
+  const approveLearnerDeletion = async (learnerId: string) => {
+    await deleteLearner(learnerId);
+  };
+
+  const rejectLearnerDeletion = (learnerId: string) => {
+    const target = learners.find((l) => l.id === learnerId);
+    if (!target) return;
+    updateLearner(learnerId, {
+      pendingHoiDeletion: false,
+      deletionRequestedBy: undefined,
+      deletionRequestedAt: undefined,
+    } as Partial<LearnerRecord>);
+    addAuditLog(
+      'Learner Deletion Declined by HOI',
+      `HOI retained ${target.firstName} ${target.lastName} (${target.studentId}) in the school.`
+    );
+  };
+
   const deleteLearner = async (id: string) => {
     const target = learners.find((l) => l.id === id);
     if (!target) return;
@@ -3446,6 +3482,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         addLearnerWithParent,
         updateLearner,
         deleteLearner,
+      requestLearnerDeletion,
+      approveLearnerDeletion,
+      rejectLearnerDeletion,
         updateParent,
         recordPayment,
         batchDispatchReminders,
