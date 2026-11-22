@@ -171,13 +171,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         createdAt: Date.now(),
       };
 
-      await saveDocumentToFirestore('settings', {
-        id: `staff_request_${cred.user.uid}`,
-        type: 'staff_access_request',
-        uid: cred.user.uid,
-        ...newProfile,
-      });
-      await set(ref(rtdb, `users/${cred.user.uid}`), newProfile).catch(() => {});
+      await set(ref(rtdb, `users/${cred.user.uid}`), newProfile);
       setPendingUser(cred.user);
       setPendingProfile(newProfile);
     } catch (err: any) {
@@ -205,29 +199,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     if (!pendingUser) return;
     setIsLoading(true);
     try {
-      const fsReq = await fetchDocumentFromFirestore<any>('settings', `staff_request_${pendingUser.uid}`);
-      if (fsReq && fsReq.approved === true) {
-        await set(ref(rtdb, `users/${pendingUser.uid}`), { ...fsReq, approved: true }).catch(() => {});
-        unlockAppWithProfile(pendingUser, fsReq as StaffProfile);
-        return;
-      }
       const snap = await get(ref(rtdb, `users/${pendingUser.uid}`));
       const profile = snap.val() as StaffProfile | null;
       if (profile && profile.approved === true) {
         unlockAppWithProfile(pendingUser, profile);
       } else {
-        await saveDocumentToFirestore('settings', {
-          id: `staff_request_${pendingUser.uid}`,
-          type: 'staff_access_request',
-          uid: pendingUser.uid,
-          name: pendingProfile?.name || pendingUser.email?.split('@')[0] || 'Staff Applicant',
-          email: pendingUser.email || '',
-          subject: pendingProfile?.subject || 'Teaching Staff',
-          role: 'teacher',
-          approved: false,
-          schoolId: pendingProfile?.schoolId || currentSchoolId || 'default',
-          createdAt: pendingProfile?.createdAt || Date.now(),
-        }).catch(() => {});
         setErrorMsg('Still awaiting Admin approval. Please check again shortly.');
       }
     } finally {

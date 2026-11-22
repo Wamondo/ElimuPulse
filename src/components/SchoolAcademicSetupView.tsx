@@ -61,31 +61,26 @@ export const SchoolAcademicSetupView: React.FC = () => {
   const loadStaffRequests = async () => {
     setIsRefreshingReqs(true);
     setReqSyncError(null);
-    const merged = new Map<string, any>();
     try {
-      const allSettings = await fetchCollectionFromFirestore<any>('settings');
-      allSettings
-        .filter((item) => item?.type === 'staff_access_request' || String(item?.id || '').startsWith('staff_request_'))
-        .forEach((item) => {
-          const uid = item.uid || String(item.id).replace('staff_request_', '');
-          merged.set(uid, {
-            uid,
-            name: item.name || 'Unnamed Staff',
-            email: item.email || '',
-            subject: item.subject || 'Teaching Staff',
-            role: item.role === 'admin' ? 'admin' : 'teacher',
-            approved: item.approved === true,
-            schoolId: item.schoolId || 'default',
-            createdAt: item.createdAt || 0,
-          });
-        });
+      const { get: rtdbGet } = await import('firebase/database');
+      const snap = await rtdbGet(ref(rtdb, 'users'));
+      const val = snap.val() || {};
+      const list = Object.entries(val).map(([uid, data]: [string, any]) => ({
+        uid,
+        name: data?.name || 'Unnamed Staff',
+        email: data?.email || '',
+        subject: data?.subject || 'Teaching Staff',
+        role: data?.role === 'admin' ? 'admin' : 'teacher',
+        approved: data?.approved === true,
+        schoolId: data?.schoolId || 'default',
+        createdAt: data?.createdAt || 0,
+      }));
+      setStaffRequests(list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)));
     } catch (e: any) {
-      console.warn('Firestore staff requests read fallback:', e);
-      setReqSyncError(e?.message || 'Could not read staff requests from cloud.');
+      setReqSyncError(e?.message || 'Could not load requests from Realtime Database.');
     } finally {
       setIsRefreshingReqs(false);
     }
-    setStaffRequests(Array.from(merged.values()).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)));
   };
 
   useEffect(() => {
@@ -120,22 +115,12 @@ export const SchoolAcademicSetupView: React.FC = () => {
   }, []);
 
   const handleApproveStaffRequest = async (uid: string, role: 'teacher' | 'admin') => {
-    const existing = staffRequests.find((r) => r.uid === uid);
-    await saveDocumentToFirestore('settings', {
-      id: `staff_request_${uid}`,
-      type: 'staff_access_request',
-      uid,
-      ...(existing || {}),
-      approved: true,
-      role,
-    });
-    await update(ref(rtdb, `users/${uid}`), { approved: true, role }).catch(() => {});
+    await update(ref(rtdb, `users/${uid}`), { approved: true, role });
     setStaffRequests((prev) => prev.map((r) => (r.uid === uid ? { ...r, approved: true, role } : r)));
   };
 
   const handleRejectStaffRequest = async (uid: string) => {
-    await deleteDocumentFromFirestore('settings', `staff_request_${uid}`).catch(() => {});
-    await remove(ref(rtdb, `users/${uid}`)).catch(() => {});
+    await remove(ref(rtdb, `users/${uid}`));
     setStaffRequests((prev) => prev.filter((r) => r.uid !== uid));
   };
 
