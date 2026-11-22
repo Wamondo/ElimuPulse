@@ -86,6 +86,7 @@ interface AppContextType {
   isAuthenticated: boolean;
   isOwner: boolean;
   switchUser: (session: UserSession) => void;
+  loginAsLearner: (studentOrUpiInput: string) => { success: boolean; error?: string; learner?: LearnerRecord };
   switchRole: (role: UserRole) => void;
   switchOwnerResponsibility: (designation: OwnerDesignation, teacherGrade?: string) => void;
   loginWithCredentials: (
@@ -1106,6 +1107,53 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       securityFlag,
     };
     setAuditLogs((prev) => [newEntry, ...prev.slice(0, 49)]);
+  };
+
+  const loginAsLearner = (studentOrUpiInput: string): { success: boolean; error?: string; learner?: LearnerRecord } => {
+    const query = studentOrUpiInput.trim().toLowerCase();
+    if (!query) {
+      return { success: false, error: 'Please enter your Student Number or UPI Number.' };
+    }
+    const matched = learners.find((l) => {
+      const rec = l as LearnerRecord & { upi?: string; upiNumber?: string; nemisUpi?: string; admissionNumber?: string };
+      const candidates = [
+        l.studentId,
+        rec.admissionNumber,
+        rec.upi,
+        rec.upiNumber,
+        rec.nemisUpi,
+      ]
+        .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+        .map((v) => v.trim().toLowerCase());
+      return candidates.includes(query);
+    });
+
+    if (!matched) {
+      return {
+        success: false,
+        error: 'No learner record found matching that Student Number or UPI Number.',
+      };
+    }
+
+    const learnerSession: UserSession = {
+      id: `learner-session-${matched.id}`,
+      name: `${matched.firstName} ${matched.lastName}`,
+      role: 'learner' as UserRole,
+      email: '',
+      phone: '',
+      idNumber: matched.studentId,
+      learnerId: matched.id,
+      parentId: matched.parentId,
+      teacherGrade: matched.grade,
+    };
+
+    setCurrentUser(learnerSession);
+    setIsAuthenticated(true);
+    if (matched.schoolId && matched.schoolId !== currentSchoolId) {
+      switchActiveSchool(matched.schoolId, true);
+    }
+    addAuditLog('Learner Portal Login', `Learner ${matched.firstName} ${matched.lastName} (${matched.studentId}) signed in.`);
+    return { success: true, learner: matched };
   };
 
   const switchUser = (session: UserSession) => {
@@ -3443,6 +3491,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         isAuthenticated,
         isOwner,
         switchUser,
+      loginAsLearner,
         switchRole,
         switchOwnerResponsibility,
         loginWithCredentials,
