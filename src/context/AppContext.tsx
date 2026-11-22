@@ -3422,7 +3422,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, [currentUser]);
 
-  const isOwner = Boolean(currentUser?.isOwner || currentUser?.role || currentUser?.role || (currentUser?.phone && (normalizeKenyanPhone(currentUser?.phone) === '0716235185' || currentUser?.phone === '0716235185'))
+  const isOwner = Boolean(
+    currentUser?.role !== 'teacher' &&
+    currentUser?.role !== 'parent' &&
+    currentUser?.role !== 'learner' &&
+    (currentUser?.isOwner ||
+      currentUser?.role === 'superadmin' ||
+      (currentUser?.phone &&
+        (normalizeKenyanPhone(currentUser?.phone) === '0716235185' ||
+          currentUser?.phone === '0716235185')))
   );
 
   // Scoped data arrays strictly isolated to current active school AND valid existing learners

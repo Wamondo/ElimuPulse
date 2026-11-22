@@ -298,11 +298,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <div className="text-left flex items-center gap-1.5">
                   <div>
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="font-black text-base tracking-tight text-indigo-700 leading-tight">
-                        ElimuPulse
-                      </span>
-                      <span className="text-slate-300">·</span>
-                      <span className="font-extrabold text-sm tracking-tight text-slate-900 leading-tight truncate max-w-[170px] sm:max-w-none">
+                      {currentUser?.role !== 'teacher' && (
+                        <>
+                          <span className="font-black text-base tracking-tight text-indigo-700 leading-tight">
+                            ElimuPulse
+                          </span>
+                          <span className="text-slate-300">·</span>
+                        </>
+                      )}
+                      <span className="font-extrabold text-sm tracking-tight text-slate-900 leading-tight truncate max-w-[210px] sm:max-w-none">
                         {schoolProfile?.name || 'Comprehensive School'}
                       </span>
                     </div>
