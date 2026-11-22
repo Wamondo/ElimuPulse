@@ -292,6 +292,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return [];
   });
 
+  useEffect(() => {
+    try {
+      localStorage.setItem(`${STORAGE_KEY_PREFIX}learners`, JSON.stringify(learners));
+    } catch { /* ignore */ }
+  }, [learners]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(`${STORAGE_KEY_PREFIX}parents`, JSON.stringify(parents));
+    } catch { /* ignore */ }
+  }, [parents]);
+
   const [feeStructures, setFeeStructures] = useState<FeeStructure[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_KEY_PREFIX}fee_structures`);
     if (saved) {
@@ -891,9 +903,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             try {
               const schoolKey = currentSchoolId || 'sch-001';
               const rtdbLearnersSnap = await get(ref(rtdb, `schools/${schoolKey}/learners`));
+              const fallbackSnap = schoolKey !== 'sch-001' ? await get(ref(rtdb, `schools/sch-001/learners`)) : null;
+              const mergedMap = new Map<string, LearnerRecord>();
+              if (fallbackSnap && fallbackSnap.exists()) {
+                for (const item of Object.values(fallbackSnap.val()) as LearnerRecord[]) {
+                  if (item?.id) mergedMap.set(item.id, item);
+                }
+              }
               if (rtdbLearnersSnap.exists()) {
-                const list = Object.values(rtdbLearnersSnap.val()) as LearnerRecord[];
-                if (list.length > 0) setLearners(list);
+                for (const item of Object.values(rtdbLearnersSnap.val()) as LearnerRecord[]) {
+                  if (item?.id) mergedMap.set(item.id, item);
+                }
+              }
+              if (mergedMap.size > 0) {
+                setLearners((prev) => {
+                  const byId = new Map(prev.map((l) => [l.id, l]));
+                  mergedMap.forEach((v, k) => byId.set(k, v));
+                  return Array.from(byId.values());
+                });
               }
             } catch (_) {}
           }
@@ -911,9 +938,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             try {
               const schoolKey = currentSchoolId || 'sch-001';
               const rtdbParentsSnap = await get(ref(rtdb, `schools/${schoolKey}/parents`));
+              const fallbackParentSnap = schoolKey !== 'sch-001' ? await get(ref(rtdb, `schools/sch-001/parents`)) : null;
+              const mergedParents = new Map<string, ParentRecord>();
+              if (fallbackParentSnap && fallbackParentSnap.exists()) {
+                for (const item of Object.values(fallbackParentSnap.val()) as ParentRecord[]) {
+                  if (item?.id) mergedParents.set(item.id, item);
+                }
+              }
               if (rtdbParentsSnap.exists()) {
-                const list = Object.values(rtdbParentsSnap.val()) as ParentRecord[];
-                if (list.length > 0) setParents(list);
+                for (const item of Object.values(rtdbParentsSnap.val()) as ParentRecord[]) {
+                  if (item?.id) mergedParents.set(item.id, item);
+                }
+              }
+              if (mergedParents.size > 0) {
+                setParents((prev) => {
+                  const byId = new Map(prev.map((p) => [p.id, p]));
+                  mergedParents.forEach((v, k) => byId.set(k, v));
+                  return Array.from(byId.values());
+                });
               }
             } catch (_) {}
           }
@@ -2026,6 +2068,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (l.id === id) {
           const updated = { ...l, ...updates };
           saveDocumentToFirestore('learners', updated).catch((e) => console.warn('Firestore write error:', e));
+          const schId = updated.schoolId || currentSchoolId || 'sch-001';
+          set(ref(rtdb, `schools/${schId}/learners/${updated.id}`), updated).catch(() => {});
           return updated;
         }
         return l;
@@ -2037,6 +2081,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const deleteLearner = async (id: string) => {
     const target = learners.find((l) => l.id === id);
     if (!target) return;
+    const targetSchoolId = target.schoolId || currentSchoolId || 'sch-001';
+    remove(ref(rtdb, `schools/${targetSchoolId}/learners/${id}`)).catch(() => {});
 
     const remainingLearners = learners.filter((l) => l.id !== id);
     const fsToDelete = feeStructures.filter((fs) => fs.learnerId === id);
