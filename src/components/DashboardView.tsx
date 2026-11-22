@@ -434,6 +434,65 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
 
+        {requestStatusMsg && (
+          <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-950 flex items-center justify-between gap-3">
+            <span className="font-medium">{requestStatusMsg}</span>
+            <button
+              type="button"
+              onClick={() => setRequestStatusMsg(null)}
+              className="text-[11px] font-semibold text-amber-800 underline cursor-pointer"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
+        <div className="bg-white rounded-xl p-5 border border-slate-200 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <h2 className="text-sm font-bold text-slate-900">
+                Request Marks Upload ({representedGrade})
+              </h2>
+              <p className="text-xs text-slate-500">
+                Send a push notification to Subject Teachers to unlock mark uploads for {representedGrade}.
+              </p>
+            </div>
+            <span className="text-[11px] font-mono text-slate-500">
+              {markRequests.filter((r) => r.grade === representedGrade && r.active).length} active request(s)
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {Array.from(
+              new Set(
+                scoreCards
+                  .filter((sc) => gradeLearners.some((l) => l.id === sc.learnerId))
+                  .flatMap((sc) => sc.subjects.map((s) => s.subjectName))
+              )
+            ).map((subjName) => {
+              const alreadyRequested = markRequests.some(
+                (r) =>
+                  r.active &&
+                  r.grade === representedGrade &&
+                  (r.subject === subjName || r.subject === 'All Subject Areas')
+              );
+              return (
+                <button
+                  key={subjName}
+                  type="button"
+                  onClick={() => sendMarkUploadPushRequest(representedGrade, subjName)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${
+                    alreadyRequested
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                      : 'bg-slate-50 hover:bg-amber-50 text-slate-800 hover:text-amber-900 border-slate-200 hover:border-amber-300'
+                  }`}
+                >
+                  {alreadyRequested ? `Requested · ${subjName}` : `Request ${subjName} Marks`}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Grade KPI Strip */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-white p-5 rounded-xl border border-slate-200">
