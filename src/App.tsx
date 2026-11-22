@@ -14,6 +14,7 @@ import { EnrollLearnerModal } from './components/EnrollLearnerModal';
 import { SecurityModal, AuditLogModal } from './components/SecurityModals';
 import { OfficialProductionCenterModal } from './components/OfficialProductionCenterModal';
 import { LoginScreen } from './components/LoginScreen';
+import { LearnerLearningAreasView } from './components/LearnerLearningAreasView';
 import { PWAInstallButton } from './components/PWAInstallButton';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { ShieldCheck, Lock, User, RefreshCw, KeyRound, LogOut, Database, Sparkles } from 'lucide-react';
@@ -22,6 +23,7 @@ const MainLayout: React.FC = () => {
   const {
     currentUser,
     resetToDefault,
+    currentUser,
     isAuthenticated,
     isOwner,
     logout,
@@ -49,6 +51,10 @@ const MainLayout: React.FC = () => {
   // If user is not authenticated, display the Login Screen
   if (!isAuthenticated) {
     return <LoginScreen onLoginSuccess={() => setActiveTab('dashboard')} />;
+  }
+
+  if (currentUser?.role === 'learner') {
+    return <LearnerLearningAreasView />;
   }
 
   const handleOpenRecordPayment = (learnerId?: string) => {
