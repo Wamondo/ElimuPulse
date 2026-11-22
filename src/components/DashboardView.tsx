@@ -59,6 +59,45 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   } = useApp();
 
   const [dispatchNotice, setDispatchNotice] = useState<string | null>(null);
+  const [subjectAssignments, setSubjectAssignments] = useState<Array<{
+    id: string;
+    learningArea: string;
+    grade: string;
+    title: string;
+    instructions: string;
+    dueDate: string;
+    teacherName: string;
+    status: 'todo' | 'marked';
+    score?: string;
+    feedback?: string;
+    createdAt: string;
+  }>>(() => {
+    try {
+      const raw = localStorage.getItem('elimupulse_learning_area_assignments');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [selectedTeacherArea, setSelectedTeacherArea] = useState<string>('');
+  const [assignGrade, setAssignGrade] = useState<string>('All Grades');
+  const [assignTitle, setAssignTitle] = useState<string>('');
+  const [assignInstructions, setAssignInstructions] = useState<string>('');
+  const [assignDueDate, setAssignDueDate] = useState<string>('');
+  const [markingId, setMarkingId] = useState<string | null>(null);
+  const [markScoreInput, setMarkScoreInput] = useState<string>('EE1 (88%)');
+  const [markFeedbackInput, setMarkFeedbackInput] = useState<string>('Well done; meets competency expectations.');
+  const [assignToast, setAssignToast] = useState<string | null>(null);
+
+  const persistSubjectAssignments = (nextList: typeof subjectAssignments) => {
+    setSubjectAssignments(nextList);
+    try {
+      localStorage.setItem('elimupulse_learning_area_assignments', JSON.stringify(nextList));
+      window.dispatchEvent(new Event('elimupulse-assignments-updated'));
+    } catch {
+      // ignore storage errors
+    }
+  };
 
   // =====================
   // 1. PARENT ROLE SPECIFIC DASHBOARD VIEW
@@ -697,6 +736,283 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
             <p className="text-xs text-slate-500 mt-1">Across represented curriculum</p>
           </div>
+        </div>
+
+        {/* Learning Area Assignments (Assignments to Be Done & Assignments Marked) */}
+        <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+            <div>
+              <h2 className="text-sm font-bold text-slate-900">
+                Learning Area Assignments (Send to Learners &amp; Mark)
+              </h2>
+              <p className="text-xs text-slate-500">
+                Select a registered learning area to send an assignment directly to the Learner Portal or mark completed work.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {registeredSubjects.map((area) => {
+                const activeArea = selectedTeacherArea || registeredSubjects[0];
+                const isSelected = activeArea === area;
+                return (
+                  <button
+                    key={area}
+                    type="button"
+                    onClick={() => setSelectedTeacherArea(area)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${
+                      isSelected
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    {area}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {assignToast && (
+            <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 flex items-center justify-between gap-2">
+              <span className="font-medium">{assignToast}</span>
+              <button
+                type="button"
+                onClick={() => setAssignToast(null)}
+                className="text-[11px] font-semibold underline cursor-pointer"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
+
+          {(() => {
+            const activeArea = selectedTeacherArea || registeredSubjects[0];
+            const areaItems = subjectAssignments.filter(
+              (a) => a.learningArea.trim().toLowerCase() === activeArea.trim().toLowerCase()
+            );
+            const toDoItems = areaItems.filter((a) => a.status === 'todo');
+            const markedItems = areaItems.filter((a) => a.status === 'marked');
+
+            return (
+              <div className="space-y-4">
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!assignTitle.trim()) return;
+                    const created = {
+                      id: `asgn-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                      learningArea: activeArea,
+                      grade: assignGrade || 'All Grades',
+                      title: assignTitle.trim(),
+                      instructions:
+                        assignInstructions.trim() ||
+                        `Complete the ${activeArea} task and submit your work before the due date.`,
+                      dueDate: assignDueDate.trim() || 'Due This Week',
+                      teacherName: currentUser?.name || 'Subject Teacher',
+                      status: 'todo' as const,
+                      createdAt: new Date().toISOString(),
+                    };
+                    persistSubjectAssignments([created, ...subjectAssignments]);
+                    setAssignTitle('');
+                    setAssignInstructions('');
+                    setAssignDueDate('');
+                    setAssignToast(
+                      `Sent "${created.title}" to Learner Portal under ${activeArea} (${created.grade}).`
+                    );
+                  }}
+                  className="grid grid-cols-1 md:grid-cols-4 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200"
+                >
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Target Grade / Class
+                    </label>
+                    <select
+                      value={assignGrade}
+                      onChange={(e) => setAssignGrade(e.target.value)}
+                      className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                    >
+                      <option value="All Grades">All Grades</option>
+                      {grades.map((g) => (
+                        <option key={g.id} value={g.name}>
+                          {g.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Assignment Title *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={assignTitle}
+                      onChange={(e) => setAssignTitle(e.target.value)}
+                      placeholder={`e.g. ${activeArea} Task 1`}
+                      className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Instructions / Questions
+                    </label>
+                    <input
+                      type="text"
+                      value={assignInstructions}
+                      onChange={(e) => setAssignInstructions(e.target.value)}
+                      placeholder="Describe exercises or pages..."
+                      className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                    />
+                  </div>
+                  <div className="flex flex-col justify-between gap-2">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                        Due Date
+                      </label>
+                      <input
+                        type="text"
+                        value={assignDueDate}
+                        onChange={(e) => setAssignDueDate(e.target.value)}
+                        placeholder="e.g. Friday 4:00 PM"
+                        className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      className="w-full py-1.5 px-3 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg cursor-pointer"
+                    >
+                      Send to Learners ({activeArea})
+                    </button>
+                  </div>
+                </form>
+
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Assignments to Be Done */}
+                  <div className="border border-amber-200 bg-amber-50/30 rounded-xl p-3.5 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xs font-bold text-amber-950">
+                        Assignments to Be Done ({toDoItems.length})
+                      </h3>
+                      <span className="text-[10px] font-semibold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">
+                        Live on Learner Portal
+                      </span>
+                    </div>
+                    {toDoItems.length === 0 ? (
+                      <p className="text-xs text-slate-500">
+                        No active assignments sent in {activeArea} yet.
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {toDoItems.map((item) => (
+                          <div
+                            key={item.id}
+                            className="p-2.5 bg-white border border-amber-200 rounded-lg space-y-2"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <p className="text-xs font-bold text-slate-900">{item.title}</p>
+                                <p className="text-[11px] text-slate-600">{item.instructions}</p>
+                                <p className="text-[10px] font-semibold text-amber-800 mt-0.5">
+                                  {item.grade} · {item.dueDate}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setMarkingId(markingId === item.id ? null : item.id);
+                                }}
+                                className="px-2.5 py-1 text-[11px] font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-md shrink-0 cursor-pointer"
+                              >
+                                Mark Assignment
+                              </button>
+                            </div>
+                            {markingId === item.id && (
+                              <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row gap-2">
+                                <input
+                                  type="text"
+                                  value={markScoreInput}
+                                  onChange={(e) => setMarkScoreInput(e.target.value)}
+                                  placeholder="Score e.g. EE1 (90%)"
+                                  className="px-2 py-1 text-xs border border-slate-300 rounded-md sm:w-28"
+                                />
+                                <input
+                                  type="text"
+                                  value={markFeedbackInput}
+                                  onChange={(e) => setMarkFeedbackInput(e.target.value)}
+                                  placeholder="Teacher remarks..."
+                                  className="px-2 py-1 text-xs border border-slate-300 rounded-md flex-1"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const updated = subjectAssignments.map((a) =>
+                                      a.id === item.id
+                                        ? {
+                                            ...a,
+                                            status: 'marked' as const,
+                                            score: markScoreInput.trim() || 'Marked',
+                                            feedback:
+                                              markFeedbackInput.trim() ||
+                                              'Marked by subject teacher.',
+                                          }
+                                        : a
+                                    );
+                                    persistSubjectAssignments(updated);
+                                    setMarkingId(null);
+                                    setAssignToast(
+                                      `Marked "${item.title}" and published to Learner Portal under ${activeArea}.`
+                                    );
+                                  }}
+                                  className="px-2.5 py-1 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-md cursor-pointer"
+                                >
+                                  Publish Marked
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Assignments Marked */}
+                  <div className="border border-emerald-200 bg-emerald-50/30 rounded-xl p-3.5 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xs font-bold text-emerald-950">
+                        Assignments Marked ({markedItems.length})
+                      </h3>
+                      <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">
+                        Published to Learners
+                      </span>
+                    </div>
+                    {markedItems.length === 0 ? (
+                      <p className="text-xs text-slate-500">
+                        No marked assignments published in {activeArea} yet.
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {markedItems.map((item) => (
+                          <div
+                            key={item.id}
+                            className="p-2.5 bg-white border border-emerald-200 rounded-lg flex items-start justify-between gap-2"
+                          >
+                            <div>
+                              <p className="text-xs font-bold text-slate-900">{item.title}</p>
+                              <p className="text-[11px] text-slate-600">{item.feedback}</p>
+                              <p className="text-[10px] text-slate-500 mt-0.5">{item.grade}</p>
+                            </div>
+                            <span className="px-2 py-0.5 text-[11px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-200 rounded shrink-0">
+                              {item.score}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Subject Grading Entry Table */}
