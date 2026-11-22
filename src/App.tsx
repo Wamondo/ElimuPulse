@@ -23,7 +23,6 @@ const MainLayout: React.FC = () => {
   const {
     currentUser,
     resetToDefault,
-    currentUser,
     isAuthenticated,
     isOwner,
     logout,
