@@ -1420,20 +1420,27 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       };
     }
 
-    // 1. Check Parent Records
-    const matchedParent = parents.find(
-      (p) =>
-        (phoneMatch(p.phone, cleanPhone) ||
-          (p.alternatePhone && phoneMatch(p.alternatePhone, cleanPhone))) &&
-        idMatch(p.nationalId, rawId)
-    );
+    // 1. Check Parent Records (matches Parent National ID OR Linked Learner Admission Number)
+    let matchedChildByAdm = learners.find((l) => idMatch(l.studentId, rawId));
+    const matchedParent = parents.find((p) => {
+      const phoneOk =
+        phoneMatch(p.phone, cleanPhone) ||
+        (p.alternatePhone && phoneMatch(p.alternatePhone, cleanPhone));
+      if (!phoneOk) return false;
+      const parentChildren = learners.filter((l) => l.parentId === p.id);
+      const admOk = parentChildren.some((l) => idMatch(l.studentId, rawId));
+      return idMatch(p.nationalId, rawId) || admOk;
+    });
 
     if (matchedParent) {
       const parentSchoolId = matchedParent.schoolId || 'sch-001';
       const targetSchool = registeredSchools.find((s) => s.id === parentSchoolId) || schoolProfile;
       switchActiveSchool(targetSchool.id, true);
 
-      const child = learners.find((l) => l.parentId === matchedParent.id);
+      const child =
+        (matchedChildByAdm && matchedChildByAdm.parentId === matchedParent.id
+          ? matchedChildByAdm
+          : undefined) || learners.find((l) => l.parentId === matchedParent.id);
       const session: UserSession = {
         id: `session-parent-${matchedParent.id}`,
         name: matchedParent.fullName,

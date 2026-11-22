@@ -58,6 +58,39 @@ export const SchoolAcademicSetupView: React.FC = () => {
     createdAt?: number;
   }>>([]);
 
+  const ensureApprovedTeacherInRegistry = (req: {
+    uid: string;
+    name: string;
+    email: string;
+    subject?: string;
+    schoolId?: string;
+  }) => {
+    const cleanEmail = (req.email || '').trim().toLowerCase();
+    const cleanName = (req.name || '').trim().toLowerCase();
+    const alreadyExists = teachers.some(
+      (t) =>
+        (cleanEmail && (t.email || '').trim().toLowerCase() === cleanEmail) ||
+        (cleanName && (t.name || '').trim().toLowerCase() === cleanName)
+    );
+    if (alreadyExists) return;
+
+    const subjectsList = (req.subject || 'Teaching Staff')
+      .split(/[,&/]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    addTeacher({
+      name: req.name || 'Approved Teacher',
+      phone: '0700000000',
+      nationalOrStaffId: `STAFF-${req.uid.slice(0, 6).toUpperCase()}`,
+      email: req.email || '',
+      teacherType: 'subject_teacher',
+      registeredSubjects: subjectsList.length > 0 ? subjectsList : ['General'],
+      department: req.subject || 'Academic Faculty',
+      schoolId: req.schoolId && req.schoolId !== 'default' ? req.schoolId : schoolProfile?.id,
+    });
+  };
+
   const loadStaffRequests = async () => {
     setIsRefreshingReqs(true);
     setReqSyncError(null);
@@ -75,7 +108,11 @@ export const SchoolAcademicSetupView: React.FC = () => {
         schoolId: data?.schoolId || 'default',
         createdAt: data?.createdAt || 0,
       }));
-      setStaffRequests(list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)));
+      const sorted = list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      setStaffRequests(sorted);
+      sorted
+        .filter((r) => r.approved && r.role === 'teacher')
+        .forEach((r) => ensureApprovedTeacherInRegistry(r));
     } catch (e: any) {
       setReqSyncError(e?.message || 'Could not load requests from Realtime Database.');
     } finally {
@@ -116,6 +153,10 @@ export const SchoolAcademicSetupView: React.FC = () => {
 
   const handleApproveStaffRequest = async (uid: string, role: 'teacher' | 'admin') => {
     await update(ref(rtdb, `users/${uid}`), { approved: true, role });
+    const targetReq = staffRequests.find((r) => r.uid === uid);
+    if (role === 'teacher' && targetReq) {
+      ensureApprovedTeacherInRegistry(targetReq);
+    }
     setStaffRequests((prev) => prev.map((r) => (r.uid === uid ? { ...r, approved: true, role } : r)));
   };
 
