@@ -118,7 +118,7 @@ export const EnrollLearnerModal: React.FC<EnrollLearnerModalProps> = ({
     } catch (err) {
       console.error(err);
       setIsSubmitting(false);
-      alert('Error creating encrypted student record.');
+      alert(`Error creating encrypted student record: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 

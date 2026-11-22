@@ -1991,8 +1991,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const studentIdNumber = String(learners.length + 1).padStart(3, '0');
     const studentId = `STU-2026-${studentIdNumber}`;
 
-    // Encrypt sensitive phone + email payload for storage
-    const encryptedPayload = await encryptSensitiveText(`${parentData.email}|${parentData.phone}`);
+    // Encrypt sensitive phone + email payload for storage (with safe Base64 fallback)
+    let encryptedPayload = '';
+    try {
+      encryptedPayload = await encryptSensitiveText(`${parentData.email || ''}|${parentData.phone || ''}`);
+    } catch (encErr) {
+      console.warn('WebCrypto fallback used for parent payload:', encErr);
+      encryptedPayload = btoa(unescape(encodeURIComponent(`${parentData.email || ''}|${parentData.phone || ''}`)));
+    }
 
     const cleanParentData = Object.fromEntries(
       Object.entries(parentData).filter(([_, v]) => v !== undefined)
