@@ -62,6 +62,13 @@ export const AttendanceRegisterView: React.FC<AttendanceRegisterViewProps> = ({
 
   const isParent = currentUser?.role === 'parent';
   const isClassTeacher = currentUser?.role === 'teacher' && currentUser?.teacherType === 'class_teacher';
+  const isSubjectTeacher = currentUser?.role === 'teacher' && !isClassTeacher;
+  const canMarkAttendance = Boolean(
+    isClassTeacher ||
+    currentUser?.role === 'admin' ||
+    currentUser?.role === 'superadmin' ||
+    currentUser?.isOwner
+  );
 
   const grades = useMemo(() => {
     if (isClassTeacher && currentUser?.teacherGrade) {
@@ -124,13 +131,14 @@ export const AttendanceRegisterView: React.FC<AttendanceRegisterViewProps> = ({
     return map;
   }, [attendance, selectedDate]);
 
-  // Handle single attendance toggle
+  // Handle single attendance toggle (Class Teacher / Owner / Admin only)
   const handleSetSessionStatus = (
     learnerId: string,
     session: AttendanceSession,
     status: AttendanceStatus,
     reason?: string
   ) => {
+    if (!canMarkAttendance) return;
     recordSingleAttendance({
       learnerId,
       date: selectedDate,
@@ -140,8 +148,9 @@ export const AttendanceRegisterView: React.FC<AttendanceRegisterViewProps> = ({
     });
   };
 
-  // Quick Action: Mark All for selected session or both
+  // Quick Action: Mark All for selected session or both (Class Teacher / Owner / Admin only)
   const handleBatchMark = (status: AttendanceStatus, session: 'morning' | 'afternoon' | 'both') => {
+    if (!canMarkAttendance) return;
     batchMarkClassAttendance(selectedDate, selectedGrade, status, session);
     const sessText = session === 'both' ? 'Both Morning & Afternoon (2 Sessions)' : `${session} Session`;
     setActionSuccessNotice(`Marked all ${classLearners.length} learners as ${status.toUpperCase()} for ${sessText}.`);
@@ -455,8 +464,15 @@ export const AttendanceRegisterView: React.FC<AttendanceRegisterViewProps> = ({
               </div>
             </div>
 
-            {/* Quick Batch Actions */}
-            {((currentUser?.role === 'admin' || currentUser?.isOwner) || currentUser?.role === 'teacher') && (
+            {/* Subject Teacher View-Only Notice */}
+            {isSubjectTeacher && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-700">
+                <span>View-Only Day&apos;s Attendance · Marked by Class Teacher</span>
+              </div>
+            )}
+
+            {/* Quick Batch Actions (Class Teacher / Owner / Admin Only) */}
+            {canMarkAttendance && (
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -577,7 +593,7 @@ export const AttendanceRegisterView: React.FC<AttendanceRegisterViewProps> = ({
                       </th>
                     )}
                     <th className="py-2.5 px-3 w-32 text-center">Day Total (Sessions / 2)</th>
-                    <th className="py-2.5 px-3 w-32">Daily Action</th>
+                    {canMarkAttendance && <th className="py-2.5 px-3 w-32">Daily Action</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -606,26 +622,42 @@ export const AttendanceRegisterView: React.FC<AttendanceRegisterViewProps> = ({
                         {(sessionFilter === 'both' || sessionFilter === 'morning') && (
                           <td className="py-2.5 px-3 bg-amber-50/20 border-r border-slate-100">
                             <div className="flex items-center gap-1.5">
-                              <select
-                                value={mStatus}
-                                onChange={(e) =>
-                                  handleSetSessionStatus(learner.id, 'morning', e.target.value as AttendanceStatus)
-                                }
-                                className={`px-2 py-1 rounded text-[11px] font-bold uppercase cursor-pointer border ${
-                                  mStatus === 'present'
-                                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                                    : mStatus === 'late'
-                                    ? 'bg-amber-50 text-amber-800 border-amber-300'
-                                    : mStatus === 'excused'
-                                    ? 'bg-indigo-50 text-indigo-800 border-indigo-300'
-                                    : 'bg-rose-50 text-rose-800 border-rose-300'
-                                }`}
-                              >
-                                <option value="present">Present</option>
-                                <option value="absent">Absent</option>
-                                <option value="late">Late</option>
-                                <option value="excused">Excused</option>
-                              </select>
+                              {canMarkAttendance ? (
+                                <select
+                                  value={mStatus}
+                                  onChange={(e) =>
+                                    handleSetSessionStatus(learner.id, 'morning', e.target.value as AttendanceStatus)
+                                  }
+                                  className={`px-2 py-1 rounded text-[11px] font-bold uppercase cursor-pointer border ${
+                                    mStatus === 'present'
+                                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                      : mStatus === 'late'
+                                      ? 'bg-amber-50 text-amber-800 border-amber-300'
+                                      : mStatus === 'excused'
+                                      ? 'bg-indigo-50 text-indigo-800 border-indigo-300'
+                                      : 'bg-rose-50 text-rose-800 border-rose-300'
+                                  }`}
+                                >
+                                  <option value="present">Present</option>
+                                  <option value="absent">Absent</option>
+                                  <option value="late">Late</option>
+                                  <option value="excused">Excused</option>
+                                </select>
+                              ) : (
+                                <span
+                                  className={`px-2 py-1 rounded text-[11px] font-bold uppercase border ${
+                                    mStatus === 'present'
+                                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                      : mStatus === 'late'
+                                      ? 'bg-amber-50 text-amber-800 border-amber-300'
+                                      : mStatus === 'excused'
+                                      ? 'bg-indigo-50 text-indigo-800 border-indigo-300'
+                                      : 'bg-rose-50 text-rose-800 border-rose-300'
+                                  }`}
+                                >
+                                  {mStatus}
+                                </span>
+                              )}
                               {morningRec?.reason && (
                                 <span className="text-[10px] text-slate-400 italic truncate max-w-[120px]" title={morningRec.reason}>
                                   ({morningRec.reason})
@@ -639,26 +671,42 @@ export const AttendanceRegisterView: React.FC<AttendanceRegisterViewProps> = ({
                         {(sessionFilter === 'both' || sessionFilter === 'afternoon') && (
                           <td className="py-2.5 px-3 bg-indigo-50/20 border-r border-slate-100">
                             <div className="flex items-center gap-1.5">
-                              <select
-                                value={aStatus}
-                                onChange={(e) =>
-                                  handleSetSessionStatus(learner.id, 'afternoon', e.target.value as AttendanceStatus)
-                                }
-                                className={`px-2 py-1 rounded text-[11px] font-bold uppercase cursor-pointer border ${
-                                  aStatus === 'present'
-                                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                                    : aStatus === 'late'
-                                    ? 'bg-amber-50 text-amber-800 border-amber-300'
-                                    : aStatus === 'excused'
-                                    ? 'bg-indigo-50 text-indigo-800 border-indigo-300'
-                                    : 'bg-rose-50 text-rose-800 border-rose-300'
-                                }`}
-                              >
-                                <option value="present">Present</option>
-                                <option value="absent">Absent</option>
-                                <option value="late">Late</option>
-                                <option value="excused">Excused</option>
-                              </select>
+                              {canMarkAttendance ? (
+                                <select
+                                  value={aStatus}
+                                  onChange={(e) =>
+                                    handleSetSessionStatus(learner.id, 'afternoon', e.target.value as AttendanceStatus)
+                                  }
+                                  className={`px-2 py-1 rounded text-[11px] font-bold uppercase cursor-pointer border ${
+                                    aStatus === 'present'
+                                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                      : aStatus === 'late'
+                                      ? 'bg-amber-50 text-amber-800 border-amber-300'
+                                      : aStatus === 'excused'
+                                      ? 'bg-indigo-50 text-indigo-800 border-indigo-300'
+                                      : 'bg-rose-50 text-rose-800 border-rose-300'
+                                  }`}
+                                >
+                                  <option value="present">Present</option>
+                                  <option value="absent">Absent</option>
+                                  <option value="late">Late</option>
+                                  <option value="excused">Excused</option>
+                                </select>
+                              ) : (
+                                <span
+                                  className={`px-2 py-1 rounded text-[11px] font-bold uppercase border ${
+                                    aStatus === 'present'
+                                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                      : aStatus === 'late'
+                                      ? 'bg-amber-50 text-amber-800 border-amber-300'
+                                      : aStatus === 'excused'
+                                      ? 'bg-indigo-50 text-indigo-800 border-indigo-300'
+                                      : 'bg-rose-50 text-rose-800 border-rose-300'
+                                  }`}
+                                >
+                                  {aStatus}
+                                </span>
+                              )}
                               {afternoonRec?.reason && (
                                 <span className="text-[10px] text-slate-400 italic truncate max-w-[120px]" title={afternoonRec.reason}>
                                   ({afternoonRec.reason})
@@ -683,19 +731,21 @@ export const AttendanceRegisterView: React.FC<AttendanceRegisterViewProps> = ({
                           </span>
                         </td>
 
-                        {/* Quick Action */}
-                        <td className="py-3 px-3">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              handleSetSessionStatus(learner.id, 'morning', 'present');
-                              handleSetSessionStatus(learner.id, 'afternoon', 'present');
-                            }}
-                            className="px-2 py-1 text-[11px] font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded cursor-pointer"
-                          >
-                            Mark Full Day Present
-                          </button>
-                        </td>
+                        {/* Quick Action (Class Teacher / Owner / Admin Only) */}
+                        {canMarkAttendance && (
+                          <td className="py-3 px-3">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleSetSessionStatus(learner.id, 'morning', 'present');
+                                handleSetSessionStatus(learner.id, 'afternoon', 'present');
+                              }}
+                              className="px-2 py-1 text-[11px] font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded cursor-pointer"
+                            >
+                              Mark Full Day Present
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     );
                   })}
