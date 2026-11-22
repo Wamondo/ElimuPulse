@@ -45,6 +45,8 @@ import {
 type TabKey = 'school' | 'admins' | 'teachers' | 'grades' | 'subjects' | 'guide';
 
 export const SchoolAcademicSetupView: React.FC = () => {
+  const [reqSyncError, setReqSyncError] = useState<string | null>(null);
+  const [isRefreshingReqs, setIsRefreshingReqs] = useState(false);
   const [staffRequests, setStaffRequests] = useState<Array<{
     uid: string;
     name: string;
@@ -57,6 +59,8 @@ export const SchoolAcademicSetupView: React.FC = () => {
   }>>([]);
 
   const loadStaffRequests = async () => {
+    setIsRefreshingReqs(true);
+    setReqSyncError(null);
     const merged = new Map<string, any>();
     try {
       const allSettings = await fetchCollectionFromFirestore<any>('settings');
@@ -75,8 +79,11 @@ export const SchoolAcademicSetupView: React.FC = () => {
             createdAt: item.createdAt || 0,
           });
         });
-    } catch (e) {
+    } catch (e: any) {
       console.warn('Firestore staff requests read fallback:', e);
+      setReqSyncError(e?.message || 'Could not read staff requests from cloud.');
+    } finally {
+      setIsRefreshingReqs(false);
     }
     setStaffRequests(Array.from(merged.values()).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)));
   };
@@ -1093,7 +1100,20 @@ export const SchoolAcademicSetupView: React.FC = () => {
                   Approve or decline staff who requested portal access from the login screen.
                 </p>
               </div>
+              <button
+                type="button"
+                onClick={loadStaffRequests}
+                disabled={isRefreshingReqs}
+                className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold rounded-lg border border-indigo-200 cursor-pointer self-start sm:self-auto"
+              >
+                {isRefreshingReqs ? 'Refreshing...' : 'Refresh Queue'}
+              </button>
             </div>
+            {reqSyncError && (
+              <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-rose-700 text-[11px]">
+                Sync Error: {reqSyncError}
+              </div>
+            )}
 
             {staffRequests.filter((r) => isOwner || r.schoolId === (schoolProfile?.id || 'default') || r.schoolId === 'default').length === 0 ? (
               <p className="text-xs text-slate-400 italic py-2">No portal access requests submitted yet.</p>
