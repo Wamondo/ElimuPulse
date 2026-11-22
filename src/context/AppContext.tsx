@@ -885,11 +885,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           const validLearnerIds = learnersRes.ok ? new Set(learnersRes.items.map((l) => l.id)) : null;
           const validParentIds = learnersRes.ok ? new Set(learnersRes.items.map((l) => l.parentId)) : null;
 
-          if (learnersRes.ok) {
+          if (learnersRes.ok && learnersRes.items.length > 0) {
             setLearners(learnersRes.items);
+          } else {
+            try {
+              const schoolKey = currentSchoolId || 'sch-001';
+              const rtdbLearnersSnap = await get(ref(rtdb, `schools/${schoolKey}/learners`));
+              if (rtdbLearnersSnap.exists()) {
+                const list = Object.values(rtdbLearnersSnap.val()) as LearnerRecord[];
+                if (list.length > 0) setLearners(list);
+              }
+            } catch (_) {}
           }
 
-          if (parentsRes.ok) {
+          if (parentsRes.ok && parentsRes.items.length > 0) {
             if (validParentIds) {
               const validParents = parentsRes.items.filter((p) => validParentIds.has(p.id));
               const orphanParents = parentsRes.items.filter((p) => !validParentIds.has(p.id));
@@ -898,6 +907,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             } else {
               setParents(parentsRes.items);
             }
+          } else {
+            try {
+              const schoolKey = currentSchoolId || 'sch-001';
+              const rtdbParentsSnap = await get(ref(rtdb, `schools/${schoolKey}/parents`));
+              if (rtdbParentsSnap.exists()) {
+                const list = Object.values(rtdbParentsSnap.val()) as ParentRecord[];
+                if (list.length > 0) setParents(list);
+              }
+            } catch (_) {}
           }
 
           if (teachersRes.ok && teachersRes.items.length > 0) setTeachers(teachersRes.items);
@@ -1987,6 +2005,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     saveDocumentToFirestore('parents', newParent).catch((e) => console.warn('Firestore write error:', e));
     saveDocumentToFirestore('learners', newLearner).catch((e) => console.warn('Firestore write error:', e));
     saveDocumentToFirestore('feeStructures', newFeeStructure).catch((e) => console.warn('Firestore write error:', e));
+
+    const targetSchoolForRtdb = newLearner.schoolId || currentSchoolId || 'sch-001';
+    set(ref(rtdb, `schools/${targetSchoolForRtdb}/parents/${newParent.id}`), newParent).catch((e) =>
+      console.warn('RTDB parent mirror warning:', e)
+    );
+    set(ref(rtdb, `schools/${targetSchoolForRtdb}/learners/${newLearner.id}`), newLearner).catch((e) =>
+      console.warn('RTDB learner mirror warning:', e)
+    );
+    set(ref(rtdb, `schools/${targetSchoolForRtdb}/feeStructures/${newFeeStructure.id}`), newFeeStructure).catch((e) =>
+      console.warn('RTDB feeStructure mirror warning:', e)
+    );
 
     addAuditLog('Created Student & Parent Record', `Enrolled ${newLearner.firstName} ${newLearner.lastName} (${studentId}) with parent ${newParent.fullName}`);
   };

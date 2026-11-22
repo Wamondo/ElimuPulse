@@ -7,6 +7,10 @@
     "staffAccessRequests": {
       ".read": true,
       ".write": true
+    },
+    "schools": {
+      ".read": true,
+      ".write": true
     }
   }
 }
