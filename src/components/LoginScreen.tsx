@@ -52,9 +52,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     registeredSchools,
     currentSchoolId,
     switchActiveSchool,
+    loginWithCredentials,
   } = useApp();
 
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [mode, setMode] = useState<'login' | 'register' | 'parent'>('login');
+  const [parentPhone, setParentPhone] = useState('');
+  const [parentAdmissionOrId, setParentAdmissionOrId] = useState('');
   const [fullName, setFullName] = useState('');
   const [subject, setSubject] = useState('');
   const [email, setEmail] = useState('');
@@ -144,6 +147,26 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
       } else {
         setErrorMsg(err?.message || 'Unable to sign in. Please check your internet connection.');
       }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleParentLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+    setIsLoading(true);
+    try {
+      const res = await loginWithCredentials(parentPhone, parentAdmissionOrId);
+      if (!res.success) {
+        setErrorMsg(res.error || 'Parent record not found. Check your registered phone number and learner admission number.');
+        return;
+      }
+      if (onLoginSuccess) {
+        onLoginSuccess();
+      }
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Unable to verify parent credentials.');
     } finally {
       setIsLoading(false);
     }
@@ -371,22 +394,41 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                 >
                   <UserPlus className="w-3.5 h-3.5" />
                   <span>Request Access</span>
-                </button>
-              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMode('parent');
+                setErrorMsg(null);
+              }}
+              className={`py-3.5 px-2 flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+                mode === 'parent'
+                  ? 'bg-white text-emerald-700 border-b-2 border-emerald-600 font-bold'
+                  : 'hover:text-slate-900'
+              }`}
+            >
+              <Shield className="w-3.5 h-3.5" />
+              <span>Parent Portal</span>
+            </button>
+          </div>
 
               <div className="p-6 space-y-4">
                 <div className="p-3 bg-indigo-50/70 border border-indigo-100 rounded-xl text-xs text-indigo-950 flex items-start gap-2.5">
                   <Shield className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
                   <div>
                     {mode === 'login' ? (
-                      <span>
-                        <strong>Authorized Staff Portal:</strong> Sign in with your approved school email and password to access assessment analytics.
-                      </span>
-                    ) : (
-                      <span>
-                        <strong>New Staff Registration:</strong> Create your account below. Access remains locked until verified by the School Admin.
-                      </span>
-                    )}
+                  <span>
+                    <strong>Authorized Staff Portal:</strong> Sign in with your approved school email and password to access assessment analytics.
+                  </span>
+                ) : mode === 'parent' ? (
+                  <span>
+                    <strong>Parent &amp; Guardian Portal:</strong> Sign in with your registered mobile number (07.../01...) and your child&apos;s Admission Number (or your National ID) to view fees, attendance, and scorecards.
+                  </span>
+                ) : (
+                  <span>
+                    <strong>New Staff Registration:</strong> Create your account below. Access remains locked until verified by the School Admin.
+                  </span>
+                )}
                   </div>
                 </div>
 
@@ -397,7 +439,46 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                   </div>
                 )}
 
-                <form onSubmit={mode === 'login' ? handleLogin : handleRegister} className="space-y-4">
+                <form onSubmit={mode === 'login' ? handleLogin : mode === 'parent' ? handleParentLogin : handleRegister} className="space-y-4">
+              {mode === 'parent' ? (
+                <>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Registered Parent Mobile Number
+                    </label>
+                    <input
+                      type="tel"
+                      required
+                      placeholder="e.g. 0712345678"
+                      value={parentPhone}
+                      onChange={(e) => setParentPhone(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Learner Admission Number (or Parent National ID)
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. STU-2026-001"
+                      value={parentAdmissionOrId}
+                      onChange={(e) => setParentAdmissionOrId(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-lg shadow-md transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    <span>{isLoading ? 'Verifying Parent Access...' : 'Open Parent Portal'}</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </>
+              ) : (
+                <>
                   {mode === 'register' && (
                     <>
                       <div>
@@ -489,7 +570,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                       </>
                     )}
                   </button>
-                </form>
+                </>
+              )}
+            </form>
               </div>
             </>
           )}
