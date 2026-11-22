@@ -32,6 +32,7 @@ const MainLayout: React.FC = () => {
     isSyncingToCloud,
     syncAllDataToFirestore,
     firestoreDbId,
+    teachers,
   } = useApp();
 
   const isOwnerAccountActive = Boolean(
@@ -155,6 +156,51 @@ const MainLayout: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* School, Department & Title Header (Visible to Teachers) */}
+      {currentUser?.role === 'teacher' && (() => {
+        const matchedRegTeacher = (teachers || []).find(
+          (t) =>
+            (currentUser.teacherId && t.id === currentUser.teacherId) ||
+            (currentUser.email && t.email && t.email.toLowerCase() === currentUser.email.toLowerCase()) ||
+            (currentUser.phone && t.phone && t.phone.replace(/[^0-9]/g, '').slice(-9) === currentUser.phone.replace(/[^0-9]/g, '').slice(-9))
+        );
+        const teacherDept =
+          matchedRegTeacher?.department ||
+          (matchedRegTeacher?.registeredSubjects && matchedRegTeacher.registeredSubjects[0]) ||
+          (currentUser?.registeredSubjects && currentUser.registeredSubjects[0]) ||
+          'Teaching Staff';
+        const isClassTeacher =
+          matchedRegTeacher?.teacherType === 'class_teacher' ||
+          currentUser?.teacherType === 'class_teacher';
+        const assignedGrade = matchedRegTeacher?.assignedGrade || currentUser?.teacherGrade || '';
+        const teacherTitle = isClassTeacher
+          ? `Class Teacher${assignedGrade ? ` · ${assignedGrade}` : ''}`
+          : 'Subject Teacher';
+
+        return (
+          <div className="bg-white border-b border-slate-200 px-4 sm:px-6 lg:px-8 py-2.5">
+            <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 text-xs">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-extrabold text-slate-900 text-sm">
+                  {schoolProfile?.name || 'Comprehensive School'}
+                </span>
+                <span className="text-slate-300">|</span>
+                <span className="font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+                  Department: {teacherDept}
+                </span>
+                <span className="text-slate-300">|</span>
+                <span className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                  {teacherTitle}
+                </span>
+              </div>
+              <div className="text-[11px] text-slate-500 font-medium">
+                {schoolProfile?.primaryWingName || 'Primary Wing'} &amp; {schoolProfile?.juniorWingName || 'Junior Wing'}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Main Content Viewport */}
       <main className="flex-1 min-w-0 max-w-7xl w-full mx-auto overflow-x-hidden px-4 sm:px-6 lg:px-8 py-6">
