@@ -2172,16 +2172,29 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       firestoreDeletes.push(deleteDocumentFromFirestore('parents', target.parentId));
     }
 
-    try {
-      await Promise.allSettled(firestoreDeletes);
-    } catch (e) {
-      console.warn('Firestore cascade delete error for learner:', e);
+    const rtdbDeletes: Promise<void>[] = [
+      remove(ref(rtdb, `schools/${targetSchoolId}/learners/${id}`)).catch(() => {}),
+      ...fsToDelete.map((fs) => remove(ref(rtdb, `schools/${targetSchoolId}/feeStructures/${fs.id}`)).catch(() => {})),
+      ...fpToDelete.map((fp) => remove(ref(rtdb, `schools/${targetSchoolId}/feePayments/${fp.id}`)).catch(() => {})),
+    ];
+    if (shouldDeleteParent && target.parentId) {
+      rtdbDeletes.push(remove(ref(rtdb, `schools/${targetSchoolId}/parents/${target.parentId}`)).catch(() => {}));
     }
 
-    addAuditLog(
-      'Learner Record Deleted',
-      `Permanently removed student ${target.firstName} ${target.lastName} (${target.studentId}) and all linked fee, score, attendance, and reminder records.`
-    );
+    try {
+      await Promise.allSettled([...firestoreDeletes, ...rtdbDeletes]);
+    } catch (e) {
+      console.warn('Cascade delete warning for learner:', e);
+    }
+
+    try {
+      addAuditLog(
+        'Learner Record Deleted',
+        `Permanently removed student ${target.firstName} ${target.lastName} (${target.studentId}) and all linked fee, score, attendance, and reminder records.`
+      );
+    } catch (auditErr) {
+      console.warn('Audit log warning on learner delete:', auditErr);
+    }
   };
 
   const updateParent = (id: string, updates: Partial<ParentRecord>) => {

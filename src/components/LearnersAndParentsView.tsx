@@ -1029,7 +1029,7 @@ export const LearnersAndParentsView: React.FC<LearnersAndParentsViewProps> = ({
                       setTimeout(() => setOnboardSuccessNotice(null), 6000);
                     } catch (err) {
                       console.error('Delete failed:', err);
-                      setDeleteError('An unexpected error occurred while deleting the learner.');
+                      setDeleteError(`An unexpected error occurred while deleting the learner: ${err instanceof Error ? err.message : String(err)}`);
                     } finally {
                       setIsDeleting(false);
                     }
