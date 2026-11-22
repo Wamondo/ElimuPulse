@@ -157,25 +157,40 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     const cleanPhone = normPhone(cleanIdentifier);
     const cleanPwd = password.trim();
 
-    const matchedTeacher = (teachers || []).find((t: any) => {
+    const candidateTeachers: any[] = Array.isArray(teachers) && teachers.length > 0
+      ? teachers
+      : (() => {
+          try {
+            const raw = localStorage.getItem('elimupulse_teachers') || localStorage.getItem('teachers');
+            return raw ? JSON.parse(raw) : [];
+          } catch {
+            return [];
+          }
+        })();
+
+    const matchedTeacher = candidateTeachers.find((t: any) => {
       const tEmail = String(t.email || '').trim().toLowerCase();
-      const tPhone = normPhone(t.phone || t.phoneNumber || '');
+      const tPhone = normPhone(
+        t.phone || t.phoneNumber || t.registeredPhone || t.mobile || t.contact || ''
+      );
       const matchesLogin =
         (cleanEmail.includes('@') && tEmail === cleanEmail) ||
         (cleanPhone.length >= 9 && tPhone.length >= 9 && tPhone === cleanPhone);
       if (!matchesLogin) return false;
 
       const idCandidates = [
+        t.nationalOrStaffId,
         t.staffId,
         t.idNumber,
         t.nationalId,
         t.tscNumber,
         t.password,
+        t.id,
       ]
-        .map((v) => String(v || '').trim())
+        .map((v) => String(v || '').trim().toLowerCase())
         .filter(Boolean);
 
-      return idCandidates.includes(cleanPwd);
+      return idCandidates.includes(cleanPwd.toLowerCase());
     });
 
     if (matchedTeacher) {
@@ -198,6 +213,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
       if (onLoginSuccess) {
         onLoginSuccess();
       }
+      setIsLoading(false);
+      return;
+    }
+
+    if (!cleanEmail.includes('@')) {
+      setErrorMsg('No matching registered teacher found for that phone number and Staff / National ID.');
       setIsLoading(false);
       return;
     }
