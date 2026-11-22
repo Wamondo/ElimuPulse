@@ -62,6 +62,7 @@ export const LearnersAndParentsView: React.FC<LearnersAndParentsViewProps> = ({
     scoreCards,
     attendance,
     currentUser,
+    isOwner,
     isParentDecrypted,
     toggleParentDecryption,
     grades: configuredGrades,
@@ -241,7 +242,7 @@ export const LearnersAndParentsView: React.FC<LearnersAndParentsViewProps> = ({
           </p>
         </div>
 
-        {(currentUser?.role === 'admin') && (
+        {(isOwner || currentUser?.role === 'admin' || currentUser?.role === 'teacher') && (
           <div className="flex items-center gap-2 self-start md:self-auto flex-wrap">
             <button
               onClick={() => setIsBulkOnboardOpen(true)}
