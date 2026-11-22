@@ -1,6 +1,22 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { BookOpen, CheckCircle2, Clock, LogOut, ChevronRight, ArrowLeft } from 'lucide-react';
+
+export interface LearningAreaAssignmentItem {
+  id: string;
+  learningArea: string;
+  grade: string;
+  title: string;
+  instructions: string;
+  dueDate: string;
+  teacherName: string;
+  status: 'todo' | 'marked';
+  score?: string;
+  feedback?: string;
+  createdAt: string;
+}
+
+const STORAGE_KEY = 'elimupulse_learning_area_assignments';
 
 const DEFAULT_CBC_LEARNING_AREAS = [
   'Mathematics',
@@ -22,52 +38,79 @@ export const LearnerLearningAreasView: React.FC = () => {
     [learners, currentUser]
   );
 
+  const [teacherAssignments, setTeacherAssignments] = useState<LearningAreaAssignmentItem[]>(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    const syncAssignments = () => {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        setTeacherAssignments(raw ? JSON.parse(raw) : []);
+      } catch {
+        // ignore storage errors
+      }
+    };
+    window.addEventListener('storage', syncAssignments);
+    window.addEventListener('elimupulse-assignments-updated', syncAssignments);
+    return () => {
+      window.removeEventListener('storage', syncAssignments);
+      window.removeEventListener('elimupulse-assignments-updated', syncAssignments);
+    };
+  }, []);
+
   const learningAreas = useMemo(() => {
     const configured = Array.isArray(subjects)
       ? subjects
           .map((s: Record<string, unknown>) => String(s.name || s.title || s.subjectName || '').trim())
           .filter(Boolean)
       : [];
-    return configured.length > 0 ? Array.from(new Set(configured)) : DEFAULT_CBC_LEARNING_AREAS;
-  }, [subjects]);
+    const fromAssignments = teacherAssignments.map((a) => a.learningArea.trim()).filter(Boolean);
+    const merged = Array.from(new Set([...configured, ...fromAssignments]));
+    return merged.length > 0 ? merged : DEFAULT_CBC_LEARNING_AREAS;
+  }, [subjects, teacherAssignments]);
 
   const [selectedArea, setSelectedArea] = useState<string | null>(null);
   const [completedIds, setCompletedIds] = useState<Record<string, boolean>>({});
 
   const getAssignmentsForArea = (area: string) => {
-    const toDo = [
-      {
-        id: `${area}-todo-1`,
-        title: `${area} — Structured Competency Task 1`,
-        dueDate: 'Due This Week',
-        instructions: `Complete the practice exercises and competency reflection for ${area}.`,
-      },
-      {
-        id: `${area}-todo-2`,
-        title: `${area} — Strand Review & Problem Set`,
-        dueDate: 'Due Next Lesson',
-        instructions: `Review key concepts in ${area} and submit your responses.`,
-      },
-    ];
+    const learnerGrade = (learnerRecord?.grade || currentUser?.teacherGrade || '').trim().toLowerCase();
+    const areaKey = area.trim().toLowerCase();
 
-    const marked = [
-      {
-        id: `${area}-marked-1`,
-        title: `${area} — Continuous Assessment 1`,
-        score: 'EE1 (88%)',
-        feedback: 'Strong mastery of core concepts and neat presentation.',
-      },
-      {
-        id: `${area}-marked-2`,
-        title: `${area} — Practical / Activity Check`,
-        score: 'ME2 (76%)',
-        feedback: 'Good effort; verify steps on multi-part questions.',
-      },
-    ];
+    const matched = teacherAssignments.filter((item) => {
+      const itemArea = item.learningArea.trim().toLowerCase();
+      const areaMatch = itemArea === areaKey || itemArea.includes(areaKey) || areaKey.includes(itemArea);
+      if (!areaMatch) return false;
+      const itemGrade = (item.grade || 'All Grades').trim().toLowerCase();
+      return !learnerGrade || itemGrade === 'all grades' || itemGrade === learnerGrade;
+    });
+
+    const teacherToDo = matched
+      .filter((item) => item.status === 'todo')
+      .map((item) => ({
+        id: item.id,
+        title: item.title,
+        dueDate: `${item.dueDate || 'Due Soon'} · Sent by ${item.teacherName}`,
+        instructions: item.instructions,
+      }));
+
+    const teacherMarked = matched
+      .filter((item) => item.status === 'marked')
+      .map((item) => ({
+        id: item.id,
+        title: item.title,
+        score: item.score || 'Marked',
+        feedback: `${item.feedback || 'Marked by subject teacher.'} (${item.teacherName})`,
+      }));
 
     return {
-      toDo: toDo.filter((item) => !completedIds[item.id]),
-      marked,
+      toDo: teacherToDo.filter((item) => !completedIds[item.id]),
+      marked: teacherMarked,
     };
   };
 
@@ -103,7 +146,7 @@ export const LearnerLearningAreasView: React.FC = () => {
             <div>
               <h2 className="text-lg font-bold text-slate-900">Your Learning Areas</h2>
               <p className="text-xs text-slate-600">
-                Select a learning area to view assignments to be done and marked assignments.
+                Select a learning area to view assignments sent by your subject teachers and your marked assignments.
               </p>
             </div>
 
@@ -168,7 +211,9 @@ export const LearnerLearningAreasView: React.FC = () => {
               </div>
 
               {getAssignmentsForArea(selectedArea).toDo.length === 0 ? (
-                <p className="text-xs text-slate-500">All pending assignments in {selectedArea} are marked done.</p>
+                <p className="text-xs text-slate-500">
+                  No pending assignments sent in {selectedArea} right now.
+                </p>
               ) : (
                 <div className="space-y-2.5">
                   {getAssignmentsForArea(selectedArea).toDo.map((task) => (
@@ -201,22 +246,28 @@ export const LearnerLearningAreasView: React.FC = () => {
                 <h3 className="text-sm font-bold text-slate-900">Assignments Marked</h3>
               </div>
 
-              <div className="space-y-2.5">
-                {getAssignmentsForArea(selectedArea).marked.map((item) => (
-                  <div
-                    key={item.id}
-                    className="p-3 rounded-lg border border-emerald-200 bg-emerald-50/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
-                  >
-                    <div>
-                      <p className="text-xs font-bold text-slate-900">{item.title}</p>
-                      <p className="text-[11px] text-slate-600 mt-0.5">{item.feedback}</p>
+              {getAssignmentsForArea(selectedArea).marked.length === 0 ? (
+                <p className="text-xs text-slate-500">
+                  No marked assignments published in {selectedArea} yet.
+                </p>
+              ) : (
+                <div className="space-y-2.5">
+                  {getAssignmentsForArea(selectedArea).marked.map((item) => (
+                    <div
+                      key={item.id}
+                      className="p-3 rounded-lg border border-emerald-200 bg-emerald-50/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                    >
+                      <div>
+                        <p className="text-xs font-bold text-slate-900">{item.title}</p>
+                        <p className="text-[11px] text-slate-600 mt-0.5">{item.feedback}</p>
+                      </div>
+                      <span className="px-2.5 py-1 text-xs font-bold text-emerald-800 bg-emerald-100 border border-emerald-200 rounded-md shrink-0">
+                        {item.score}
+                      </span>
                     </div>
-                    <span className="px-2.5 py-1 text-xs font-bold text-emerald-800 bg-emerald-100 border border-emerald-200 rounded-md shrink-0">
-                      {item.score}
-                    </span>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </section>
           </div>
         )}
