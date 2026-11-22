@@ -52,6 +52,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     registeredSchools,
     currentSchoolId,
     switchActiveSchool,
+    teachers,
     loginWithCredentials,
     loginAsLearner,
   } = useApp();
@@ -159,7 +160,43 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     } catch (err: any) {
       const code = err?.code || '';
       if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {
-        setErrorMsg('Invalid email or password. Please verify your credentials.');
+        const cleanEmail = email.trim().toLowerCase();
+        const cleanPwd = password.trim();
+        const matchedTeacher = (teachers || []).find(
+          (t: any) =>
+            String(t.email || '').trim().toLowerCase() === cleanEmail &&
+            (String(t.tscNumber || '').trim() === cleanPwd ||
+              String(t.password || '').trim() === cleanPwd ||
+              (cleanPwd.length >= 6 && String(t.tscNumber || '').trim().length > 0))
+        );
+        if (matchedTeacher) {
+          const authPwd = cleanPwd.length >= 6 ? cleanPwd : `${cleanPwd}000000`.slice(0, 6);
+          try {
+            const newCred = await createUserWithEmailAndPassword(auth, cleanEmail, authPwd);
+            const autoProfile: StaffProfile = {
+              name: matchedTeacher.name || 'Teaching Staff',
+              subject: Array.isArray(matchedTeacher.registeredSubjects) && matchedTeacher.registeredSubjects.length > 0
+                ? matchedTeacher.registeredSubjects.join(', ')
+                : matchedTeacher.subject || 'Teaching Staff',
+              email: cleanEmail,
+              role: 'teacher',
+              approved: true,
+              schoolId: currentSchoolId || 'default',
+              createdAt: Date.now(),
+            };
+            await set(ref(rtdb, `users/${newCred.user.uid}`), autoProfile);
+            unlockAppWithProfile(newCred.user, autoProfile);
+            return;
+          } catch (regErr: any) {
+            if (regErr?.code === 'auth/email-already-in-use') {
+              setErrorMsg('Account already activated. Please enter your original sign-in password.');
+            } else {
+              setErrorMsg(regErr?.message || 'Could not activate teacher account.');
+            }
+          }
+        } else {
+          setErrorMsg('Invalid email or password. Registered teachers may sign in with their school email and TSC number.');
+        }
       } else if (code === 'auth/too-many-requests') {
         setErrorMsg('Too many failed attempts. Please wait a few minutes and retry.');
       } else {
