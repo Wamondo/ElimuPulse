@@ -363,7 +363,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
           ) : (
             <>
               {/* Sign In / Request Access Tabs */}
-              <div className="grid grid-cols-2 border-b border-slate-200 bg-slate-50/80 text-xs font-semibold text-slate-600">
+              <div className="grid grid-cols-3 border-b border-slate-200 bg-slate-50/80 text-xs font-semibold text-slate-600">
                 <button
                   type="button"
                   onClick={() => {
