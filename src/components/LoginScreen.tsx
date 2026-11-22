@@ -204,7 +204,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         const schoolKey = currentSchoolId || 'sch-001';
         const snaps = await Promise.all([
           get(ref(rtdb, `schools/${schoolKey}/teachers`)),
-          get(ref(rtdb, 'teachers')),
+          get(ref(rtdb, 'schools/sch-001/teachers')),
         ]);
         const rtdbTeachers: any[] = [];
         snaps.forEach((s) => {
@@ -228,6 +228,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     }
 
     if (matchedTeacher) {
+      try {
+        const existingRaw = localStorage.getItem('academias_secure_v1_teachers');
+        const existingList = existingRaw ? JSON.parse(existingRaw) : [];
+        const byId = new Map((Array.isArray(existingList) ? existingList : []).map((t: any) => [t.id, t]));
+        if (matchedTeacher.id) byId.set(matchedTeacher.id, matchedTeacher);
+        localStorage.setItem('academias_secure_v1_teachers', JSON.stringify(Array.from(byId.values())));
+      } catch { /* ignore */ }
       localStorage.setItem(
         'elimupulse_staff_session',
         JSON.stringify({

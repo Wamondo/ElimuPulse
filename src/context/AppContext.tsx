@@ -64,7 +64,7 @@ import {
   firebaseProjectId,
 } from '../services/firebase';
 import { onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
-import { ref, get } from 'firebase/database';
+import { ref, get, set } from 'firebase/database';
 import { auth, rtdb } from '../services/firebase';
 import {
   getCurrentDeviceId,
@@ -769,7 +769,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   useEffect(() => {
     localStorage.setItem(`${STORAGE_KEY_PREFIX}teachers`, JSON.stringify(teachers));
-  }, [teachers]);
+    if (Array.isArray(teachers) && teachers.length > 0) {
+      const schoolKey = currentSchoolId || 'sch-001';
+      set(ref(rtdb, `schools/${schoolKey}/teachers`), teachers).catch(() => {});
+      if (schoolKey !== 'sch-001') {
+        set(ref(rtdb, 'schools/sch-001/teachers'), teachers).catch(() => {});
+      }
+    }
+  }, [teachers, currentSchoolId]);
 
   useEffect(() => {
     localStorage.setItem(`${STORAGE_KEY_PREFIX}parents`, JSON.stringify(parents));
