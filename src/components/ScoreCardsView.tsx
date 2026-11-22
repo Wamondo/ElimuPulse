@@ -172,6 +172,31 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
     return false;
   }, [activeAssessment, selectedLearnerId, existingScoreCard]);
 
+  const isMarkUploadUnlocked = (gradeName?: string, subjectName?: string) => {
+    if (currentUser?.role === 'admin' || currentUser?.isOwner) return true;
+    if (currentUser?.role !== 'teacher') return false;
+    if (currentUser?.teacherType === 'class_teacher') {
+      return Boolean(currentUser?.teacherGrade && gradeName === currentUser.teacherGrade);
+    }
+    if (currentUser?.teacherType === 'subject_teacher') {
+      const reg = currentUser?.registeredSubjects || [];
+      if (subjectName && !reg.includes(subjectName)) return false;
+      try {
+        const raw = localStorage.getItem('elimupulse_mark_upload_requests');
+        const list: Array<{ grade?: string; subject?: string; active?: boolean }> = raw ? JSON.parse(raw) : [];
+        return list.some(
+          (r) =>
+            r.active !== false &&
+            (!r.grade || !gradeName || r.grade.toLowerCase() === gradeName.toLowerCase()) &&
+            (!r.subject || !subjectName || r.subject.toLowerCase() === subjectName.toLowerCase())
+        );
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  };
+
   // Permission helpers
   const canEditSubject = (sub: SubjectScore) => {
     if ((currentUser?.role === 'admin' || currentUser?.isOwner)) return true;
@@ -184,10 +209,10 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
         );
       }
       if (currentUser?.teacherType === 'subject_teacher') {
-        return (
+        const isRegistered =
           currentUser.registeredSubjects?.includes(sub.subjectName) ||
-          sub.subjectTeacher === currentUser?.name
-        );
+          sub.subjectTeacher === currentUser?.name;
+        return Boolean(isRegistered && isMarkUploadUnlocked(activeLearner?.grade, sub.subjectName));
       }
     }
     return false;
