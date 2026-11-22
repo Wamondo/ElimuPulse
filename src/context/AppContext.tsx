@@ -412,10 +412,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        return parsed.map((t: TeacherRecord) => ({
-          ...t,
-          phone: normalizeKenyanPhone(t.phone || ''),
-        }));
+        return Array.isArray(parsed) ? parsed : [];
       } catch { /* ignore */ }
     }
     return [];
@@ -902,7 +899,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           const validParentIds = learnersRes.ok ? new Set(learnersRes.items.map((l) => l.parentId)) : null;
 
           if (learnersRes.ok && learnersRes.items.length > 0) {
-            setLearners(learnersRes.items);
+            setLearners((prev) => {
+              const byId = new Map(prev.map((l) => [l.id, l]));
+              learnersRes.items.forEach((item) => {
+                if (item?.id) byId.set(item.id, { ...(byId.get(item.id) || {}), ...item });
+              });
+              return Array.from(byId.values());
+            });
           } else {
             try {
               const schoolKey = currentSchoolId || 'sch-001';
@@ -964,7 +967,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             } catch (_) {}
           }
 
-          if (teachersRes.ok && teachersRes.items.length > 0) setTeachers(teachersRes.items);
+          if (teachersRes.ok && teachersRes.items.length > 0) {
+            setTeachers((prev) => {
+              const byId = new Map(prev.map((t) => [t.id, t]));
+              teachersRes.items.forEach((item) => {
+                if (!item?.id) return;
+                const existing = byId.get(item.id);
+                byId.set(item.id, existing ? { ...item, ...existing } : item);
+              });
+              return Array.from(byId.values());
+            });
+          }
 
           if (feeStructuresRes.ok) {
             if (validLearnerIds) {
