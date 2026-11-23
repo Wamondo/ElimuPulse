@@ -19,6 +19,13 @@ export interface AssignmentQuestion {
   marks: number;
 }
 
+export type RedInkStamp = '✓' | 'M1' | 'M2' | 'A1' | 'A2' | '✗' | '';
+
+export interface CalculationStepAnnotation {
+  stamp?: RedInkStamp;
+  mistakeNote?: string;
+}
+
 export interface LearnerAssignmentSubmission {
   learnerId: string;
   learnerName: string;
@@ -26,6 +33,7 @@ export interface LearnerAssignmentSubmission {
   grade: string;
   answers: Record<string, string>;
   sketchAttachments?: Record<string, string>;
+  stepAnnotations?: Record<string, CalculationStepAnnotation[]>;
   generalResponse?: string;
   autoScore: number;
   totalMarks: number;
@@ -34,6 +42,43 @@ export interface LearnerAssignmentSubmission {
   status: 'submitted' | 'marked';
   submittedAt: string;
   markedAt?: string;
+}
+
+export function formatCalculationSteps(rawAnswer: string): string[] {
+  const cleaned = String(rawAnswer || '').trim();
+  if (!cleaned || cleaned === 'No answer provided' || cleaned === '—') return [];
+
+  // First split explicit newlines or semicolons
+  const initialLines = cleaned
+    .split(/[
+;]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const steps: string[] = [];
+  for (const line of initialLines) {
+    // Split chained equals like "V = l x w x h = 6 x 6 x 6 = 216cm³"
+    if ((line.match(/=/g) || []).length >= 2) {
+      const eqParts = line.split(/\s*=\s*/).map((p) => p.trim()).filter(Boolean);
+      eqParts.forEach((part, idx) => {
+        steps.push(idx === 0 ? part : `= ${part}`);
+      });
+      continue;
+    }
+
+    // Split space-separated inline calculation tokens like "BAxH 6x6x6 36x6 216cm²"
+    const tokens = line.split(/\s+/).filter(Boolean);
+    const hasMathOps = tokens.filter((t) => /[×xX*÷/+\-=²³^0-9]/.test(t)).length >= 2;
+    if (tokens.length >= 2 && hasMathOps && line.length <= 160) {
+      tokens.forEach((tok, idx) => {
+        const pretty = tok.replace(/(?<=\d)[xX](?=\d)/g, ' × ').replace(/(?<=[A-Za-z])[xX](?=[A-Za-z])/g, ' × ');
+        steps.push(idx === 0 || pretty.startsWith('=') ? pretty : `= ${pretty}`);
+      });
+    } else {
+      steps.push(line);
+    }
+  }
+  return steps;
 }
 
 export interface LearningAreaAssignmentItem {
