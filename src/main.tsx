@@ -3,23 +3,38 @@ import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 
-class RootErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
+class RootErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; errorDetail: string }
+> {
   constructor(props: { children: React.ReactNode }) {
     super(props);
-    this.state = { hasError: false };
+    this.state = { hasError: false, errorDetail: '' };
   }
-  static getDerivedStateFromError() {
-    return { hasError: true };
+  static getDerivedStateFromError(error: unknown) {
+    const detail =
+      error instanceof Error
+        ? `${error.name}: ${error.message}`
+        : String(error || 'Unknown render error');
+    return { hasError: true, errorDetail: detail };
+  }
+  componentDidCatch(error: unknown) {
+    console.error('RootErrorBoundary caught:', error);
   }
   render() {
     if (this.state.hasError) {
       return (
         <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6 text-center">
-          <div className="max-w-sm bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+          <div className="max-w-md bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
             <h2 className="text-base font-bold text-slate-900 mb-2">Session Reset Required</h2>
-            <p className="text-xs text-slate-600 mb-4">
+            <p className="text-xs text-slate-600 mb-2">
               Local browser state was cleared or interrupted. Reload to restore your workspace.
             </p>
+            {this.state.errorDetail && (
+              <pre className="text-[11px] text-rose-700 bg-rose-50 border border-rose-200 rounded-lg p-2.5 mb-4 text-left whitespace-pre-wrap break-words">
+                {this.state.errorDetail}
+              </pre>
+            )}
             <div className="flex items-center justify-center gap-2">
               <button
                 type="button"
@@ -30,11 +45,15 @@ class RootErrorBoundary extends React.Component<{ children: React.ReactNode }, {
               </button>
               <button
                 type="button"
-                onClick={() => {
+                onClick={async () => {
                   try {
                     localStorage.removeItem('elimupulse_staff_session');
                     localStorage.removeItem('academias_secure_v1_auth');
                     localStorage.removeItem('academias_secure_v1_user');
+                    if ('serviceWorker' in navigator) {
+                      const regs = await navigator.serviceWorker.getRegistrations();
+                      await Promise.all(regs.map((r) => r.unregister()));
+                    }
                   } catch { /* ignore */ }
                   window.location.reload();
                 }}
