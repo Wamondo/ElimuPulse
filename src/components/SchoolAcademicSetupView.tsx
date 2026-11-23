@@ -2053,6 +2053,59 @@ export const SchoolAcademicSetupView: React.FC = () => {
                       );
                     })}
                 </div>
+
+                {teacherForm.teacherType === 'subject_teacher' && (teacherForm.registeredSubjects || []).length > 0 && (
+                  <div className="mt-3 p-3 rounded-lg bg-indigo-50/70 border border-indigo-200 space-y-2.5">
+                    <div>
+                      <p className="text-[11px] font-bold text-indigo-950">
+                        Assigned Grades per Registered Learning Area *
+                      </p>
+                      <p className="text-[10px] text-indigo-800">
+                        Select the exact grade(s) this subject teacher teaches for each learning area.
+                      </p>
+                    </div>
+                    {(teacherForm.registeredSubjects || []).map((subjName) => {
+                      const selectedForSubj = teacherForm.subjectGrades?.[subjName] || [];
+                      return (
+                        <div key={subjName} className="bg-white p-2 rounded border border-indigo-100 space-y-1.5">
+                          <span className="text-[11px] font-semibold text-slate-800 block">
+                            {subjName} — Grade(s) Taught:
+                          </span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {grades.map((g) => {
+                              const checked = selectedForSubj.includes(g.name);
+                              return (
+                                <button
+                                  key={g.id}
+                                  type="button"
+                                  onClick={() => {
+                                    const nextForSubj = checked
+                                      ? selectedForSubj.filter((x) => x !== g.name)
+                                      : [...selectedForSubj, g.name];
+                                    setTeacherForm((prev) => ({
+                                      ...prev,
+                                      subjectGrades: {
+                                        ...(prev.subjectGrades || {}),
+                                        [subjName]: nextForSubj,
+                                      },
+                                    }));
+                                  }}
+                                  className={`px-2 py-0.5 rounded text-[11px] font-semibold border cursor-pointer ${
+                                    checked
+                                      ? 'bg-indigo-600 text-white border-indigo-600'
+                                      : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                                  }`}
+                                >
+                                  {g.name}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">

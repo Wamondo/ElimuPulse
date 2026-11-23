@@ -696,7 +696,48 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   // 3. SUBJECT TEACHER SPECIFIC DASHBOARD VIEW
   // =====================
   if (currentUser?.role === 'teacher' && currentUser?.teacherType === 'subject_teacher') {
-    const registeredSubjects = currentUser?.registeredSubjects || ['English Literature & Composition'];
+    const matchedTeacher = teachers.find(
+      (t) =>
+        currentUser?.id === `session-teacher-${t.id}` ||
+        (t.name || '').trim().toLowerCase() === (currentUser?.name || '').trim().toLowerCase()
+    );
+    const registeredSubjects =
+      matchedTeacher?.registeredSubjects && matchedTeacher.registeredSubjects.length > 0
+        ? matchedTeacher.registeredSubjects
+        : currentUser?.registeredSubjects || ['Mathematics'];
+
+    const subjectGradesMap = matchedTeacher?.subjectGrades || {};
+    const fallbackTeacherGrades = (matchedTeacher?.assignedGrade || currentUser?.teacherGrade || '')
+      .split(',')
+      .map((g) => g.trim())
+      .filter(Boolean);
+
+    const getGradesForLearningArea = (area: string): string[] => {
+      const exact = subjectGradesMap[area];
+      if (Array.isArray(exact) && exact.length > 0) return exact;
+      const ciKey = Object.keys(subjectGradesMap).find(
+        (k) => k.trim().toLowerCase() === area.trim().toLowerCase()
+      );
+      if (ciKey && Array.isArray(subjectGradesMap[ciKey]) && subjectGradesMap[ciKey].length > 0) {
+        return subjectGradesMap[ciKey];
+      }
+      return fallbackTeacherGrades;
+    };
+
+    const allAssignedGrades = Array.from(
+      new Set(
+        registeredSubjects.flatMap((subj) => getGradesForLearningArea(subj))
+      )
+    );
+
+    const scopedLearners = learners.filter((l) => {
+      const sameSchool = !currentUser?.schoolId || !l.schoolId || l.schoolId === currentUser.schoolId;
+      if (!sameSchool) return false;
+      if (allAssignedGrades.length === 0) return false;
+      return allAssignedGrades.some(
+        (g) => g.trim().toLowerCase() === (l.grade || '').trim().toLowerCase()
+      );
+    });
 
     return (
       <div className="space-y-6">
@@ -745,19 +786,30 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div className="bg-white p-5 rounded-xl border border-slate-200">
             <span className="text-xs text-slate-500 block mb-1">Active Classes Taught</span>
             <div className="text-2xl font-bold font-mono text-indigo-700 tabular-nums">
-              {grades.length} Grades
+              {allAssignedGrades.length > 0
+                ? `${allAssignedGrades.length} ${allAssignedGrades.length === 1 ? 'Grade' : 'Grades'}`
+                : 'Unassigned'}
             </div>
-            <p className="text-xs text-slate-500 mt-1 truncate" title={grades.map((g) => g.name).join(', ')}>
-              {grades.map((g) => g.name).slice(0, 4).join(', ')}{grades.length > 4 ? ` +${grades.length - 4} more` : ''}
+            <p
+              className="text-xs text-slate-500 mt-1 truncate"
+              title={allAssignedGrades.length > 0 ? allAssignedGrades.join(', ') : 'Assign specific grades in Academic Setup'}
+            >
+              {allAssignedGrades.length > 0
+                ? `${allAssignedGrades.slice(0, 4).join(', ')}${allAssignedGrades.length > 4 ? ` +${allAssignedGrades.length - 4} more` : ''}`
+                : 'Assign specific grades in Academic Setup'}
             </p>
           </div>
 
           <div className="bg-white p-5 rounded-xl border border-slate-200">
             <span className="text-xs text-slate-500 block mb-1">Total Enrolled Students</span>
             <div className="text-2xl font-bold font-mono text-emerald-700 tabular-nums">
-              {learners.length} Students
+              {scopedLearners.length} Students
             </div>
-            <p className="text-xs text-slate-500 mt-1">Across represented curriculum</p>
+            <p className="text-xs text-slate-500 mt-1">
+              {allAssignedGrades.length > 0
+                ? `Across ${allAssignedGrades.join(', ')}`
+                : 'No classes assigned yet'}
+            </p>
           </div>
         </div>
 
@@ -893,7 +945,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     const created: LearningAreaAssignmentItem = {
                       id: `asgn-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
                       learningArea: activeArea,
-                      grade: assignGrade || 'All Grades',
+                      grade: (getGradesForLearningArea(activeArea).includes(assignGrade) ? assignGrade : getGradesForLearningArea(activeArea)[0]) || 'Unassigned',
                       title: assignTitle.trim(),
                       instructions:
                         assignInstructions.trim() ||
@@ -923,20 +975,30 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                     <div>
                       <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                        Target Grade / Class
+                        Target Grade / Class ({activeArea})
                       </label>
-                      <select
-                        value={assignGrade}
-                        onChange={(e) => setAssignGrade(e.target.value)}
-                        className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
-                      >
-                        <option value="All Grades">All Grades</option>
-                        {grades.map((g) => (
-                          <option key={g.id} value={g.name}>
-                            {g.name}
-                          </option>
-                        ))}
-                      </select>
+                      {(() => {
+                        const areaGrades = getGradesForLearningArea(activeArea);
+                        const effectiveSelectValue =
+                          areaGrades.includes(assignGrade) ? assignGrade : areaGrades[0] || '';
+                        return (
+                          <select
+                            value={effectiveSelectValue}
+                            onChange={(e) => setAssignGrade(e.target.value)}
+                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                          >
+                            {areaGrades.length === 0 ? (
+                              <option value="">No grades assigned for {activeArea}</option>
+                            ) : (
+                              areaGrades.map((gName) => (
+                                <option key={gName} value={gName}>
+                                  {gName}
+                                </option>
+                              ))
+                            )}
+                          </select>
+                        );
+                      })()}
                     </div>
                     <div>
                       <label className="block text-[11px] font-semibold text-slate-700 mb-1">
