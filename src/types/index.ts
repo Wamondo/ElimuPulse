@@ -39,6 +39,7 @@ export interface TeacherRecord {
   teacherType: TeacherType;
   assignedGrade?: string; // If class teacher
   registeredSubjects: string[];
+  subjectGrades?: Record<string, string[]>; // Specific grades taught per registered learning area
   department: string;
   schoolId?: string;
 }
