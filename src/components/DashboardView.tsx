@@ -1462,6 +1462,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           })()}
         </div>
 
+        <DiagramSketchModal
+          isOpen={Boolean(sketchTargetQuestionId)}
+          title="Draw Diagram for Assignment Question"
+          initialImage={
+            draftQuestions.find((dq) => dq.id === sketchTargetQuestionId)?.diagramUrl
+          }
+          onClose={() => setSketchTargetQuestionId(null)}
+          onSaveDiagram={(dataUrl) => {
+            if (!sketchTargetQuestionId) return;
+            updateDraftQuestion(sketchTargetQuestionId, { diagramUrl: dataUrl });
+          }}
+        />
+
         {/* Subject Grading Entry Table */}
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
           <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
