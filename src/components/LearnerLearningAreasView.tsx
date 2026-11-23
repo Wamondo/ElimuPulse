@@ -8,6 +8,7 @@ import {
   subscribeAssignments,
   calculateAssignmentTotalMarks,
   calculateAutoScore,
+  formatCalculationSteps,
 } from '../services/assignmentService';
 import {
   BookOpen,
@@ -407,7 +408,11 @@ export const LearnerLearningAreasView: React.FC = () => {
                                         onChange={(e) =>
                                           handleAnswerChange(assignment.id, q.id, e.target.value)
                                         }
-                                        placeholder="Type your answer or working directly here..."
+                                        placeholder="Write each calculation step on a new line:
+Formula: V = l x w x h
+Substitution: = 6 x 6 x 6
+Working: = 36 x 6
+Answer: = 216 cm³"
                                         className="w-full px-2.5 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:border-indigo-500 focus:outline-none"
                                       />
                                     )}
@@ -515,17 +520,19 @@ export const LearnerLearningAreasView: React.FC = () => {
                               const ans = submission.answers?.[q.id] || '—';
                               const isCorrect =
                                 q.type === 'mcq' && q.correctOption === ans;
+                              const calcSteps = q.type !== 'mcq' ? formatCalculationSteps(ans) : [];
+                              const anns = submission.stepAnnotations?.[q.id] || [];
                               return (
                                 <div
                                   key={q.id}
-                                  className="p-2 bg-white border border-emerald-100 rounded text-[11px]"
+                                  className="p-2.5 bg-white border border-emerald-100 rounded-lg text-[11px] space-y-1.5"
                                 >
-                                  <p className="font-bold text-slate-800">
+                                  <p className="font-bold text-slate-900">
                                     {idx + 1}. {q.prompt} ({q.marks} mks)
                                   </p>
-                                  <p className="text-slate-700 mt-0.5">
-                                    Your Answer: <strong>{ans}</strong>
-                                    {q.type === 'mcq' && (
+                                  {q.type === 'mcq' ? (
+                                    <p className="text-slate-700 mt-0.5">
+                                      Your Answer: <strong>{ans}</strong>
                                       <span
                                         className={`ml-2 px-1.5 py-0.2 rounded text-[10px] font-bold ${
                                           isCorrect
@@ -537,8 +544,44 @@ export const LearnerLearningAreasView: React.FC = () => {
                                           ? 'Correct'
                                           : `Correct Answer: ${q.correctOption}`}
                                       </span>
-                                    )}
-                                  </p>
+                                    </p>
+                                  ) : calcSteps.length > 0 ? (
+                                    <div className="rounded-lg border border-slate-200 bg-slate-50/60 divide-y divide-slate-200/70">
+                                      {calcSteps.map((stepLine, sIdx) => {
+                                        const ann = anns[sIdx] || {};
+                                        const isWrong = ann.stamp === '✗';
+                                        return (
+                                          <div key={sIdx} className="px-2.5 py-1.5 space-y-1">
+                                            <div className="flex items-center justify-between gap-2 font-mono text-xs">
+                                              <span
+                                                className={`font-bold ${
+                                                  isWrong
+                                                    ? 'text-red-700 underline decoration-wavy decoration-red-500'
+                                                    : 'text-slate-900'
+                                                }`}
+                                              >
+                                                {stepLine}
+                                              </span>
+                                              {ann.stamp && (
+                                                <span className="font-sans text-xs font-black text-red-600 bg-red-50 border border-red-300 px-1.5 py-0.5 rounded">
+                                                  {ann.stamp}
+                                                </span>
+                                              )}
+                                            </div>
+                                            {ann.mistakeNote && (
+                                              <p className="text-[11px] font-medium text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1">
+                                                Teacher Correction: {ann.mistakeNote}
+                                              </p>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  ) : (
+                                    <p className="text-slate-700 mt-0.5">
+                                      Your Answer: <strong>{ans}</strong>
+                                    </p>
+                                  )}
                                 </div>
                               );
                             })}

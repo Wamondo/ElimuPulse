@@ -38,6 +38,9 @@ import {
   saveAssignments,
   subscribeAssignments,
   calculateAssignmentTotalMarks,
+  formatCalculationSteps,
+  CalculationStepAnnotation,
+  RedInkStamp,
 } from '../services/assignmentService';
 
 interface DashboardViewProps {
@@ -1275,22 +1278,66 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                       </div>
 
                                       {(item.questions || []).length > 0 ? (
-                                        <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                                        <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
                                           {(item.questions || []).map((q, qIdx) => {
                                             const ans = activeSub.answers?.[q.id] || 'No answer provided';
                                             const isCorrectMcq =
                                               q.type === 'mcq' && q.correctOption === ans;
+                                            const calcSteps = q.type !== 'mcq' ? formatCalculationSteps(ans) : [];
+                                            const draftKey = `${item.id}:${activeSub.learnerId}:${q.id}`;
+                                            const currentAnns =
+                                              stepMarksDraft[draftKey] ||
+                                              activeSub.stepAnnotations?.[q.id] ||
+                                              [];
+
+                                            const updateStepAnn = (
+                                              stepIdx: number,
+                                              patch: Partial<CalculationStepAnnotation>
+                                            ) => {
+                                              const nextArr = calcSteps.map((_, i) =>
+                                                i === stepIdx
+                                                  ? { ...(currentAnns[i] || {}), ...patch }
+                                                  : currentAnns[i] || {}
+                                              );
+                                              const updatedDraft = {
+                                                ...stepMarksDraft,
+                                                [draftKey]: nextArr,
+                                              };
+                                              setStepMarksDraft(updatedDraft);
+
+                                              let stampedMarks = 0;
+                                              (item.questions || []).forEach((qq) => {
+                                                const k = `${item.id}:${activeSub.learnerId}:${qq.id}`;
+                                                const anns = updatedDraft[k] || activeSub.stepAnnotations?.[qq.id] || [];
+                                                anns.forEach((st) => {
+                                                  if (st?.stamp === 'M1' || st?.stamp === 'A1' || st?.stamp === '✓') stampedMarks += 1;
+                                                  if (st?.stamp === 'M2' || st?.stamp === 'A2') stampedMarks += 2;
+                                                });
+                                              });
+                                              if (stampedMarks > 0) {
+                                                setMarkScoreInput(`${Math.min(stampedMarks, totalMarks)}/${totalMarks}`);
+                                              }
+                                            };
+
                                             return (
                                               <div
                                                 key={q.id}
-                                                className="p-2 bg-white border border-slate-200 rounded text-[11px]"
+                                                className="p-2.5 bg-white border border-slate-200 rounded-lg text-[11px] space-y-2"
                                               >
-                                                <p className="font-bold text-slate-800">
-                                                  Q{qIdx + 1}. {q.prompt} ({q.marks} mks)
-                                                </p>
-                                                <p className="text-slate-700 mt-0.5">
-                                                  Learner Answer: <strong>{ans}</strong>
-                                                  {q.type === 'mcq' && (
+                                                <div className="flex items-start justify-between gap-2">
+                                                  <p className="font-bold text-slate-900">
+                                                    Q{qIdx + 1}. {q.prompt} ({q.marks} mks)
+                                                  </p>
+                                                  {q.type !== 'mcq' && (
+                                                    <span className="text-[10px] font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded shrink-0">
+                                                      Red Ink Marking
+                                                    </span>
+                                                  )}
+                                                </div>
+
+                                                {q.type === 'mcq' ? (
+                                                  <p className="text-slate-700">
+                                                    Learner Answer: <strong>{ans}</strong>
                                                     <span
                                                       className={`ml-2 px-1.5 py-0.2 rounded text-[10px] font-bold ${
                                                         isCorrectMcq
@@ -1302,8 +1349,87 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                                         ? `Correct (+${q.marks})`
                                                         : `Key: ${q.correctOption}`}
                                                     </span>
-                                                  )}
-                                                </p>
+                                                  </p>
+                                                ) : calcSteps.length > 0 ? (
+                                                  <div className="rounded-lg border border-slate-200 bg-amber-50/20 divide-y divide-slate-200/80">
+                                                    {calcSteps.map((stepLine, sIdx) => {
+                                                      const ann = currentAnns[sIdx] || {};
+                                                      const isWrong = ann.stamp === '✗';
+                                                      const hasRedMark = Boolean(ann.stamp);
+                                                      return (
+                                                        <div key={sIdx} className="p-2 space-y-1.5">
+                                                          <div className="flex flex-wrap items-center justify-between gap-2">
+                                                            <div className="flex items-center gap-2 font-mono text-xs">
+                                                              <span className="text-[10px] font-sans font-semibold text-slate-400 w-11">
+                                                                Step {sIdx + 1}:
+                                                              </span>
+                                                              <span
+                                                                className={`font-bold ${
+                                                                  isWrong
+                                                                    ? 'text-red-700 underline decoration-wavy decoration-red-500'
+                                                                    : 'text-slate-900'
+                                                                }`}
+                                                              >
+                                                                {stepLine}
+                                                              </span>
+                                                              {hasRedMark && (
+                                                                <span className="inline-flex items-center px-1.5 py-0.5 rounded font-sans text-xs font-black text-red-600 bg-red-50 border border-red-300 shadow-2xs">
+                                                                  {ann.stamp}
+                                                                </span>
+                                                              )}
+                                                            </div>
+
+                                                            <div className="flex items-center gap-1 flex-wrap">
+                                                              {(['✓', 'M1', 'A1', '✗'] as RedInkStamp[]).map((st) => (
+                                                                <button
+                                                                  key={st}
+                                                                  type="button"
+                                                                  title={
+                                                                    st === '✓'
+                                                                      ? 'Red Tick (Correct Step)'
+                                                                      : st === 'M1'
+                                                                      ? 'Method Mark (Formula / Substitution)'
+                                                                      : st === 'A1'
+                                                                      ? 'Accuracy Mark (Final Answer & Units)'
+                                                                      : 'Red Cross (Mistake in this step)'
+                                                                  }
+                                                                  onClick={() =>
+                                                                    updateStepAnn(sIdx, {
+                                                                      stamp: ann.stamp === st ? '' : st,
+                                                                    })
+                                                                  }
+                                                                  className={`px-1.5 py-0.5 rounded text-[10px] font-black border transition-colors cursor-pointer ${
+                                                                    ann.stamp === st
+                                                                      ? 'bg-red-600 text-white border-red-700 shadow-2xs'
+                                                                      : 'bg-white text-red-600 border-red-200 hover:bg-red-50'
+                                                                  }`}
+                                                                >
+                                                                  {st}
+                                                                </button>
+                                                              ))}
+                                                            </div>
+                                                          </div>
+
+                                                          {(isWrong || ann.mistakeNote) && (
+                                                            <input
+                                                              type="text"
+                                                              value={ann.mistakeNote || ''}
+                                                              onChange={(e) =>
+                                                                updateStepAnn(sIdx, {
+                                                                  mistakeNote: e.target.value,
+                                                                })
+                                                              }
+                                                              placeholder="Red pen note: explain mistake or correction for learner (e.g. Volume unit is cm³, not cm²)..."
+                                                              className="w-full px-2 py-1 text-[11px] text-red-700 placeholder:text-red-300 bg-red-50/70 border border-red-200 rounded focus:outline-none focus:border-red-500"
+                                                            />
+                                                          )}
+                                                        </div>
+                                                      );
+                                                    })}
+                                                  </div>
+                                                ) : (
+                                                  <p className="text-slate-500 italic">No calculation or answer submitted.</p>
+                                                )}
                                               </div>
                                             );
                                           })}
@@ -1342,9 +1468,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                             const updated = subjectAssignments.map((a) => {
                                               if (a.id !== item.id) return a;
                                               const nextSubs = { ...(a.submissions || {}) };
+                                              const mergedStepAnnotations: Record<string, CalculationStepAnnotation[]> = {
+                                                ...(activeSub.stepAnnotations || {}),
+                                              };
+                                              (item.questions || []).forEach((qq) => {
+                                                const k = `${item.id}:${activeSub.learnerId}:${qq.id}`;
+                                                if (stepMarksDraft[k]) {
+                                                  mergedStepAnnotations[qq.id] = stepMarksDraft[k];
+                                                }
+                                              });
                                               nextSubs[activeSub.learnerId] = {
                                                 ...activeSub,
                                                 status: 'marked',
+                                                stepAnnotations: mergedStepAnnotations,
                                                 awardedScore: finalScore,
                                                 teacherFeedback: finalFeedback,
                                                 markedAt: new Date().toISOString(),

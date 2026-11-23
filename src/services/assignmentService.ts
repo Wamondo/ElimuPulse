@@ -50,8 +50,7 @@ export function formatCalculationSteps(rawAnswer: string): string[] {
 
   // First split explicit newlines or semicolons
   const initialLines = cleaned
-    .split(/[
-;]+/)
+    .split(/[\r\n;]+/)
     .map((s) => s.trim())
     .filter(Boolean);
 
