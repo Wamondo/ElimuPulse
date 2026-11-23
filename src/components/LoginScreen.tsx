@@ -245,11 +245,20 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
           approved: true,
         })
       );
-      if (matchedTeacher.phone || matchedTeacher.email) {
-        await loginWithCredentials(
-          String(matchedTeacher.phone || matchedTeacher.email).trim(),
-          cleanPwd
-        );
+      try {
+        const loginIdentifier = String(matchedTeacher.phone || matchedTeacher.email || '').trim();
+        if (loginIdentifier) {
+          const res = await loginWithCredentials(loginIdentifier, cleanPwd);
+          if (!res?.success && res?.error) {
+            setErrorMsg(res.error);
+            setIsLoading(false);
+            return;
+          }
+        }
+      } catch (loginErr: any) {
+        setErrorMsg(loginErr?.message || 'Could not complete teacher sign-in.');
+        setIsLoading(false);
+        return;
       }
       if (onLoginSuccess) {
         onLoginSuccess();

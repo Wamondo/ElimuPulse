@@ -20,12 +20,29 @@ class RootErrorBoundary extends React.Component<{ children: React.ReactNode }, {
             <p className="text-xs text-slate-600 mb-4">
               Local browser state was cleared or interrupted. Reload to restore your workspace.
             </p>
-            <button
-              onClick={() => window.location.reload()}
-              className="px-4 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700"
-            >
-              Reload ElimuPulse
-            </button>
+            <div className="flex items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="px-4 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 cursor-pointer"
+              >
+                Reload ElimuPulse
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    localStorage.removeItem('elimupulse_staff_session');
+                    localStorage.removeItem('academias_secure_v1_auth');
+                    localStorage.removeItem('academias_secure_v1_user');
+                  } catch { /* ignore */ }
+                  window.location.reload();
+                }}
+                className="px-3.5 py-2 bg-slate-100 text-slate-800 border border-slate-300 text-xs font-semibold rounded-lg hover:bg-slate-200 cursor-pointer"
+              >
+                Reset Login
+              </button>
+            </div>
           </div>
         </div>
       );

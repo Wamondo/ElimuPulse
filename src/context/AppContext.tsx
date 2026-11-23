@@ -1663,7 +1663,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           : `Subject Teacher (${matchedTeacher.registeredSubjects.join(', ')}) · ${targetSchool.name}`,
         teacherType: matchedTeacher.teacherType,
         teacherGrade: matchedTeacher.assignedGrade,
-        registeredSubjects: matchedTeacher.registeredSubjects,
+        registeredSubjects: Array.isArray(matchedTeacher.registeredSubjects) ? matchedTeacher.registeredSubjects : [],
         schoolId: targetSchool.id,
       };
 
