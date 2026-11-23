@@ -1,3 +1,4 @@
+import { StaffApprovalsModal } from './components/StaffApprovalsModal';
 import React, { useState } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { Navbar } from './components/Navbar';
