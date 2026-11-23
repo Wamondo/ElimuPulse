@@ -157,7 +157,7 @@ export const AttendanceRegisterView: React.FC<AttendanceRegisterViewProps> = ({
     setTimeout(() => setActionSuccessNotice(null), 3500);
   };
 
-  // Day Statistics (2 Sessions/Learner)
+  // Day Statistics (2 Sessions/Learner + Gender Breakdown)
   const dayStats = useMemo(() => {
     const totalPossibleSessions = classLearners.length * 2;
     let morningPresent = 0;
@@ -165,17 +165,51 @@ export const AttendanceRegisterView: React.FC<AttendanceRegisterViewProps> = ({
     let morningAbsent = 0;
     let afternoonAbsent = 0;
 
+    let totalBoys = 0;
+    let totalGirls = 0;
+    let boysMorningPresent = 0;
+    let boysAfternoonPresent = 0;
+    let boysFullDayPresent = 0;
+    let girlsMorningPresent = 0;
+    let girlsAfternoonPresent = 0;
+    let girlsFullDayPresent = 0;
+
     classLearners.forEach((l) => {
+      const g = (l.gender || '').trim().toLowerCase();
+      const isBoy = g.startsWith('m') || g === 'boy';
+      const isGirl = g.startsWith('f') || g === 'girl';
+
+      if (isBoy) totalBoys++;
+      else if (isGirl) totalGirls++;
+
       const m = dateSessionMap.get(`${l.id}_morning`);
       const a = dateSessionMap.get(`${l.id}_afternoon`);
       const mStatus = m ? m.status : 'present';
       const aStatus = a ? a.status : 'present';
 
-      if (mStatus === 'present' || mStatus === 'late' || mStatus === 'excused') morningPresent++;
-      else morningAbsent++;
+      const mOk = mStatus === 'present' || mStatus === 'late' || mStatus === 'excused';
+      const aOk = aStatus === 'present' || aStatus === 'late' || aStatus === 'excused';
 
-      if (aStatus === 'present' || aStatus === 'late' || aStatus === 'excused') afternoonPresent++;
-      else afternoonAbsent++;
+      if (mOk) {
+        morningPresent++;
+        if (isBoy) boysMorningPresent++;
+        else if (isGirl) girlsMorningPresent++;
+      } else {
+        morningAbsent++;
+      }
+
+      if (aOk) {
+        afternoonPresent++;
+        if (isBoy) boysAfternoonPresent++;
+        else if (isGirl) girlsAfternoonPresent++;
+      } else {
+        afternoonAbsent++;
+      }
+
+      if (mOk || aOk) {
+        if (isBoy) boysFullDayPresent++;
+        else if (isGirl) girlsFullDayPresent++;
+      }
     });
 
     const totalAttendedSessions = morningPresent + afternoonPresent;
@@ -189,6 +223,14 @@ export const AttendanceRegisterView: React.FC<AttendanceRegisterViewProps> = ({
       morningAbsent,
       afternoonAbsent,
       dayAttendanceRate,
+      totalBoys,
+      totalGirls,
+      boysMorningPresent,
+      boysAfternoonPresent,
+      boysFullDayPresent,
+      girlsMorningPresent,
+      girlsAfternoonPresent,
+      girlsFullDayPresent,
     };
   }, [classLearners, dateSessionMap]);
 
@@ -503,14 +545,76 @@ export const AttendanceRegisterView: React.FC<AttendanceRegisterViewProps> = ({
             )}
           </div>
 
-          {/* Daily 2-Session KPI Summary Card */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {/* Daily 2-Session + Gender KPI Summary Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div className="p-3.5 bg-sky-50/70 border border-sky-200 rounded-xl">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-sky-900 uppercase font-bold">Boys Present</span>
+                <span className="text-xs font-bold text-sky-700">
+                  {dayStats.totalBoys > 0
+                    ? (
+                        ((sessionFilter === 'morning'
+                          ? dayStats.boysMorningPresent
+                          : sessionFilter === 'afternoon'
+                          ? dayStats.boysAfternoonPresent
+                          : dayStats.boysFullDayPresent) /
+                          dayStats.totalBoys) *
+                        100
+                      ).toFixed(0)
+                    : 0}%
+                </span>
+              </div>
+              <div className="text-xl font-bold font-mono text-sky-950 mt-0.5">
+                {sessionFilter === 'morning'
+                  ? dayStats.boysMorningPresent
+                  : sessionFilter === 'afternoon'
+                  ? dayStats.boysAfternoonPresent
+                  : dayStats.boysFullDayPresent}{' '}
+                / {dayStats.totalBoys}
+              </div>
+              <p className="text-[11px] text-sky-800 mt-0.5">
+                AM: {dayStats.boysMorningPresent} · PM: {dayStats.boysAfternoonPresent}
+              </p>
+            </div>
+
+            <div className="p-3.5 bg-pink-50/70 border border-pink-200 rounded-xl">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-pink-900 uppercase font-bold">Girls Present</span>
+                <span className="text-xs font-bold text-pink-700">
+                  {dayStats.totalGirls > 0
+                    ? (
+                        ((sessionFilter === 'morning'
+                          ? dayStats.girlsMorningPresent
+                          : sessionFilter === 'afternoon'
+                          ? dayStats.girlsAfternoonPresent
+                          : dayStats.girlsFullDayPresent) /
+                          dayStats.totalGirls) *
+                        100
+                      ).toFixed(0)
+                    : 0}%
+                </span>
+              </div>
+              <div className="text-xl font-bold font-mono text-pink-950 mt-0.5">
+                {sessionFilter === 'morning'
+                  ? dayStats.girlsMorningPresent
+                  : sessionFilter === 'afternoon'
+                  ? dayStats.girlsAfternoonPresent
+                  : dayStats.girlsFullDayPresent}{' '}
+                / {dayStats.totalGirls}
+              </div>
+              <p className="text-[11px] text-pink-800 mt-0.5">
+                AM: {dayStats.girlsMorningPresent} · PM: {dayStats.girlsAfternoonPresent}
+              </p>
+            </div>
+
             <div className="p-3.5 bg-white border border-slate-200 rounded-xl">
               <span className="text-[11px] text-slate-500 uppercase font-semibold">Total Day Sessions</span>
               <div className="text-xl font-bold font-mono text-slate-900 mt-0.5">
                 {dayStats.totalAttendedSessions} / {dayStats.totalPossibleSessions}
               </div>
-              <p className="text-[11px] text-slate-500 mt-0.5">2 sessions per learner daily</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                {dayStats.totalBoys} Boys · {dayStats.totalGirls} Girls
+              </p>
             </div>
 
             <div className="p-3.5 bg-amber-50/60 border border-amber-200/80 rounded-xl">
@@ -526,7 +630,9 @@ export const AttendanceRegisterView: React.FC<AttendanceRegisterViewProps> = ({
               <div className="text-xl font-bold font-mono text-amber-900 mt-0.5">
                 {dayStats.morningPresent} / {classLearners.length}
               </div>
-              <p className="text-[11px] text-amber-700 mt-0.5">{dayStats.morningAbsent} absent in morning</p>
+              <p className="text-[11px] text-amber-700 mt-0.5">
+                {dayStats.boysMorningPresent}B · {dayStats.girlsMorningPresent}G ({dayStats.morningAbsent} absent)
+              </p>
             </div>
 
             <div className="p-3.5 bg-indigo-50/60 border border-indigo-200/80 rounded-xl">
@@ -542,7 +648,9 @@ export const AttendanceRegisterView: React.FC<AttendanceRegisterViewProps> = ({
               <div className="text-xl font-bold font-mono text-indigo-900 mt-0.5">
                 {dayStats.afternoonPresent} / {classLearners.length}
               </div>
-              <p className="text-[11px] text-indigo-700 mt-0.5">{dayStats.afternoonAbsent} absent in afternoon</p>
+              <p className="text-[11px] text-indigo-700 mt-0.5">
+                {dayStats.boysAfternoonPresent}B · {dayStats.girlsAfternoonPresent}G ({dayStats.afternoonAbsent} absent)
+              </p>
             </div>
 
             <div className="p-3.5 bg-emerald-50/60 border border-emerald-200/80 rounded-xl">
