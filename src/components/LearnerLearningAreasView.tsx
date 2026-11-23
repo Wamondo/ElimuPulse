@@ -402,19 +402,40 @@ export const LearnerLearningAreasView: React.FC = () => {
                                         })}
                                       </div>
                                     ) : (
-                                      <textarea
-                                        rows={3}
-                                        value={currentAnswers[q.id] || ''}
-                                        onChange={(e) =>
-                                          handleAnswerChange(assignment.id, q.id, e.target.value)
-                                        }
-                                        placeholder="Write each calculation step on a new line:
+                                      <div className="space-y-1.5">
+                                        <textarea
+                                          rows={3}
+                                          value={currentAnswers[q.id] || ''}
+                                          onChange={(e) =>
+                                            handleAnswerChange(assignment.id, q.id, e.target.value)
+                                          }
+                                          placeholder="Write each calculation step on a new line:
 Formula: V = l x w x h
 Substitution: = 6 x 6 x 6
 Working: = 36 x 6
 Answer: = 216 cm³"
-                                        className="w-full px-2.5 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:border-indigo-500 focus:outline-none"
-                                      />
+                                          className="w-full px-2.5 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:border-indigo-500 focus:outline-none"
+                                        />
+                                        <div className="flex flex-wrap items-center gap-1">
+                                          <span className="text-[10px] font-semibold text-slate-500 mr-1">Insert Symbol:</span>
+                                          {['×', '÷', '=', '≠', '≈', '≤', '≥', '²', '³', '√', 'π', '°', 'cm²', 'cm³', '½', '¼', '¾', '→', '∴'].map((sym) => (
+                                            <button
+                                              key={sym}
+                                              type="button"
+                                              onClick={() =>
+                                                handleAnswerChange(
+                                                  assignment.id,
+                                                  q.id,
+                                                  `${currentAnswers[q.id] || ''}${sym}`
+                                                )
+                                              }
+                                              className="px-1.5 py-0.5 text-[11px] font-semibold bg-slate-50 hover:bg-indigo-50 text-slate-800 border border-slate-300 rounded cursor-pointer"
+                                            >
+                                              {sym}
+                                            </button>
+                                          ))}
+                                        </div>
+                                      </div>
                                     )}
                                   </div>
                                 ))}

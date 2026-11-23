@@ -49,6 +49,40 @@ interface DashboardViewProps {
   onOpenAddLearner: () => void;
 }
 
+
+const MATH_SCIENCE_SYMBOLS = [
+  '×', '÷', '=', '≠', '≈', '≤', '≥',
+  '²', '³', '√', 'π', '°', 'Δ',
+  'cm²', 'cm³', '½', '¼', '¾', '→', '∴'
+];
+
+const QUICK_DIAGRAMS: { label: string; caption: string; svg: string }[] = [
+  {
+    label: 'Triangle',
+    caption: 'Right / Base-Height Triangle Diagram',
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 130" width="240" height="130"><rect width="240" height="130" fill="#f8fafc"/><polygon points="55,105 185,105 55,25" fill="#e0e7ff" stroke="#1e293b" stroke-width="2.5"/><polyline points="55,91 69,91 69,105" fill="none" stroke="#1e293b" stroke-width="1.8"/><text x="115" y="120" font-size="12" font-family="sans-serif" fill="#0f172a">base (b)</text><text x="14" y="68" font-size="12" font-family="sans-serif" fill="#0f172a">height (h)</text></svg>`
+  },
+  {
+    label: 'Rectangle',
+    caption: 'Rectangle (Length × Width)',
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 130" width="240" height="130"><rect width="240" height="130" fill="#f8fafc"/><rect x="50" y="28" width="140" height="72" fill="#dcfce7" stroke="#1e293b" stroke-width="2.5"/><text x="102" y="116" font-size="12" font-family="sans-serif" fill="#0f172a">length (l)</text><text x="196" y="68" font-size="12" font-family="sans-serif" fill="#0f172a">w</text></svg>`
+  },
+  {
+    label: 'Circle',
+    caption: 'Circle with Radius (r)',
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 130" width="240" height="130"><rect width="240" height="130" fill="#f8fafc"/><circle cx="120" cy="65" r="42" fill="#fef3c7" stroke="#1e293b" stroke-width="2.5"/><line x1="120" y1="65" x2="162" y2="65" stroke="#dc2626" stroke-width="2"/><circle cx="120" cy="65" r="3" fill="#0f172a"/><text x="132" y="58" font-size="12" font-family="sans-serif" fill="#dc2626">r</text></svg>`
+  },
+  {
+    label: 'Cube / Prism',
+    caption: '3D Block / Volume Diagram',
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 130" width="240" height="130"><rect width="240" height="130" fill="#f8fafc"/><rect x="65" y="42" width="76" height="62" fill="#e0f2fe" stroke="#1e293b" stroke-width="2"/><polygon points="65,42 95,22 171,22 141,42" fill="#bae6fd" stroke="#1e293b" stroke-width="2"/><polygon points="141,42 171,22 171,84 141,104" fill="#7dd3fc" stroke="#1e293b" stroke-width="2"/><text x="92" y="118" font-size="11" font-family="sans-serif" fill="#0f172a">l × w × h</text></svg>`
+  }
+];
+
+function svgToDataUrl(svg: string): string {
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
 export const DashboardView: React.FC<DashboardViewProps> = ({
   onNavigateTab,
   onOpenRecordPayment,
@@ -88,6 +122,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [markScoreInput, setMarkScoreInput] = useState<string>('');
   const [markFeedbackInput, setMarkFeedbackInput] = useState<string>('Well done; meets competency expectations.');
   const [stepMarksDraft, setStepMarksDraft] = useState<Record<string, CalculationStepAnnotation[]>>({});
+  const [crossAreaGradeFilter, setCrossAreaGradeFilter] = useState<string>('ALL');
   const [assignToast, setAssignToast] = useState<string | null>(null);
 
   useEffect(() => {
@@ -1117,6 +1152,106 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                               className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md"
                             />
 
+                            <div className="flex flex-wrap items-center gap-1 pt-0.5">
+                              <span className="text-[10px] font-semibold text-slate-500 mr-1">Symbols:</span>
+                              {MATH_SCIENCE_SYMBOLS.map((sym) => (
+                                <button
+                                  key={sym}
+                                  type="button"
+                                  onClick={() =>
+                                    updateDraftQuestion(q.id, {
+                                      prompt: `${q.prompt || ''}${sym}`
+                                    })
+                                  }
+                                  className="px-1.5 py-0.5 text-[11px] font-semibold bg-white hover:bg-indigo-50 text-slate-800 border border-slate-300 rounded cursor-pointer"
+                                >
+                                  {sym}
+                                </button>
+                              ))}
+                            </div>
+
+                            <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-200/80">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <label className="px-2 py-1 text-[11px] font-semibold text-indigo-700 bg-white hover:bg-indigo-50 border border-indigo-200 rounded-md cursor-pointer">
+                                  Attach Picture
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0];
+                                      if (!file) return;
+                                      const reader = new FileReader();
+                                      reader.onload = () => {
+                                        if (typeof reader.result === 'string') {
+                                          updateDraftQuestion(q.id, {
+                                            diagramUrl: reader.result,
+                                            diagramCaption: q.diagramCaption || file.name
+                                          });
+                                        }
+                                      };
+                                      reader.readAsDataURL(file);
+                                    }}
+                                  />
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={() => setSketchTargetQuestionId(q.id)}
+                                  className="px-2 py-1 text-[11px] font-semibold text-emerald-700 bg-white hover:bg-emerald-50 border border-emerald-200 rounded-md cursor-pointer"
+                                >
+                                  Draw Diagram
+                                </button>
+                                {QUICK_DIAGRAMS.map((qd) => (
+                                  <button
+                                    key={qd.label}
+                                    type="button"
+                                    onClick={() =>
+                                      updateDraftQuestion(q.id, {
+                                        diagramUrl: svgToDataUrl(qd.svg),
+                                        diagramCaption: q.diagramCaption || qd.caption
+                                      })
+                                    }
+                                    className="px-1.5 py-0.5 text-[10px] font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 rounded cursor-pointer"
+                                  >
+                                    +{qd.label}
+                                  </button>
+                                ))}
+                              </div>
+                              {q.diagramUrl && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    updateDraftQuestion(q.id, {
+                                      diagramUrl: undefined,
+                                      diagramCaption: undefined
+                                    })
+                                  }
+                                  className="text-[10px] font-semibold text-rose-600 hover:underline cursor-pointer"
+                                >
+                                  Remove Picture
+                                </button>
+                              )}
+                            </div>
+
+                            {q.diagramUrl && (
+                              <div className="p-2 bg-white border border-slate-200 rounded-lg space-y-1.5">
+                                <img
+                                  src={q.diagramUrl}
+                                  alt={q.diagramCaption || `Question ${idx + 1} diagram`}
+                                  className="max-h-40 w-auto rounded border border-slate-100 object-contain"
+                                />
+                                <input
+                                  type="text"
+                                  value={q.diagramCaption || ''}
+                                  onChange={(e) =>
+                                    updateDraftQuestion(q.id, { diagramCaption: e.target.value })
+                                  }
+                                  placeholder="Diagram / picture label (optional)..."
+                                  className="w-full px-2 py-1 text-[11px] bg-slate-50 border border-slate-200 rounded"
+                                />
+                              </div>
+                            )}
+
                             {q.type === 'mcq' && q.options && (
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                                 {(['A', 'B', 'C', 'D'] as const).map((optKey) => (
@@ -1613,6 +1748,332 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             updateDraftQuestion(sketchTargetQuestionId, { diagramUrl: dataUrl });
           }}
         />
+
+        {/* Separate Assignments Broadsheet & Class Teacher Cross-Learning-Area Tracker */}
+        {(() => {
+          const areaSets = subjectAssignments.filter((a) => a.learningArea === activeArea);
+          const areaLearners = learners.filter(
+            (l) =>
+              (l.learningAreas || []).includes(activeArea) ||
+              areaSets.some((s) => s.grade === l.grade)
+          );
+
+          const parseScoreNum = (val?: string) => {
+            if (!val) return null;
+            const m = String(val).match(/(\d+(?:\.\d+)?)/);
+            return m ? Number(m[1]) : null;
+          };
+
+          const allGrades = Array.from(
+            new Set([
+              ...learners.map((l) => l.grade).filter(Boolean),
+              ...subjectAssignments.map((a) => a.grade).filter(Boolean),
+            ])
+          );
+          const filteredClassLearners = learners.filter((l) =>
+            crossAreaGradeFilter === 'ALL' ? true : l.grade === crossAreaGradeFilter
+          );
+
+          return (
+            <div className="space-y-4">
+              {/* 1. Separate Assignments Broadsheet (Distinct from Regular School Assessments) */}
+              <div className="bg-white rounded-xl border border-indigo-200 overflow-hidden">
+                <div className="px-5 py-4 border-b border-indigo-100 bg-indigo-50/40 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h2 className="text-sm font-bold text-slate-900">
+                      Assignments Broadsheet — {activeArea} (Separate from Test 1 / Test 2 / Exam)
+                    </h2>
+                    <p className="text-xs text-slate-600">
+                      Tracks assignment completion status and assignment marks separately from regular school assessments
+                    </p>
+                  </div>
+                  <span className="px-2.5 py-1 text-[11px] font-bold text-indigo-800 bg-indigo-100 rounded-full">
+                    {areaSets.length} Assignment Set{areaSets.length === 1 ? '' : 's'}
+                  </span>
+                </div>
+
+                {areaLearners.length === 0 ? (
+                  <div className="p-5 text-xs text-slate-500">
+                    No learners enrolled for {activeArea} assignment tracking yet.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-200 text-slate-700">
+                          <th className="py-2.5 px-3 font-bold">Learner</th>
+                          <th className="py-2.5 px-2.5 font-bold">Grade</th>
+                          {areaSets.map((set) => (
+                            <th key={set.id} className="py-2.5 px-2.5 font-bold">
+                              {set.title}
+                            </th>
+                          ))}
+                          <th className="py-2.5 px-2.5 font-bold">Done</th>
+                          <th className="py-2.5 px-2.5 font-bold">Assignment Marks</th>
+                          <th className="py-2.5 px-3 font-bold">Completion Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {areaLearners.map((learner) => {
+                          const learnerSets = areaSets.filter(
+                            (s) => !s.grade || s.grade === learner.grade
+                          );
+                          let completedCount = 0;
+                          let totalEarned = 0;
+                          let totalPossible = 0;
+
+                          const setCells = learnerSets.map((s) => {
+                            const sub = s.submissions?.[learner.id];
+                            const isDone = Boolean(sub);
+                            if (isDone) completedCount += 1;
+                            const qMax = (s.questions || []).reduce(
+                              (acc, q) => acc + (Number(q.marks) || 0),
+                              0
+                            );
+                            if (qMax > 0) totalPossible += qMax;
+                            const num = parseScoreNum(sub?.awardedScore);
+                            if (num !== null) totalEarned += num;
+                            return {
+                              setId: s.id,
+                              done: isDone,
+                              scoreLabel: sub?.awardedScore || (isDone ? 'Submitted' : '—'),
+                            };
+                          });
+
+                          const statusLabel =
+                            learnerSets.length === 0
+                              ? 'No Sets'
+                              : completedCount === learnerSets.length
+                              ? 'Completed All'
+                              : completedCount > 0
+                              ? 'Partial'
+                              : 'Missing';
+
+                          const statusBadgeClass =
+                            statusLabel === 'Completed All'
+                              ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                              : statusLabel === 'Partial'
+                              ? 'bg-amber-100 text-amber-800 border-amber-200'
+                              : 'bg-rose-100 text-rose-800 border-rose-200';
+
+                          return (
+                            <tr key={learner.id} className="hover:bg-slate-50/70">
+                              <td className="py-2.5 px-3 font-semibold text-slate-900">
+                                {learner.name}
+                                <span className="block text-[10px] text-slate-500 font-normal">
+                                  {learner.studentId}
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-2.5 text-slate-700">{learner.grade}</td>
+                              {areaSets.map((s) => {
+                                const cell = setCells.find((c) => c.setId === s.id);
+                                return (
+                                  <td key={s.id} className="py-2.5 px-2.5">
+                                    {cell ? (
+                                      <span
+                                        className={`px-1.5 py-0.5 rounded text-[11px] font-semibold ${
+                                          cell.done
+                                            ? 'bg-indigo-50 text-indigo-900 border border-indigo-200'
+                                            : 'text-slate-400'
+                                        }`}
+                                      >
+                                        {cell.scoreLabel}
+                                      </span>
+                                    ) : (
+                                      <span className="text-slate-300">N/A</span>
+                                    )}
+                                  </td>
+                                );
+                              })}
+                              <td className="py-2.5 px-2.5 font-bold text-slate-800">
+                                {completedCount}/{learnerSets.length}
+                              </td>
+                              <td className="py-2.5 px-2.5 font-bold text-indigo-900">
+                                {totalPossible > 0
+                                  ? `${totalEarned}/${totalPossible}`
+                                  : totalEarned > 0
+                                  ? `${totalEarned} pts`
+                                  : '—'}
+                              </td>
+                              <td className="py-2.5 px-3">
+                                <span
+                                  className={`px-2 py-0.5 rounded-full text-[11px] font-bold border ${statusBadgeClass}`}
+                                >
+                                  {statusLabel}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+
+              {/* 2. Class Teacher Cross-Learning-Area Assignment Completion Tracker */}
+              <div className="bg-white rounded-xl border border-emerald-200 overflow-hidden">
+                <div className="px-5 py-4 border-b border-emerald-100 bg-emerald-50/40 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-sm font-bold text-slate-900">
+                      Class Teacher Cross-Learning-Area Assignment Tracker
+                    </h2>
+                    <p className="text-xs text-slate-600">
+                      Shows learners who completed all assignments across every registered learning area and their pushed marks
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs font-semibold text-slate-700">Class / Grade:</label>
+                    <select
+                      value={crossAreaGradeFilter}
+                      onChange={(e) => setCrossAreaGradeFilter(e.target.value)}
+                      className="px-2.5 py-1 text-xs bg-white border border-slate-300 rounded-md font-semibold"
+                    >
+                      <option value="ALL">All Classes</option>
+                      {allGrades.map((g) => (
+                        <option key={g} value={g}>
+                          {g}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {filteredClassLearners.length === 0 ? (
+                  <div className="p-5 text-xs text-slate-500">
+                    No learners found for the selected class filter.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-200 text-slate-700">
+                          <th className="py-2.5 px-3 font-bold">Learner</th>
+                          <th className="py-2.5 px-2.5 font-bold">Class</th>
+                          <th className="py-2.5 px-3 font-bold">Learning Areas & Assignment Marks</th>
+                          <th className="py-2.5 px-2.5 font-bold">Areas Done</th>
+                          <th className="py-2.5 px-3 font-bold">All Learning Areas Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {filteredClassLearners.map((learner) => {
+                          const assignedAreas = Array.from(
+                            new Set([
+                              ...(learner.learningAreas || []),
+                              ...subjectAssignments
+                                .filter((s) => !s.grade || s.grade === learner.grade)
+                                .map((s) => s.learningArea),
+                            ])
+                          );
+
+                          let areasAllCompleted = 0;
+                          const areaSummaries = assignedAreas.map((area) => {
+                            const setsForArea = subjectAssignments.filter(
+                              (s) =>
+                                s.learningArea === area &&
+                                (!s.grade || s.grade === learner.grade)
+                            );
+                            const doneInArea = setsForArea.filter(
+                              (s) => Boolean(s.submissions?.[learner.id])
+                            ).length;
+                            const earnedInArea = setsForArea.reduce((sum, s) => {
+                              const n = parseScoreNum(s.submissions?.[learner.id]?.awardedScore);
+                              return sum + (n ?? 0);
+                            }, 0);
+                            const maxInArea = setsForArea.reduce(
+                              (sum, s) =>
+                                sum +
+                                (s.questions || []).reduce(
+                                  (qSum, q) => qSum + (Number(q.marks) || 0),
+                                  0
+                                ),
+                              0
+                            );
+                            const completeAllInArea =
+                              setsForArea.length > 0 && doneInArea === setsForArea.length;
+                            if (completeAllInArea) areasAllCompleted += 1;
+
+                            return {
+                              area,
+                              doneInArea,
+                              totalInArea: setsForArea.length,
+                              completeAllInArea,
+                              scoreText:
+                                maxInArea > 0
+                                  ? `${earnedInArea}/${maxInArea}`
+                                  : earnedInArea > 0
+                                  ? `${earnedInArea}`
+                                  : '',
+                            };
+                          });
+
+                          const activeAreasWithSets = areaSummaries.filter(
+                            (a) => a.totalInArea > 0
+                          );
+                          const completedEveryArea =
+                            activeAreasWithSets.length > 0 &&
+                            areasAllCompleted === activeAreasWithSets.length;
+
+                          return (
+                            <tr key={learner.id} className="hover:bg-slate-50/70">
+                              <td className="py-2.5 px-3 font-semibold text-slate-900">
+                                {learner.name}
+                                <span className="block text-[10px] text-slate-500 font-normal">
+                                  {learner.studentId}
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-2.5 text-slate-700">{learner.grade}</td>
+                              <td className="py-2.5 px-3">
+                                <div className="flex flex-wrap gap-1.5">
+                                  {areaSummaries.map((as) => (
+                                    <span
+                                      key={as.area}
+                                      className={`px-2 py-0.5 rounded border text-[10px] font-semibold ${
+                                        as.completeAllInArea
+                                          ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
+                                          : as.doneInArea > 0
+                                          ? 'bg-amber-50 text-amber-900 border-amber-200'
+                                          : 'bg-slate-50 text-slate-600 border-slate-200'
+                                      }`}
+                                    >
+                                      {as.area}: {as.doneInArea}/{as.totalInArea}
+                                      {as.scoreText ? ` (${as.scoreText})` : ''}
+                                    </span>
+                                  ))}
+                                </div>
+                              </td>
+                              <td className="py-2.5 px-2.5 font-bold text-slate-800">
+                                {areasAllCompleted}/{activeAreasWithSets.length}
+                              </td>
+                              <td className="py-2.5 px-3">
+                                <span
+                                  className={`px-2 py-0.5 rounded-full text-[11px] font-bold border ${
+                                    completedEveryArea
+                                      ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                                      : areasAllCompleted > 0
+                                      ? 'bg-amber-100 text-amber-800 border-amber-200'
+                                      : 'bg-rose-100 text-rose-800 border-rose-200'
+                                  }`}
+                                >
+                                  {completedEveryArea
+                                    ? 'Completed All Areas'
+                                    : areasAllCompleted > 0
+                                    ? 'Partial Areas'
+                                    : 'Incomplete'}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Subject Grading Entry Table */}
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
