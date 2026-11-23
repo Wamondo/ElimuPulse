@@ -100,6 +100,10 @@ export const LearnerLearningAreasView: React.FC = () => {
       const itemGrade = (item.grade || 'All Grades').trim().toLowerCase();
       return !learnerGradeKey || itemGrade === 'all grades' || itemGrade === learnerGradeKey;
     });
+    const toDo: Array<{
+      assignment: LearningAreaAssignmentItem;
+      submission?: LearnerAssignmentSubmission;
+    }> = [];
     const marked: Array<{
       assignment: LearningAreaAssignmentItem;
       submission?: LearnerAssignmentSubmission;
