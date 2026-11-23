@@ -810,6 +810,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     localStorage.setItem(`${STORAGE_KEY_PREFIX}audit_logs`, JSON.stringify(auditLogs));
   }, [auditLogs]);
 
+  useEffect(() => {
+    try {
+      if (teachers.length > 0 || learners.length > 0 || parents.length > 0) {
+        const snapshot = {
+          savedAt: new Date().toISOString(),
+          teachers,
+          learners,
+          parents,
+          grades,
+        };
+        localStorage.setItem('academias_safe_registry_backup_v1', JSON.stringify(snapshot));
+      }
+    } catch { /* ignore */ }
+  }, [teachers, learners, parents, grades]);
+
+
   // Validate Connection to Firestore on boot and initialize cloud data
   useEffect(() => {
     let isMounted = true;
@@ -909,7 +925,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             setLearners((prev) => {
               const byId = new Map(prev.map((l) => [l.id, l]));
               learnersRes.items.forEach((item) => {
-                if (item?.id) byId.set(item.id, { ...(byId.get(item.id) || {}), ...item });
+                if (!item?.id) return;
+                const existing = byId.get(item.id);
+                byId.set(item.id, existing ? { ...item, ...existing } : item);
               });
               return Array.from(byId.values());
             });
@@ -932,7 +950,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               if (mergedMap.size > 0) {
                 setLearners((prev) => {
                   const byId = new Map(prev.map((l) => [l.id, l]));
-                  mergedMap.forEach((v, k) => byId.set(k, v));
+                  mergedMap.forEach((v, k) => { const ex = byId.get(k); byId.set(k, ex ? { ...v, ...ex } : v); });
                   return Array.from(byId.values());
                 });
               }
@@ -940,14 +958,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           }
 
           if (parentsRes.ok && parentsRes.items.length > 0) {
-            if (validParentIds) {
-              const validParents = parentsRes.items.filter((p) => validParentIds.has(p.id));
-              const orphanParents = parentsRes.items.filter((p) => !validParentIds.has(p.id));
-              setParents(validParents);
-              orphanParents.forEach((p) => deleteDocumentFromFirestore('parents', p.id).catch(() => {}));
-            } else {
-              setParents(parentsRes.items);
-            }
+            setParents((prev) => {
+              const byId = new Map(prev.map((p) => [p.id, p]));
+              parentsRes.items.forEach((item) => {
+                if (!item?.id) return;
+                const existing = byId.get(item.id);
+                byId.set(item.id, existing ? { ...item, ...existing } : item);
+              });
+              return Array.from(byId.values());
+            });
           } else {
             try {
               const schoolKey = currentSchoolId || 'sch-001';
@@ -967,7 +986,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               if (mergedParents.size > 0) {
                 setParents((prev) => {
                   const byId = new Map(prev.map((p) => [p.id, p]));
-                  mergedParents.forEach((v, k) => byId.set(k, v));
+                  mergedParents.forEach((v, k) => { const ex = byId.get(k); byId.set(k, ex ? { ...v, ...ex } : v); });
                   return Array.from(byId.values());
                 });
               }
