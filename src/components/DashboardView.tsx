@@ -87,6 +87,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [selectedSubmissionLearnerId, setSelectedSubmissionLearnerId] = useState<string>('');
   const [markScoreInput, setMarkScoreInput] = useState<string>('');
   const [markFeedbackInput, setMarkFeedbackInput] = useState<string>('Well done; meets competency expectations.');
+  const [stepMarksDraft, setStepMarksDraft] = useState<Record<string, CalculationStepAnnotation[]>>({});
   const [assignToast, setAssignToast] = useState<string | null>(null);
 
   useEffect(() => {
