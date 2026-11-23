@@ -1474,14 +1474,16 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
             </div>
 
             {/* Document Print Container */}
-            <div id="printable-area" className="p-7 space-y-5 overflow-y-auto text-sm text-slate-900 bg-white print:p-0 print:min-h-[278mm] print:flex print:flex-col print:justify-between print:space-y-3.5">
+            <div id="printable-area" className="p-5 print:p-0 space-y-3 print:space-y-1.5 overflow-y-auto text-xs text-slate-900 bg-white">
               <style>{`
                 @media print {
                   @page {
                     size: A4 portrait;
-                    margin: 0.2in;
+                    margin: 0.25in;
                   }
-                  body {
+                  html, body {
+                    margin: 0 !important;
+                    padding: 0 !important;
                     -webkit-print-color-adjust: exact;
                     print-color-adjust: exact;
                   }
@@ -1489,54 +1491,63 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
                     display: none !important;
                   }
                   #printable-area {
+                    position: static !important;
                     padding: 0 !important;
                     margin: 0 !important;
                     overflow: visible !important;
                     width: 100% !important;
-                    min-height: 278mm !important;
+                    max-width: 100% !important;
+                    min-height: 0 !important;
+                    height: auto !important;
+                    page-break-after: avoid;
+                    break-after: avoid;
+                  }
+                  #printable-area tr,
+                  #printable-area .break-inside-avoid {
+                    break-inside: avoid;
+                    page-break-inside: avoid;
                   }
                 }
               `}</style>
 
               {/* Official Academic Header - Bearing distinct wing name & seal + KNEC Seal */}
-              <div className="flex items-center justify-between border-b-2 border-slate-900 pb-3.5 gap-3">
-                <div className="flex items-center gap-3.5">
+              <div className="flex items-center justify-between border-b-2 border-slate-900 pb-2 print:pb-1.5 gap-2.5 break-inside-avoid">
+                <div className="flex items-center gap-2.5">
                   <img
                     src={resolveWingSeal(activeLearner?.grade || '', schoolProfile, crestImage)}
                     alt={`${activeWingName} Official Seal`}
-                    className="w-20 h-20 object-contain rounded-full shrink-0"
+                    className="w-14 h-14 print:w-12 print:h-12 object-contain rounded-full shrink-0"
                     referrerPolicy="no-referrer"
                   />
                   <div>
-                    <h1 className="text-xl font-extrabold tracking-tight text-slate-900 uppercase">
+                    <h1 className="text-base print:text-sm font-extrabold tracking-tight text-slate-900 uppercase leading-tight">
                       {activeWingName}
                     </h1>
-                    <p className="text-sm font-bold text-indigo-800">
+                    <p className="text-xs print:text-[11px] font-bold text-indigo-800 leading-tight">
                       {schoolProfile.name} · {activeIsJunior ? 'Junior Secondary Wing (KJSEA Formative Assessment)' : 'Primary School Wing (KPSEA Formative Assessment)'}
                     </p>
-                    <p className="text-xs text-slate-600 mt-0.5">
+                    <p className="text-[11px] print:text-[10px] text-slate-600 leading-tight mt-0.5">
                       MoE/KNEC Center Registration: {schoolProfile.registrationNumber} · {schoolProfile.county}, {schoolProfile.subCounty}
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3.5 shrink-0">
-                  <div className="text-right">
-                    <span className="font-mono text-sm font-bold text-indigo-800 block uppercase">
+                <div className="flex items-center gap-2.5 shrink-0">
+                  <div className="text-right leading-tight">
+                    <span className="font-mono text-xs print:text-[10px] font-bold text-indigo-800 block uppercase">
                       {activeIsJunior ? 'KJSEA Junior School Assessment Form' : 'KPSEA Primary School Progress Form'}
                     </span>
-                    <span className="text-sm font-bold text-indigo-900 block bg-indigo-50 px-2.5 py-0.5 rounded border border-indigo-200 mt-1">
+                    <span className="text-xs print:text-[10px] font-bold text-indigo-900 inline-block bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 mt-0.5">
                       {activeAssessment?.name || cardBuffer.assessmentName || `${selectedTerm} Summative Assessment 2026`}
                     </span>
-                    <span className="text-sm text-slate-700 block font-semibold mt-0.5">{selectedTerm}</span>
-                    <span className="text-xs text-slate-500 block">
-                      Issued: {cardBuffer.issueDate}
+                    <span className="text-[11px] print:text-[10px] text-slate-700 block font-semibold mt-0.5">
+                      {selectedTerm} · Issued: {cardBuffer.issueDate}
                     </span>
                   </div>
                   <img
                     src={KNEC_SEAL_URL}
                     alt="KNEC Mitihani Seal"
-                    className="w-16 h-16 object-contain shrink-0"
+                    className="w-12 h-12 print:w-10 print:h-10 object-contain shrink-0"
                     referrerPolicy="no-referrer"
                   />
                 </div>
@@ -1544,34 +1555,34 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
 
               {/* Student Metadata Strip */}
               {activeLearner && (
-                <div className="grid grid-cols-4 gap-3 p-3.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-sm">
+                <div className="grid grid-cols-4 gap-2 p-2 print:p-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-xs break-inside-avoid">
                   <div>
-                    <span className="text-[11px] uppercase font-semibold text-slate-500 block">
+                    <span className="text-[10px] uppercase font-semibold text-slate-500 block leading-none">
                       Learner Full Name
                     </span>
-                    <span className="font-bold text-slate-900 text-sm">
+                    <span className="font-bold text-slate-900 text-xs print:text-[11px] leading-snug">
                       {activeLearner.firstName} {activeLearner.lastName}
                     </span>
                   </div>
                   <div>
-                    <span className="text-[11px] uppercase font-semibold text-slate-500 block">
+                    <span className="text-[10px] uppercase font-semibold text-slate-500 block leading-none">
                       Student UPI / ID
                     </span>
-                    <span className="font-mono font-bold text-slate-800 text-sm">
+                    <span className="font-mono font-bold text-slate-800 text-xs print:text-[11px] leading-snug">
                       {activeLearner.studentId}
                     </span>
                   </div>
                   <div>
-                    <span className="text-[11px] uppercase font-semibold text-slate-500 block">
+                    <span className="text-[10px] uppercase font-semibold text-slate-500 block leading-none">
                       Section &amp; Class
                     </span>
-                    <span className="font-bold text-indigo-700 text-sm">{activeWingName} · {activeLearner.grade}</span>
+                    <span className="font-bold text-indigo-700 text-xs print:text-[11px] leading-snug">{activeWingName} · {activeLearner.grade}</span>
                   </div>
                   <div>
-                    <span className="text-[11px] uppercase font-semibold text-slate-500 block">
+                    <span className="text-[10px] uppercase font-semibold text-slate-500 block leading-none">
                       Class Rank &amp; Attendance
                     </span>
-                    <span className={`font-mono font-bold text-sm ${isLearnerAbsentForExam ? 'text-rose-700' : 'text-slate-800'}`}>
+                    <span className={`font-mono font-bold text-xs print:text-[11px] leading-snug ${isLearnerAbsentForExam ? 'text-rose-700' : 'text-slate-800'}`}>
                       {isLearnerAbsentForExam ? 'DNS (Did Not Sit Exam)' : `Rank #${cardBuffer.classRank}`} · {cardBuffer.attendancePercentage.toFixed(1)}%
                     </span>
                   </div>
@@ -1580,69 +1591,69 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
 
               {/* Prominent Absentee Alert Banner for Exam Attendance */}
               {isLearnerAbsentForExam && (
-                <div className="p-3 bg-rose-50 border-2 border-rose-300 rounded-lg flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2.5">
-                    <span className="px-2.5 py-0.5 rounded font-bold font-mono text-xs bg-rose-700 text-white">
-                      EXAM SITTING STATUS: ABSENT (DNS)
+                <div className="p-2 print:p-1.5 bg-rose-50 border border-rose-300 rounded-lg flex items-center justify-between text-xs print:text-[10px] break-inside-avoid">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded font-bold font-mono text-[10px] bg-rose-700 text-white">
+                      ABSENT (DNS)
                     </span>
-                    <span className="font-semibold text-rose-900 text-sm">
+                    <span className="font-semibold text-rose-900">
                       {cardBuffer.examAbsentReason || activeAssessment?.absentReasons?.[selectedLearnerId] || 'Marked Absent by Class Teacher'} · Did Not Sit for this Examination
                     </span>
                   </div>
-                  <span className="text-xs font-mono text-rose-700 font-bold">
-                    Excluded from Class Standing &amp; Mean Calculation
+                  <span className="text-[10px] font-mono text-rose-700 font-bold">
+                    Excluded from Mean
                   </span>
                 </div>
               )}
 
               {/* Grade Table with Full Unclipped Remarks */}
-              <div className="border border-slate-200 rounded-lg overflow-hidden">
+              <div className="border border-slate-200 rounded-lg overflow-hidden break-inside-avoid">
                 <table className="w-full text-left">
-                  <thead className="bg-slate-800 text-xs uppercase font-bold text-white">
+                  <thead className="bg-slate-800 text-[10px] uppercase font-bold text-white">
                     <tr>
-                      <th className="py-2.5 px-3">Subject / Academic Area</th>
-                      <th className="py-2.5 px-2.5 text-right">{activeAssessment?.test1Name || 'Test 1'}</th>
-                      <th className="py-2.5 px-2.5 text-right">{activeAssessment?.test2Name || 'Test 2'}</th>
-                      <th className="py-2.5 px-2.5 text-right">{activeAssessment?.test3Name || 'Exam'}</th>
-                      <th className="py-2.5 px-2.5 text-right">Total (100)</th>
-                      <th className="py-2.5 px-2.5 text-center">Grade</th>
-                      <th className="py-2.5 px-2.5 text-center">Pts</th>
-                      <th className="py-2.5 px-3 text-left min-w-64">Teacher Remarks &amp; Observations</th>
+                      <th className="py-1.5 print:py-1 px-2.5">Subject / Academic Area</th>
+                      <th className="py-1.5 print:py-1 px-2 text-right">{activeAssessment?.test1Name || 'Test 1'}</th>
+                      <th className="py-1.5 print:py-1 px-2 text-right">{activeAssessment?.test2Name || 'Test 2'}</th>
+                      <th className="py-1.5 print:py-1 px-2 text-right">{activeAssessment?.test3Name || 'Exam'}</th>
+                      <th className="py-1.5 print:py-1 px-2 text-right">Total (100)</th>
+                      <th className="py-1.5 print:py-1 px-2 text-center">Grade</th>
+                      <th className="py-1.5 print:py-1 px-2 text-center">Pts</th>
+                      <th className="py-1.5 print:py-1 px-2.5 text-left min-w-48">Teacher Remarks &amp; Observations</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-200 text-sm">
+                  <tbody className="divide-y divide-slate-200 text-xs print:text-[11px]">
                     {cardBuffer.subjects.map((s) => {
                       const g = calculateCompetencyGrade(s.totalScore);
                       return (
                         <tr key={s.id} className="even:bg-slate-50/70">
-                          <td className="py-2.5 px-3 font-bold text-slate-900 whitespace-nowrap">{s.subjectName}</td>
-                          <td className="py-2.5 px-2.5 text-right font-mono tabular-nums text-slate-700">
+                          <td className="py-1.5 print:py-1 px-2.5 font-bold text-slate-900 whitespace-nowrap">{s.subjectName}</td>
+                          <td className="py-1.5 print:py-1 px-2 text-right font-mono tabular-nums text-slate-700">
                             {isLearnerAbsentForExam ? <span className="text-rose-600 font-bold">DNS</span> : s.catScore}
                           </td>
-                          <td className="py-2.5 px-2.5 text-right font-mono tabular-nums text-slate-700">
+                          <td className="py-1.5 print:py-1 px-2 text-right font-mono tabular-nums text-slate-700">
                             {isLearnerAbsentForExam ? <span className="text-rose-600 font-bold">DNS</span> : s.midTermScore}
                           </td>
-                          <td className="py-2.5 px-2.5 text-right font-mono tabular-nums text-slate-700">
+                          <td className="py-1.5 print:py-1 px-2 text-right font-mono tabular-nums text-slate-700">
                             {isLearnerAbsentForExam ? <span className="text-rose-600 font-bold">DNS</span> : s.finalExamScore}
                           </td>
-                          <td className="py-2.5 px-2.5 text-right font-mono font-extrabold text-slate-900 tabular-nums">
+                          <td className="py-1.5 print:py-1 px-2 text-right font-mono font-extrabold text-slate-900 tabular-nums">
                             {isLearnerAbsentForExam ? <span className="text-rose-600 font-bold">DNS</span> : s.totalScore}
                           </td>
-                          <td className="py-2.5 px-2.5 text-center font-mono font-bold text-indigo-700">
+                          <td className="py-1.5 print:py-1 px-2 text-center font-mono font-bold text-indigo-700">
                             {isLearnerAbsentForExam ? (
                               <span className="text-rose-600 font-bold">DNS</span>
                             ) : (
                               g.grade
                             )}
                           </td>
-                          <td className="py-2.5 px-2.5 text-center font-mono font-bold text-slate-800">
+                          <td className="py-1.5 print:py-1 px-2 text-center font-mono font-bold text-slate-800">
                             {isLearnerAbsentForExam ? (
                               <span className="text-rose-600 font-bold">0</span>
                             ) : (
                               g.points
                             )}
                           </td>
-                          <td className="py-2.5 px-3 text-slate-700 text-xs leading-snug whitespace-normal break-words">
+                          <td className="py-1.5 print:py-1 px-2.5 text-slate-700 text-[11px] print:text-[10px] leading-tight whitespace-normal break-words">
                             {isLearnerAbsentForExam ? (
                               <span className="text-rose-700 italic">Did Not Sit (DNS) — Candidate absent during examination session.</span>
                             ) : (
@@ -1657,118 +1668,122 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
               </div>
 
               {/* Summary Metrics Strip */}
-              <div className="grid grid-cols-4 gap-3 p-3.5 bg-slate-50 border border-slate-200 rounded-lg text-center">
+              <div className="grid grid-cols-4 gap-2 p-2 print:p-1.5 bg-slate-50 border border-slate-200 rounded-lg text-center break-inside-avoid">
                 <div>
-                  <span className="text-[11px] text-slate-500 uppercase font-semibold block">Total Marks</span>
-                  <span className={`text-base font-extrabold font-mono tabular-nums ${isLearnerAbsentForExam ? 'text-rose-600' : 'text-slate-900'}`}>
+                  <span className="text-[10px] text-slate-500 uppercase font-semibold block leading-none">Total Marks</span>
+                  <span className={`text-xs print:text-xs font-extrabold font-mono tabular-nums ${isLearnerAbsentForExam ? 'text-rose-600' : 'text-slate-900'}`}>
                     {isLearnerAbsentForExam ? 'DNS' : `${cardBuffer.totalMarks} / ${cardBuffer.maxPossibleMarks}`}
                   </span>
                 </div>
                 <div>
-                  <span className="text-[11px] text-slate-500 uppercase font-semibold block">Mean Percentage</span>
-                  <span className={`text-base font-extrabold font-mono tabular-nums ${isLearnerAbsentForExam ? 'text-rose-600' : 'text-indigo-700'}`}>
+                  <span className="text-[10px] text-slate-500 uppercase font-semibold block leading-none">Mean Percentage</span>
+                  <span className={`text-xs print:text-xs font-extrabold font-mono tabular-nums ${isLearnerAbsentForExam ? 'text-rose-600' : 'text-indigo-700'}`}>
                     {isLearnerAbsentForExam ? 'DNS' : `${cardBuffer.averageScore.toFixed(1)}%`}
                   </span>
                 </div>
                 <div>
-                  <span className="text-[11px] text-slate-500 uppercase font-semibold block">Competency GPA</span>
-                  <span className={`text-base font-extrabold font-mono tabular-nums ${isLearnerAbsentForExam ? 'text-rose-600' : 'text-slate-900'}`}>
+                  <span className="text-[10px] text-slate-500 uppercase font-semibold block leading-none">Competency GPA</span>
+                  <span className={`text-xs print:text-xs font-extrabold font-mono tabular-nums ${isLearnerAbsentForExam ? 'text-rose-600' : 'text-slate-900'}`}>
                     {isLearnerAbsentForExam ? 'DNS / 8.0 (DNS)' : `${cardBuffer.gpa.toFixed(2)} / 8.0 (${overallGradeInfo.grade})`}
                   </span>
                 </div>
                 <div>
-                  <span className="text-[11px] text-slate-500 uppercase font-semibold block">Attendance Rate</span>
-                  <span className="text-base font-extrabold font-mono text-emerald-700 tabular-nums">
+                  <span className="text-[10px] text-slate-500 uppercase font-semibold block leading-none">Attendance Rate</span>
+                  <span className="text-xs print:text-xs font-extrabold font-mono text-emerald-700 tabular-nums">
                     {cardBuffer.attendancePercentage.toFixed(1)}%
                   </span>
                 </div>
               </div>
 
               {/* 8-Tier Grading Rubric Legend Table */}
-              <div className="p-3.5 bg-slate-50/80 border border-slate-200 rounded-lg text-xs text-slate-600 space-y-2">
-                <span className="font-bold text-slate-800 block text-xs uppercase tracking-wide">
+              <div className="p-2 print:p-1.5 bg-slate-50/80 border border-slate-200 rounded-lg text-[10px] text-slate-600 space-y-1 break-inside-avoid">
+                <span className="font-bold text-slate-800 block text-[10px] uppercase tracking-wide leading-none">
                   Institutional 8-Level Competency Grading Scale Rubric:
                 </span>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono text-xs">
+                <div className="grid grid-cols-4 gap-1.5 font-mono text-[10px] print:text-[9px]">
                   {COMPETENCY_SCALE.map((lvl) => (
-                    <div key={lvl.grade} className="p-2 bg-white border border-slate-200 rounded">
+                    <div key={lvl.grade} className="px-1.5 py-1 print:py-0.5 bg-white border border-slate-200 rounded leading-tight">
                       <div className="flex items-center justify-between font-bold text-slate-900">
-                        <span>{lvl.grade} ({lvl.points} pts)</span>
-                        <span className="text-indigo-600 text-[11px]">{lvl.condition}</span>
+                        <span>{lvl.grade} ({lvl.points}p)</span>
+                        <span className="text-indigo-600">{lvl.condition}</span>
                       </div>
-                      <div className="text-[11px] text-slate-500 truncate">{lvl.label}</div>
+                      <div className="text-[9px] text-slate-500 truncate">{lvl.label}</div>
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Remarks and Official Signatures - Fully Accommodating All Remarks */}
-              <div className="space-y-3 pt-1">
-                <div className="p-3.5 border border-slate-200 rounded-lg bg-slate-50/50">
-                  <span className="text-xs uppercase font-bold text-slate-600 block">
-                    Class Teacher's Evaluative Remarks &amp; Observations
-                  </span>
-                  <p className="text-slate-900 italic mt-1 leading-relaxed text-sm break-words font-medium">
-                    "{cardBuffer.classTeacherRemark}"
-                  </p>
-                  <p className="text-xs text-slate-500 mt-1 font-semibold">
-                    — {activeClassTeacherName}, Class Tutor
+              {/* Remarks and Official Signatures - Single Page Fit */}
+              <div className="space-y-1.5 print:space-y-1 break-inside-avoid">
+                <div className="p-2 print:p-1.5 border border-slate-200 rounded-lg bg-slate-50/50">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <span className="text-[10px] uppercase font-bold text-slate-600">
+                      Class Teacher&apos;s Evaluative Remarks &amp; Observations
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-semibold">
+                      — {activeClassTeacherName}, Class Tutor
+                    </span>
+                  </div>
+                  <p className="text-slate-900 italic mt-0.5 leading-tight text-xs print:text-[11px] break-words font-medium">
+                    &ldquo;{cardBuffer.classTeacherRemark}&rdquo;
                   </p>
                 </div>
 
-                <div className="p-3.5 border border-slate-200 rounded-lg bg-slate-50/50">
-                  <span className="text-xs uppercase font-bold text-slate-600 block">
-                    Principal &amp; Head of Institution Comments &amp; Endorsement
-                  </span>
-                  <p className="text-slate-900 italic mt-1 leading-relaxed text-sm break-words font-medium">
-                    "{sanitizeInstitutionalRemark(cardBuffer.principalRemark, schoolProfile, activeLearner?.grade)}"
-                  </p>
-                  <p className="text-xs text-slate-500 mt-1 font-semibold">
-                    — {activePrincipalName}, Head of Institution ({activeWingName})
+                <div className="p-2 print:p-1.5 border border-slate-200 rounded-lg bg-slate-50/50">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <span className="text-[10px] uppercase font-bold text-slate-600">
+                      Principal &amp; Head of Institution Comments &amp; Endorsement
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-semibold">
+                      — {activePrincipalName}, Head of Institution ({activeWingName})
+                    </span>
+                  </div>
+                  <p className="text-slate-900 italic mt-0.5 leading-tight text-xs print:text-[11px] break-words font-medium">
+                    &ldquo;{sanitizeInstitutionalRemark(cardBuffer.principalRemark, schoolProfile, activeLearner?.grade)}&rdquo;
                   </p>
                 </div>
 
                 {/* Signature Lines with Digital Signatures */}
-                <div className="pt-4 grid grid-cols-3 gap-6 text-xs">
+                <div className="pt-1.5 print:pt-1 grid grid-cols-3 gap-4 items-end text-xs">
                   <div>
-                    <div className="h-11 flex items-end pb-1">
+                    <div className="h-8 print:h-7 flex items-end pb-0.5">
                       {schoolProfile.signatures?.['class_teacher']?.signatureDataUrl &&
                       schoolProfile.signatures['class_teacher'].signatoryName === activeClassTeacherName ? (
                         <img
                           src={schoolProfile.signatures['class_teacher'].signatureDataUrl}
                           alt="Tutor Signature"
-                          className="max-h-11 object-contain"
+                          className="max-h-7 object-contain"
                         />
                       ) : null}
                     </div>
-                    <div className="border-b border-slate-400 mb-1.5"></div>
-                    <p className="font-bold text-slate-900 text-sm">
+                    <div className="border-b border-slate-400 mb-1"></div>
+                    <p className="font-bold text-slate-900 text-xs print:text-[11px] leading-tight">
                       {activeClassTeacherName}
                     </p>
-                    <p className="text-slate-500 text-xs">
+                    <p className="text-slate-500 text-[10px] leading-tight">
                       {schoolProfile.signatures?.['class_teacher']?.roleTitle || 'Class Tutor Signature'}
                     </p>
                   </div>
                   <div>
-                    <div className="h-11 flex items-end pb-1">
+                    <div className="h-8 print:h-7 flex items-end pb-0.5">
                       {schoolProfile.signatures?.['hoi']?.signatureDataUrl ? (
                         <img
                           src={schoolProfile.signatures['hoi'].signatureDataUrl}
                           alt="Principal Signature"
-                          className="max-h-11 object-contain"
+                          className="max-h-7 object-contain"
                         />
                       ) : null}
                     </div>
-                    <div className="border-b border-slate-400 mb-1.5"></div>
-                    <p className="font-bold text-slate-900 text-sm">
+                    <div className="border-b border-slate-400 mb-1"></div>
+                    <p className="font-bold text-slate-900 text-xs print:text-[11px] leading-tight">
                       {activePrincipalName}
                     </p>
-                    <p className="text-slate-500 text-xs">
+                    <p className="text-slate-500 text-[10px] leading-tight">
                       {schoolProfile.signatures?.['hoi']?.roleTitle || 'Principal Signature'}
                     </p>
                   </div>
                   <div className="text-right">
-                    <div className="inline-flex flex-col items-center p-2.5 border border-indigo-200 bg-indigo-50/30 rounded-lg text-indigo-950">
+                    <div className="inline-flex flex-col items-center p-1.5 border border-indigo-200 bg-indigo-50/30 rounded-lg text-indigo-950">
                       <img
                         src={resolveWingSeal(
                           activeLearner?.grade || '',
@@ -1776,10 +1791,10 @@ export const ScoreCardsView: React.FC<ScoreCardsViewProps> = ({ initialLearnerId
                           schoolProfile.signatures?.['seal']?.signatureDataUrl || crestImage
                         )}
                         alt={`${activeWingName} Official Seal`}
-                        className="w-18 h-18 object-contain rounded-full mx-auto"
-                        referrerPolicy="no-referrer"
+                        className="w-12 h-12 print:w-10 print:h-10 object-contain rounded-full mx-auto"
+                       referrerPolicy="no-referrer"
                       />
-                      <span className="font-mono font-bold text-[10px] uppercase tracking-wider mt-1">
+                      <span className="font-mono font-bold text-[9px] uppercase tracking-wider mt-0.5">
                         {activeWingName} Seal
                       </span>
                     </div>
