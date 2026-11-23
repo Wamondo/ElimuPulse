@@ -815,15 +815,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (teachers.length > 0 || learners.length > 0 || parents.length > 0) {
         const snapshot = {
           savedAt: new Date().toISOString(),
+          schoolId: currentSchoolId || 'sch-001',
           teachers,
           learners,
           parents,
           grades,
         };
-        localStorage.setItem('academias_safe_registry_backup_v1', JSON.stringify(snapshot));
+        const serialized = JSON.stringify(snapshot);
+        localStorage.setItem('academias_safe_registry_backup_v1', serialized);
+
+        const cleanSnapshot = JSON.parse(serialized);
+        const schoolKey = currentSchoolId || 'sch-001';
+        set(ref(rtdb, `schools/${schoolKey}/backups/latestSnapshot`), cleanSnapshot).catch(() => {});
+        if (schoolKey !== 'sch-001') {
+          set(ref(rtdb, 'schools/sch-001/backups/latestSnapshot'), cleanSnapshot).catch(() => {});
+        }
       }
     } catch { /* ignore */ }
-  }, [teachers, learners, parents, grades]);
+  }, [teachers, learners, parents, grades, currentSchoolId]);
 
 
   // Validate Connection to Firestore on boot and initialize cloud data
