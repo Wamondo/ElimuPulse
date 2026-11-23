@@ -14,6 +14,8 @@ export interface AssignmentQuestion {
     D: string;
   };
   correctOption?: 'A' | 'B' | 'C' | 'D';
+  diagramUrl?: string;
+  diagramCaption?: string;
   marks: number;
 }
 
@@ -23,6 +25,7 @@ export interface LearnerAssignmentSubmission {
   studentId: string;
   grade: string;
   answers: Record<string, string>;
+  sketchAttachments?: Record<string, string>;
   generalResponse?: string;
   autoScore: number;
   totalMarks: number;
