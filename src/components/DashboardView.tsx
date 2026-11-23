@@ -77,6 +77,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [assignTitle, setAssignTitle] = useState<string>('');
   const [assignInstructions, setAssignInstructions] = useState<string>('');
   const [assignDueDate, setAssignDueDate] = useState<string>('');
+  const [sketchTargetQuestionId, setSketchTargetQuestionId] = useState<string | null>(null);
   const [draftQuestions, setDraftQuestions] = useState<AssignmentQuestion[]>([]);
   const [onlyMySets, setOnlyMySets] = useState<boolean>(true);
   const [markingId, setMarkingId] = useState<string | null>(null);
