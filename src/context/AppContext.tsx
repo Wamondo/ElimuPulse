@@ -239,6 +239,12 @@ interface AppContextType {
   getAttendanceForLearner: (learnerId: string) => AttendanceRecord[];
   addAuditLog: (action: string, details: string, securityFlag?: boolean) => void;
 
+  restoreRegistrySnapshot: (payload: {
+    teachers?: TeacherRecord[];
+    learners?: LearnerRecord[];
+    parents?: ParentRecord[];
+    grades?: GradeLevel[];
+  }) => { teachersCount: number; learnersCount: number; parentsCount: number };
   resetToDefault: () => void;
 }
 
@@ -3424,6 +3430,82 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     addAuditLog('Administrator Removed', `Removed admin ${id}`);
   };
 
+  const restoreRegistrySnapshot = (payload: {
+    teachers?: TeacherRecord[];
+    learners?: LearnerRecord[];
+    parents?: ParentRecord[];
+    grades?: GradeLevel[];
+  }) => {
+    let teachersCount = 0;
+    let learnersCount = 0;
+    let parentsCount = 0;
+
+    if (Array.isArray(payload.teachers) && payload.teachers.length > 0) {
+      setTeachers((prev) => {
+        const byId = new Map(prev.map((t) => [t.id, t]));
+        payload.teachers!.forEach((item) => {
+          if (!item?.id) return;
+          const existing = byId.get(item.id);
+          byId.set(item.id, existing ? { ...item, ...existing } : item);
+        });
+        const merged = Array.from(byId.values());
+        teachersCount = merged.length;
+        return merged;
+      });
+    }
+
+    if (Array.isArray(payload.learners) && payload.learners.length > 0) {
+      setLearners((prev) => {
+        const byId = new Map(prev.map((l) => [l.id, l]));
+        payload.learners!.forEach((item) => {
+          if (!item?.id) return;
+          const existing = byId.get(item.id);
+          byId.set(item.id, existing ? { ...item, ...existing } : item);
+        });
+        const merged = Array.from(byId.values());
+        learnersCount = merged.length;
+        return merged;
+      });
+    }
+
+    if (Array.isArray(payload.parents) && payload.parents.length > 0) {
+      setParents((prev) => {
+        const byId = new Map(prev.map((p) => [p.id, p]));
+        payload.parents!.forEach((item) => {
+          if (!item?.id) return;
+          const existing = byId.get(item.id);
+          byId.set(item.id, existing ? { ...item, ...existing } : item);
+        });
+        const merged = Array.from(byId.values());
+        parentsCount = merged.length;
+        return merged;
+      });
+    }
+
+    if (Array.isArray(payload.grades) && payload.grades.length > 0) {
+      setGrades((prev) => {
+        const byId = new Map(prev.map((g) => [g.id, g]));
+        payload.grades!.forEach((item) => {
+          if (!item?.id) return;
+          const existing = byId.get(item.id);
+          byId.set(item.id, existing ? { ...item, ...existing } : item);
+        });
+        return Array.from(byId.values());
+      });
+    }
+
+    addAuditLog(
+      'Registry Snapshot Restored',
+      `Restored snapshot (Teachers: ${teachersCount || teachers.length}, Learners: ${learnersCount || learners.length}, Parents: ${parentsCount || parents.length})`
+    );
+
+    return {
+      teachersCount: teachersCount || teachers.length,
+      learnersCount: learnersCount || learners.length,
+      parentsCount: parentsCount || parents.length,
+    };
+  };
+
   const resetToDefault = () => {
     localStorage.clear();
     setParents([]);
@@ -3623,6 +3705,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         getScoreCardsForLearner,
         getAttendanceForLearner,
         addAuditLog,
+        restoreRegistrySnapshot,
         resetToDefault,
         isCloudConnected,
         isCloudLoaded,

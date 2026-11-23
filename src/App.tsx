@@ -32,7 +32,12 @@ const MainLayout: React.FC = () => {
     isSyncingToCloud,
     syncAllDataToFirestore,
     firestoreDbId,
+    currentSchoolId,
     teachers,
+    learners,
+    parents,
+    grades,
+    restoreRegistrySnapshot,
   } = useApp();
 
   const isOwnerAccountActive = Boolean(
@@ -47,6 +52,74 @@ const MainLayout: React.FC = () => {
   const [isProductionCenterOpen, setIsProductionCenterOpen] = useState(false);
   const [isStaffApprovalsOpen, setIsStaffApprovalsOpen] = useState(false);
   const [targetLearnerId, setTargetLearnerId] = useState<string | undefined>(undefined);
+  const [backupNotice, setBackupNotice] = useState<string | null>(null);
+  const [isRestoringSnapshot, setIsRestoringSnapshot] = useState<boolean>(false);
+
+  const handleDownloadBackupJson = () => {
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      schoolId: currentSchoolId || 'sch-001',
+      teachers,
+      learners,
+      parents,
+      grades,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `elimupulse-registry-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setBackupNotice(
+      `Downloaded backup (${teachers.length} teachers, ${learners.length} learners, ${parents.length} parents).`
+    );
+  };
+
+  const handleRestoreFromRtdbOrLocal = async () => {
+    setIsRestoringSnapshot(true);
+    try {
+      const schoolKey = currentSchoolId || 'sch-001';
+      let snap = await get(ref(rtdb, `schools/${schoolKey}/backups/latestSnapshot`));
+      if (!snap.exists() && schoolKey !== 'sch-001') {
+        snap = await get(ref(rtdb, 'schools/sch-001/backups/latestSnapshot'));
+      }
+      let data = snap.exists() ? snap.val() : null;
+      if (!data) {
+        const localRaw = localStorage.getItem('academias_safe_registry_backup_v1');
+        if (localRaw) data = JSON.parse(localRaw);
+      }
+      if (!data) {
+        setBackupNotice('No saved snapshot found yet in RTDB or local backup.');
+        return;
+      }
+      const res = restoreRegistrySnapshot(data);
+      setBackupNotice(
+        `Restored snapshot (${res.teachersCount} teachers, ${res.learnersCount} learners, ${res.parentsCount} parents).`
+      );
+    } catch {
+      setBackupNotice('Could not restore snapshot right now. Please try again.');
+    } finally {
+      setIsRestoringSnapshot(false);
+    }
+  };
+
+  const handleRestoreFromFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const res = restoreRegistrySnapshot(parsed);
+      setBackupNotice(
+        `Restored from file (${res.teachersCount} teachers, ${res.learnersCount} learners, ${res.parentsCount} parents).`
+      );
+    } catch {
+      setBackupNotice('Invalid backup JSON file selected.');
+    } finally {
+      e.target.value = '';
+    }
+  };
 
   // If user is not authenticated, display the Login Screen
   if (!isAuthenticated) {
@@ -201,6 +274,49 @@ const MainLayout: React.FC = () => {
           </div>
         );
       })()}
+
+      {/* Registry Backup & Restore Bar */}
+      <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs">
+          <div className="flex items-center gap-2 text-slate-700 font-medium">
+            <Database className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+            <span>
+              Registry Safety: <strong>{teachers.length}</strong> Teachers · <strong>{learners.length}</strong> Learners · <strong>{parents.length}</strong> Parents
+            </span>
+            {backupNotice && (
+              <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                {backupNotice}
+              </span>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={handleDownloadBackupJson}
+              className="px-2.5 py-1 text-[11px] font-semibold text-indigo-700 bg-white hover:bg-indigo-50 border border-indigo-200 rounded-lg cursor-pointer"
+            >
+              Download Backup JSON
+            </button>
+            <button
+              type="button"
+              disabled={isRestoringSnapshot}
+              onClick={handleRestoreFromRtdbOrLocal}
+              className="px-2.5 py-1 text-[11px] font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg cursor-pointer disabled:opacity-60"
+            >
+              {isRestoringSnapshot ? 'Restoring...' : 'Restore RTDB Snapshot'}
+            </button>
+            <label className="px-2.5 py-1 text-[11px] font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg cursor-pointer">
+              <span>Restore Backup File</span>
+              <input
+                type="file"
+                accept="application/json,.json"
+                onChange={handleRestoreFromFile}
+                className="hidden"
+              />
+            </label>
+          </div>
+        </div>
+      </div>
 
       {/* Main Content Viewport */}
       <main className="flex-1 min-w-0 max-w-7xl w-full mx-auto overflow-x-hidden px-4 sm:px-6 lg:px-8 py-6">
