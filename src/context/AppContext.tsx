@@ -3446,10 +3446,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         payload.teachers!.forEach((item) => {
           if (!item?.id) return;
           const existing = byId.get(item.id);
-          byId.set(item.id, existing ? { ...item, ...existing } : item);
+          byId.set(item.id, existing ? { ...existing, ...item } : item);
         });
         const merged = Array.from(byId.values());
         teachersCount = merged.length;
+        try {
+          localStorage.setItem(`${STORAGE_KEY_PREFIX}teachers`, JSON.stringify(merged));
+        } catch { /* ignore */ }
+        batchSyncToFirestore('teachers', merged).catch(() => {});
         return merged;
       });
     }
