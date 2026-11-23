@@ -3525,10 +3525,38 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setDecryptedParentIds(new Set());
   };
 
-  // Ensure superadmin session objects carry isOwner = true everywhere
+  const isSuperAdminRole = (role?: string) => {
+    const r = String(role || '').trim().toLowerCase().replace(/[\s_-]+/g, '');
+    return r === 'superadmin' || r === 'owner';
+  };
+
+  // Ensure owner/super admin session objects carry isOwner = true everywhere
   React.useEffect(() => {
-    if (currentUser && currentUser.role === 'superadmin' && !currentUser.isOwner) {
-      setCurrentUser((prev) => (prev ? { ...prev, isOwner: true } : prev));
+    if (!currentUser) return;
+    const normPhone = normalizeKenyanPhone(currentUser.phone || '');
+    const normEmail = String(currentUser.email || '').trim().toLowerCase();
+    const matchesOwnerIdentity =
+      isSuperAdminRole(currentUser.role) ||
+      normPhone === '0716235185' ||
+      normEmail === 'dwnwmnd@gmail.com';
+    if (
+      matchesOwnerIdentity &&
+      currentUser.role !== 'teacher' &&
+      currentUser.role !== 'parent' &&
+      currentUser.role !== 'learner' &&
+      (!currentUser.isOwner || isSuperAdminRole(currentUser.role))
+    ) {
+      setCurrentUser((prev) =>
+        prev
+          ? {
+              ...prev,
+              role: 'admin',
+              isOwner: true,
+              ownerDesignation: prev.ownerDesignation || 'owner',
+              title: prev.title || 'App Owner & School Director (Master Executive)',
+            }
+          : prev
+      );
     }
   }, [currentUser]);
 
@@ -3537,7 +3565,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     currentUser?.role !== 'parent' &&
     currentUser?.role !== 'learner' &&
     (currentUser?.isOwner ||
-      currentUser?.role === 'superadmin' ||
+      isSuperAdminRole(currentUser?.role) ||
+      String(currentUser?.email || '').trim().toLowerCase() === 'dwnwmnd@gmail.com' ||
       (currentUser?.phone &&
         (normalizeKenyanPhone(currentUser?.phone) === '0716235185' ||
           currentUser?.phone === '0716235185')))
