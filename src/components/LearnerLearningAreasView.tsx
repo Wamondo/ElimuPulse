@@ -591,11 +591,10 @@ Answer: = 216 cm³"
                                               Worked on paper instead? Upload a photo of your written work for Q{idx + 1}:
                                             </span>
                                             <label className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-amber-950 bg-white hover:bg-amber-100 border border-amber-300 rounded-md cursor-pointer">
-                                              <span>📷 Upload Paper Photo</span>
+                                              <span>📷 Upload / Camera Photo</span>
                                               <input
                                                 type="file"
                                                 accept="image/*"
-                                                capture="environment"
                                                 className="hidden"
                                                 onChange={(e) => {
                                                   handlePaperPhotoUpload(assignment.id, q.id, e.target.files?.[0]);
@@ -653,11 +652,10 @@ Answer: = 216 cm³"
                                       Or upload a photo of your written work on paper:
                                     </span>
                                     <label className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-amber-950 bg-white hover:bg-amber-100 border border-amber-300 rounded-md cursor-pointer">
-                                      <span>📷 Upload Paper Photo</span>
+                                      <span>📷 Upload / Camera Photo</span>
                                       <input
                                         type="file"
                                         accept="image/*"
-                                        capture="environment"
                                         className="hidden"
                                         onChange={(e) => {
                                           handlePaperPhotoUpload(assignment.id, '_general', e.target.files?.[0]);
