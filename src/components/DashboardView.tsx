@@ -1781,19 +1781,90 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                                       );
                                                     })}
                                                   </div>
+                                                ) : activeSub.sketchAttachments?.[q.id] ? (
+                                                  <div className="rounded-lg border border-amber-200 bg-amber-50/40 p-2 space-y-1.5">
+                                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                                      <span className="text-[11px] font-bold text-amber-950">
+                                                        Learner Uploaded Written Paper Work (No typed steps)
+                                                      </span>
+                                                      <div className="flex items-center gap-1 flex-wrap">
+                                                        {(['✓', 'M1', 'A1', '✗'] as RedInkStamp[]).map((st) => {
+                                                          const paperAnn = currentAnns[0] || {};
+                                                          return (
+                                                            <button
+                                                              key={st}
+                                                              type="button"
+                                                              onClick={() =>
+                                                                updateStepAnn(0, {
+                                                                  stamp: paperAnn.stamp === st ? '' : st,
+                                                                })
+                                                              }
+                                                              className={`px-1.5 py-0.5 rounded text-[10px] font-black border transition-colors cursor-pointer ${
+                                                                paperAnn.stamp === st
+                                                                  ? 'bg-red-600 text-white border-red-700 shadow-2xs'
+                                                                  : 'bg-white text-red-600 border-red-200 hover:bg-red-50'
+                                                              }`}
+                                                            >
+                                                              {st}
+                                                            </button>
+                                                          );
+                                                        })}
+                                                      </div>
+                                                    </div>
+                                                    {(currentAnns[0]?.stamp === '✗' || currentAnns[0]?.mistakeNote) && (
+                                                      <input
+                                                        type="text"
+                                                        value={currentAnns[0]?.mistakeNote || ''}
+                                                        onChange={(e) =>
+                                                          updateStepAnn(0, {
+                                                            mistakeNote: e.target.value,
+                                                          })
+                                                        }
+                                                        placeholder="Red pen note on learner's written paper work..."
+                                                        className="w-full px-2 py-1 text-[11px] text-red-700 placeholder:text-red-300 bg-red-50/70 border border-red-200 rounded focus:outline-none focus:border-red-500"
+                                                      />
+                                                    )}
+                                                  </div>
                                                 ) : (
                                                   <p className="text-slate-500 italic">No calculation or answer submitted.</p>
+                                                )}
+
+                                                {activeSub.sketchAttachments?.[q.id] && (
+                                                  <div className="p-2 bg-amber-50/50 border border-amber-200 rounded-lg space-y-1">
+                                                    <p className="text-[10px] font-bold text-amber-950">
+                                                      Uploaded Written Paper Work ({q.id}):
+                                                    </p>
+                                                    <img
+                                                      src={activeSub.sketchAttachments[q.id]}
+                                                      alt={`Learner written work for ${q.id}`}
+                                                      className="max-h-60 w-auto rounded border border-amber-300 bg-white object-contain"
+                                                    />
+                                                  </div>
                                                 )}
                                               </div>
                                             );
                                           })}
                                         </div>
                                       ) : (
-                                        <div className="p-2 bg-white border border-slate-200 rounded text-[11px]">
-                                          <p className="font-semibold text-slate-700">Learner Response:</p>
-                                          <p className="text-slate-900 mt-0.5 whitespace-pre-wrap">
-                                            {activeSub.generalResponse || 'No written text submitted.'}
-                                          </p>
+                                        <div className="p-2 bg-white border border-slate-200 rounded text-[11px] space-y-2">
+                                          <div>
+                                            <p className="font-semibold text-slate-700">Learner Response:</p>
+                                            <p className="text-slate-900 mt-0.5 whitespace-pre-wrap">
+                                              {activeSub.generalResponse || (activeSub.sketchAttachments?.['_general'] ? 'Submitted via uploaded written paper photo.' : 'No written text submitted.')}
+                                            </p>
+                                          </div>
+                                          {activeSub.sketchAttachments?.['_general'] && (
+                                            <div className="p-2 bg-amber-50/50 border border-amber-200 rounded-lg space-y-1">
+                                              <p className="text-[10px] font-bold text-amber-950">
+                                                Uploaded Written Paper Work:
+                                              </p>
+                                              <img
+                                                src={activeSub.sketchAttachments['_general']}
+                                                alt="Learner written paper work"
+                                                className="max-h-60 w-auto rounded border border-amber-300 bg-white object-contain"
+                                              />
+                                            </div>
+                                          )}
                                         </div>
                                       )}
 

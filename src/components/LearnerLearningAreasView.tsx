@@ -159,6 +159,7 @@ export const LearnerLearningAreasView: React.FC = () => {
   const [activeAssignmentId, setActiveAssignmentId] = useState<string | null>(null);
   const [draftAnswers, setDraftAnswers] = useState<Record<string, Record<string, string>>>({});
   const [draftGeneralResponses, setDraftGeneralResponses] = useState<Record<string, string>>({});
+  const [draftSketches, setDraftSketches] = useState<Record<string, Record<string, string>>>({});
   const [submitNotice, setSubmitNotice] = useState<string | null>(null);
   const [expandedMarkedId, setExpandedMarkedId] = useState<string | null>(null);
 
@@ -205,9 +206,70 @@ export const LearnerLearningAreasView: React.FC = () => {
     }));
   };
 
+  const handlePaperPhotoUpload = (assignmentId: string, key: string, file?: File) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const rawDataUrl = typeof reader.result === 'string' ? reader.result : '';
+      if (!rawDataUrl) return;
+      const img = new Image();
+      img.onload = () => {
+        const maxDim = 1100;
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          if (width >= height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressed = canvas.toDataURL('image/jpeg', 0.78);
+          setDraftSketches((prev) => ({
+            ...prev,
+            [assignmentId]: {
+              ...(prev[assignmentId] || {}),
+              [key]: compressed,
+            },
+          }));
+          return;
+        }
+        setDraftSketches((prev) => ({
+          ...prev,
+          [assignmentId]: {
+            ...(prev[assignmentId] || {}),
+            [key]: rawDataUrl,
+          },
+        }));
+      };
+      img.src = rawDataUrl;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemovePaperPhoto = (assignmentId: string, key: string) => {
+    setDraftSketches((prev) => {
+      const nextForAssignment = { ...(prev[assignmentId] || {}) };
+      delete nextForAssignment[key];
+      return {
+        ...prev,
+        [assignmentId]: nextForAssignment,
+      };
+    });
+  };
+
   const handleSubmitAssignment = (assignment: LearningAreaAssignmentItem) => {
     const answers = draftAnswers[assignment.id] || {};
     const generalResponse = (draftGeneralResponses[assignment.id] || '').trim();
+    const sketchAttachments = draftSketches[assignment.id] || {};
+    const hasSketchAttachments = Object.keys(sketchAttachments).length > 0;
     const questions = assignment.questions || [];
     const totalMarks = assignment.totalMarks || calculateAssignmentTotalMarks(questions);
     const autoScore = calculateAutoScore(questions, answers);
@@ -218,6 +280,7 @@ export const LearnerLearningAreasView: React.FC = () => {
       studentId: activeStudentId,
       grade: activeLearnerGrade || assignment.grade,
       answers,
+      ...(hasSketchAttachments ? { sketchAttachments } : {}),
       ...(generalResponse ? { generalResponse } : {}),
       autoScore,
       totalMarks,
@@ -522,6 +585,84 @@ Answer: = 216 cm³"
                                               {sym}
                                             </button>
                                           ))}
+                                        <div className="p-2 bg-amber-50/60 border border-amber-200 rounded-lg space-y-2">
+                                          <div className="flex flex-wrap items-center justify-between gap-2">
+                                            <span className="text-[11px] font-semibold text-amber-950">
+                                              Worked on paper instead? Upload a photo of your written work for Q{idx + 1}:
+                                            </span>
+                                            <label className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-amber-950 bg-white hover:bg-amber-100 border border-amber-300 rounded-md cursor-pointer">
+                                              <span>📷 Upload Paper Photo</span>
+                                              <input
+                                                type="file"
+                                                accept="image/*"
+                                                capture="environment"
+                                                className="hidden"
+                                                onChange={(e) => {
+                                                  handlePaperPhotoUpload(assignment.id, q.id, e.target.files?.[0]);
+                                                  e.currentTarget.value = '';
+                                                }}
+                                              />
+                                            </label>
+                                          </div>
+                                          {draftSketches[assignment.id]?.[q.id] && (
+                                            <div className="space-y-1.5">
+                                              <img
+                                                src={draftSketches[assignment.id][q.id]}
+                                                alt={`Uploaded written work for Question ${idx + 1}`}
+                                                className="max-h-56 w-auto rounded-lg border border-amber-300 bg-white object-contain"
+                                              />
+                                              <div className="flex items-center justify-between text-[10px] text-amber-900">
+                                                <span>Attached written paper work ready to send</span>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleRemovePaperPhoto(assignment.id, q.id)}
+                                                  className="font-bold text-rose-700 hover:underline cursor-pointer"
+                                                >
+                                                  Remove Photo
+                                                </button>
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                        </div>
+                                        <div className="p-2 bg-amber-50/60 border border-amber-200 rounded-lg space-y-2">
+                                          <div className="flex flex-wrap items-center justify-between gap-2">
+                                            <span className="text-[11px] font-semibold text-amber-950">
+                                              Worked on paper instead? Upload a photo of your written work for Q{idx + 1}:
+                                            </span>
+                                            <label className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-amber-950 bg-white hover:bg-amber-100 border border-amber-300 rounded-md cursor-pointer">
+                                              <span>📷 Upload Paper Photo</span>
+                                              <input
+                                                type="file"
+                                                accept="image/*"
+                                                capture="environment"
+                                                className="hidden"
+                                                onChange={(e) => {
+                                                  handlePaperPhotoUpload(assignment.id, q.id, e.target.files?.[0]);
+                                                  e.currentTarget.value = '';
+                                                }}
+                                              />
+                                            </label>
+                                          </div>
+                                          {draftSketches[assignment.id]?.[q.id] && (
+                                            <div className="space-y-1.5">
+                                              <img
+                                                src={draftSketches[assignment.id][q.id]}
+                                                alt={`Uploaded written work for Question ${idx + 1}`}
+                                                className="max-h-56 w-auto rounded-lg border border-amber-300 bg-white object-contain"
+                                              />
+                                              <div className="flex items-center justify-between text-[10px] text-amber-900">
+                                                <span>Attached written paper work ready to send</span>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleRemovePaperPhoto(assignment.id, q.id)}
+                                                  className="font-bold text-rose-700 hover:underline cursor-pointer"
+                                                >
+                                                  Remove Photo
+                                                </button>
+                                              </div>
+                                            </div>
+                                          )}
                                         </div>
                                       </div>
                                     )}
@@ -545,6 +686,45 @@ Answer: = 216 cm³"
                                   placeholder="Type your complete answers directly here..."
                                   className="w-full px-2.5 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:border-indigo-500 focus:outline-none"
                                 />
+                                <div className="p-2 bg-amber-50/60 border border-amber-200 rounded-lg space-y-2">
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <span className="text-[11px] font-semibold text-amber-950">
+                                      Or upload a photo of your written work on paper:
+                                    </span>
+                                    <label className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-amber-950 bg-white hover:bg-amber-100 border border-amber-300 rounded-md cursor-pointer">
+                                      <span>📷 Upload Paper Photo</span>
+                                      <input
+                                        type="file"
+                                        accept="image/*"
+                                        capture="environment"
+                                        className="hidden"
+                                        onChange={(e) => {
+                                          handlePaperPhotoUpload(assignment.id, '_general', e.target.files?.[0]);
+                                          e.currentTarget.value = '';
+                                        }}
+                                      />
+                                    </label>
+                                  </div>
+                                  {draftSketches[assignment.id]?.['_general'] && (
+                                    <div className="space-y-1.5">
+                                      <img
+                                        src={draftSketches[assignment.id]['_general']}
+                                        alt="Uploaded written paper work"
+                                        className="max-h-56 w-auto rounded-lg border border-amber-300 bg-white object-contain"
+                                      />
+                                      <div className="flex items-center justify-between text-[10px] text-amber-900">
+                                        <span>Attached written paper work ready to send</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleRemovePaperPhoto(assignment.id, '_general')}
+                                          className="font-bold text-rose-700 hover:underline cursor-pointer"
+                                        >
+                                          Remove Photo
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             )}
 
@@ -651,6 +831,18 @@ Answer: = 216 cm³"
                                           {q.diagramCaption}
                                         </p>
                                       )}
+                                    </div>
+                                  )}
+                                  {submission.sketchAttachments?.[q.id] && (
+                                    <div className="p-2 bg-amber-50/60 border border-amber-200 rounded-lg space-y-1">
+                                      <p className="text-[10px] font-bold text-amber-900">
+                                        Your Uploaded Written Paper Work:
+                                      </p>
+                                      <img
+                                        src={submission.sketchAttachments[q.id]}
+                                        alt={`Uploaded written work for Question ${idx + 1}`}
+                                        className="max-h-52 w-auto rounded border border-amber-300 bg-white object-contain"
+                                      />
                                     </div>
                                   )}
                                   {q.type === 'mcq' ? (
