@@ -372,6 +372,21 @@ export const LearnerLearningAreasView: React.FC = () => {
                                       </span>
                                     </div>
 
+                                    {q.diagramUrl && (
+                                      <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
+                                        <img
+                                          src={q.diagramUrl}
+                                          alt={q.diagramCaption || `Question ${idx + 1} diagram`}
+                                          className="max-h-48 w-auto rounded border border-slate-200 bg-white object-contain"
+                                        />
+                                        {q.diagramCaption && (
+                                          <p className="text-[11px] font-medium text-slate-600">
+                                            {q.diagramCaption}
+                                          </p>
+                                        )}
+                                      </div>
+                                    )}
+
                                     {q.type === 'mcq' && q.options ? (
                                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                                         {(['A', 'B', 'C', 'D'] as const).map((optKey) => {
