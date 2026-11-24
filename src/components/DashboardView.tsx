@@ -30,6 +30,7 @@ import {
   Receipt
 } from 'lucide-react';
 import { maskPhoneNumber } from '../services/cryptoService';
+import { extractQuestionsFromPdfFile } from '../services/pdfQuestionExtractor';
 import {
   AssignmentQuestion,
   LearningAreaAssignmentItem,
@@ -166,6 +167,34 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [assignDueDate, setAssignDueDate] = useState<string>('');
   const [sketchTargetQuestionId, setSketchTargetQuestionId] = useState<string | null>(null);
   const [draftQuestions, setDraftQuestions] = useState<AssignmentQuestion[]>([]);
+  const [isExtractingPdf, setIsExtractingPdf] = useState<boolean>(false);
+  const [pdfExtractNotice, setPdfExtractNotice] = useState<string>('');
+
+  const handlePdfQuestionsUpload = async (file?: File | null) => {
+    if (!file) return;
+    setIsExtractingPdf(true);
+    setPdfExtractNotice('');
+    try {
+      const result = await extractQuestionsFromPdfFile(file);
+      if (result.questions.length > 0) {
+        setDraftQuestions(result.questions);
+        if (!assignTitle.trim() && result.suggestedTitle) {
+          setAssignTitle(result.suggestedTitle);
+        }
+        setPdfExtractNotice(
+          `Extracted ${result.questions.length} question(s) in exact order from "${file.name}". Review below and post to learners.`
+        );
+      } else {
+        setPdfExtractNotice(
+          `Could not detect numbered text questions in "${file.name}" (it may be a scanned image PDF). You can add or edit questions manually below.`
+        );
+      }
+    } catch {
+      setPdfExtractNotice(`Unable to read "${file.name}". Please check the PDF file and try again.`);
+    } finally {
+      setIsExtractingPdf(false);
+    }
+  };
   const [onlyMySets, setOnlyMySets] = useState<boolean>(true);
   const [markingId, setMarkingId] = useState<string | null>(null);
   const [selectedSubmissionLearnerId, setSelectedSubmissionLearnerId] = useState<string>('');
@@ -1146,7 +1175,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         </p>
                       </div>
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <button
+                        <label className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold cursor-pointer shadow-2xs">
+                                <span>{isExtractingPdf ? 'Extracting PDF...' : '📄 Upload PDF Questions'}</span>
+                                <input
+                                  type="file"
+                                  accept="application/pdf,.pdf"
+                                  disabled={isExtractingPdf}
+                                  className="hidden"
+                                  onChange={(e) => {
+                                    const f = e.target.files?.[0] || null;
+                                    e.currentTarget.value = '';
+                                    void handlePdfQuestionsUpload(f);
+                                  }}
+                                />
+                              </label>
+                              <button
                           type="button"
                           onClick={() => addDraftQuestion('mcq')}
                           className="px-2.5 py-1 text-[11px] font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-md cursor-pointer"
@@ -1165,7 +1208,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
                     {draftQuestions.length > 0 && (
                       <div className="space-y-2.5 pt-1">
-                        {draftQuestions.map((q, idx) => (
+                        {pdfExtractNotice && (
+                                    <div className="p-2 rounded-lg bg-indigo-50 border border-indigo-200 text-[11px] font-medium text-indigo-950">
+                                      {pdfExtractNotice}
+                                    </div>
+                                  )}
+                                  {draftQuestions.map((q, idx) => (
                           <div
                             key={q.id}
                             className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 space-y-2"
