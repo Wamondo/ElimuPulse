@@ -68,19 +68,92 @@ export const LearnerLearningAreasView: React.FC = () => {
   }, []);
 
   const learningAreas = useMemo(() => {
+    const gradeMatch = activeLearnerGrade.match(/\d+/);
+    const gradeNum = gradeMatch ? Number(gradeMatch[0]) : null;
+    const isPP1 = /pp\s*1/i.test(activeLearnerGrade);
+    const isPP2 = /pp\s*2/i.test(activeLearnerGrade);
+
+    const matchesLearnerGrade = (sub: Record<string, unknown>): boolean => {
+      const appGrades = sub.applicableGrades;
+      if (Array.isArray(appGrades) && appGrades.length > 0) {
+        return appGrades.some((g) => {
+          if (typeof g === 'number' && gradeNum !== null) return g === gradeNum;
+          const gStr = String(g).trim().toLowerCase();
+          if (gradeNum !== null) {
+            const m = gStr.match(/\d+/);
+            if (m && Number(m[0]) === gradeNum) return true;
+          }
+          if (isPP1 && /pp\s*1/i.test(gStr)) return true;
+          if (isPP2 && /pp\s*2/i.test(gStr)) return true;
+          return gStr === activeLearnerGrade.toLowerCase();
+        });
+      }
+      const singleGrade = String(sub.grade || sub.level || '').trim().toLowerCase();
+      if (singleGrade && activeLearnerGrade) {
+        if (gradeNum !== null) {
+          const m = singleGrade.match(/\d+/);
+          if (m) return Number(m[0]) === gradeNum;
+        }
+        return singleGrade === activeLearnerGrade.toLowerCase();
+      }
+      return true;
+    };
+
     const configured = Array.isArray(subjects)
       ? subjects
+          .filter((s: Record<string, unknown>) =>
+            activeLearnerGrade ? matchesLearnerGrade(s) : true
+          )
           .map((s: Record<string, unknown>) =>
             String(s.name || s.title || s.subjectName || '').trim()
           )
           .filter(Boolean)
       : [];
+
     const fromAssignments = teacherAssignments
+      .filter((a) => {
+        if (!activeLearnerGrade) return true;
+        const aGrade = (a.grade || '').trim();
+        if (!aGrade) return false;
+        if (gradeNum !== null) {
+          const m = aGrade.match(/\d+/);
+          if (m) return Number(m[0]) === gradeNum;
+        }
+        return aGrade.toLowerCase() === activeLearnerGrade.toLowerCase();
+      })
       .map((a) => a.learningArea.trim())
       .filter(Boolean);
+
     const merged = Array.from(new Set([...configured, ...fromAssignments]));
-    return merged.length > 0 ? merged : DEFAULT_CBC_LEARNING_AREAS;
-  }, [subjects, teacherAssignments]);
+    if (merged.length > 0) return merged;
+
+    if (gradeNum !== null && gradeNum >= 1 && gradeNum <= 3) {
+      return [
+        'Mathematical Activities',
+        'English Language Activities',
+        'Kiswahili Activities',
+        'Environmental Activities',
+        'Hygiene and Nutrition Activities',
+        'Religious Education Activities',
+        'Movement and Creative Activities',
+      ];
+    }
+    if (gradeNum !== null && gradeNum >= 4 && gradeNum <= 6) {
+      return [
+        'Mathematics',
+        'English Language',
+        'Kiswahili Lugha',
+        'Science and Technology',
+        'Agriculture',
+        'Social Studies',
+        'Creative Arts',
+        'Physical and Health Education PHE',
+        'Home Science',
+        'Religious Education (CRE / IRE / HRE)',
+      ];
+    }
+    return DEFAULT_CBC_LEARNING_AREAS;
+  }, [subjects, teacherAssignments, activeLearnerGrade]);
 
   const [selectedArea, setSelectedArea] = useState<string | null>(null);
   const [activeAssignmentId, setActiveAssignmentId] = useState<string | null>(null);
