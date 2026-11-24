@@ -102,22 +102,64 @@ export function loadLocalAssignments(): LearningAreaAssignmentItem[] {
 }
 
 export function saveAssignments(nextList: LearningAreaAssignmentItem[]): void {
+  const safeList = Array.isArray(nextList) ? nextList.filter((item) => item && item.id) : [];
   try {
-    localStorage.setItem(ASSIGNMENTS_STORAGE_KEY, JSON.stringify(nextList));
+    if (safeList.length > 0) {
+      localStorage.setItem(ASSIGNMENTS_STORAGE_KEY, JSON.stringify(safeList));
+    }
     window.dispatchEvent(new Event('elimupulse-assignments-updated'));
   } catch {
     // ignore storage errors
   }
-  try {
-    set(ref(rtdb, RTDB_ASSIGNMENTS_PATH), sanitizeForFirebase(nextList)).catch(() => {});
-  } catch {
-    // ignore offline sync errors
+
+  // Write each assignment under its own ID path so saving/submitting one item never overwrites others
+  for (const item of safeList) {
+    try {
+      const cleanItem = sanitizeForFirebase(item);
+      set(ref(rtdb, `${RTDB_ASSIGNMENTS_PATH}/${encodeURIComponent(item.id)}`), cleanItem).catch(() => {});
+      if (item.submissions && typeof item.submissions === 'object') {
+        for (const [learnerId, sub] of Object.entries(item.submissions)) {
+          if (sub && learnerId) {
+            set(
+              ref(
+                rtdb,
+                `${RTDB_ASSIGNMENTS_PATH}/${encodeURIComponent(item.id)}/submissions/${encodeURIComponent(learnerId)}`
+              ),
+              sanitizeForFirebase(sub)
+            ).catch(() => {});
+          }
+        }
+      }
+    } catch {
+      // ignore offline sync errors
+    }
   }
 }
 
 export function subscribeAssignments(
   onUpdate: (items: LearningAreaAssignmentItem[]) => void
 ): () => void {
+  const mergeWithLocal = (incoming: LearningAreaAssignmentItem[]): LearningAreaAssignmentItem[] => {
+    const existing = loadLocalAssignments();
+    const byId = new Map<string, LearningAreaAssignmentItem>();
+    for (const item of existing) {
+      if (item && item.id) byId.set(item.id, item);
+    }
+    for (const item of incoming) {
+      if (!item || !item.id) continue;
+      const prev = byId.get(item.id);
+      byId.set(item.id, {
+        ...prev,
+        ...item,
+        submissions: {
+          ...(prev?.submissions || {}),
+          ...(item.submissions || {}),
+        },
+      });
+    }
+    return Array.from(byId.values());
+  };
+
   const localHandler = () => {
     onUpdate(loadLocalAssignments());
   };
@@ -131,25 +173,29 @@ export function subscribeAssignments(
       dbRef,
       (snapshot) => {
         const val = snapshot.val();
+        let rawList: LearningAreaAssignmentItem[] = [];
         if (Array.isArray(val)) {
-          try {
-            localStorage.setItem(ASSIGNMENTS_STORAGE_KEY, JSON.stringify(val));
-          } catch {
-            // ignore
-          }
-          onUpdate(val);
+          rawList = val.filter(Boolean);
         } else if (val && typeof val === 'object') {
-          const list = Object.values(val) as LearningAreaAssignmentItem[];
+          rawList = Object.values(val).filter(Boolean) as LearningAreaAssignmentItem[];
+        }
+        if (rawList.length > 0) {
+          const merged = mergeWithLocal(rawList);
           try {
-            localStorage.setItem(ASSIGNMENTS_STORAGE_KEY, JSON.stringify(list));
+            localStorage.setItem(ASSIGNMENTS_STORAGE_KEY, JSON.stringify(merged));
           } catch {
             // ignore
           }
-          onUpdate(list);
+          onUpdate(merged);
+        } else {
+          const localList = loadLocalAssignments();
+          if (localList.length > 0) {
+            onUpdate(localList);
+          }
         }
       },
       () => {
-        // fallback to local
+        onUpdate(loadLocalAssignments());
       }
     );
   } catch {

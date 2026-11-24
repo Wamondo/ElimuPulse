@@ -11,6 +11,23 @@
     "schools": {
       ".read": true,
       ".write": true
+    },
+    "elimupulse": {
+      ".read": true,
+      "learningAreaAssignments": {
+        ".read": true,
+        "$assignmentId": {
+          ".read": true,
+          ".write": "newData.exists()",
+          "submissions": {
+            ".read": true,
+            "$learnerId": {
+              ".read": true,
+              ".write": "newData.exists()"
+            }
+          }
+        }
+      }
     }
   }
 }
