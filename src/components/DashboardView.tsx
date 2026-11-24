@@ -1751,10 +1751,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
         {/* Separate Assignments Broadsheet & Class Teacher Cross-Learning-Area Tracker */}
         {(() => {
-          const areaSets = subjectAssignments.filter((a) => a.learningArea === activeArea);
+          const broadsheetArea = selectedTeacherArea || registeredSubjects[0] || '';
+          const areaSets = broadsheetArea
+            ? subjectAssignments.filter(
+                (a) => a.learningArea.trim().toLowerCase() === broadsheetArea.trim().toLowerCase()
+              )
+            : [];
           const areaLearners = learners.filter(
             (l) =>
-              (l.learningAreas || []).includes(activeArea) ||
+              (broadsheetArea && (l.learningAreas || []).includes(broadsheetArea)) ||
               areaSets.some((s) => s.grade === l.grade)
           );
 
@@ -1781,7 +1786,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <div className="px-5 py-4 border-b border-indigo-100 bg-indigo-50/40 flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <h2 className="text-sm font-bold text-slate-900">
-                      Assignments Broadsheet — {activeArea} (Separate from Test 1 / Test 2 / Exam)
+                      Assignments Broadsheet — {broadsheetArea || 'Learning Area'} (Separate from Test 1 / Test 2 / Exam)
                     </h2>
                     <p className="text-xs text-slate-600">
                       Tracks assignment completion status and assignment marks separately from regular school assessments
@@ -1794,7 +1799,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
                 {areaLearners.length === 0 ? (
                   <div className="p-5 text-xs text-slate-500">
-                    No learners enrolled for {activeArea} assignment tracking yet.
+                    No learners enrolled for {broadsheetArea || 'this learning area'} assignment tracking yet.
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
