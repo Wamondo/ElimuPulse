@@ -22,19 +22,14 @@ function extractTextFromContentStream(streamBytes: Uint8Array): string {
   const latin1 = new TextDecoder('latin1').decode(streamBytes);
   const lines: string[] = [];
 
-  // Match PDF text objects BT ... ET
   const btEtRegex = /BT\b([\s\S]*?)\bET\b/g;
   let btMatch: RegExpExecArray | null;
-  let foundAnyBt = false;
 
   while ((btMatch = btEtRegex.exec(latin1)) !== null) {
-    foundAnyBt = true;
     const block = btMatch[1];
     let currentLine = '';
-
-    // Track line breaks via Td / TD / T* / T"
-    const tokenRegex = /\((?:\\.|[^\\() Sabotage])*?\)|\[(?:[\s\S]*?)\]|\/[A-Za-z0-9.+-]+\s+[-0-9.]+\s+Td|\/[A-Za-z0-9.+-]+\s+[-0-9.]+\s+TD|\bT\*\b|\bTj\b|\bTJ\b|[-0-9.]+\s+[-0-9.]+\s+Td|[-0-9.]+\s+[-0-9.]+\s+TD/g;
-    const tokens = block.match(/\((?:\\.|[^\\()])*\)|\[(?:\\.|[^\\[\]])*\]|[A-Za-z*']+|[-+]?\d*\.?\d+/g) || [];
+    const tokens =
+      block.match(/\((?:\\.|[^\\()])*\)|\[(?:\\.|[^\\[\]])*\]|[A-Za-z*']+|[-+]?\d*\.?\d+/g) || [];
 
     for (let i = 0; i < tokens.length; i++) {
       const tok = tokens[i];
@@ -64,16 +59,7 @@ function extractTextFromContentStream(streamBytes: Uint8Array): string {
     }
   }
 
-  if (foundAnyBt && lines.length > 0) {
-    return lines.join('\n');
-  }
-
-  // Fallback: extract printable text runs from raw bytes
-  const cleaned = latin1
-    .replace(/[^\x20-\x7E\r\n]/g, ' ')
-    .replace(/[ \t]{2,}/g, ' ')
-    .trim();
-  return cleaned;
+  return lines.join('\n');
 }
 
 async function decompressFlate(bytes: Uint8Array): Promise<Uint8Array | null> {
@@ -98,7 +84,6 @@ async function extractRawTextFromPdfArrayBuffer(buffer: ArrayBuffer): Promise<st
   const latin1 = new TextDecoder('latin1').decode(bytes);
   const collected: string[] = [];
 
-  // Scan stream ... endstream blocks
   const streamHeaderRegex = /stream\r?\n/g;
   let match: RegExpExecArray | null;
 
@@ -125,7 +110,7 @@ async function extractRawTextFromPdfArrayBuffer(buffer: ArrayBuffer): Promise<st
 
     if (decodedBytes && decodedBytes.length > 0) {
       const text = extractTextFromContentStream(decodedBytes);
-      if (text && /[A-Za-z0-9]{2,}/.test(text)) {
+      if (text && /[A-Za-z]{2,}/.test(text)) {
         collected.push(text);
       }
     }
@@ -133,26 +118,53 @@ async function extractRawTextFromPdfArrayBuffer(buffer: ArrayBuffer): Promise<st
     streamHeaderRegex.lastIndex = endIdx + 9;
   }
 
-  if (collected.length > 0) {
-    return collected.join('\n\n');
+  return collected.join('\n\n');
+}
+
+function isPdfGarbageLine(line: string): boolean {
+  const trimmed = line.trim();
+  if (!trimmed || trimmed.length < 2) return true;
+
+  // Known PDF internals / font names / metadata
+  if (
+    /\b(endobj|endstream|FlateDecode|FontDescriptor|CIDFont|ToUnicode|Type0|Type1|TrueType|Encoding|WinAnsiEncoding|MacRomanEncoding|BaseFont|StemV|ItalicAngle|FontBBox|CapHeight|Ascent|Descent|XHeight|Leading|WMode|DW|Adobe|Acrobat|Foxit|Ghostscript|Arial|Calibri|Cambria|TimesNewRoman|LucidaCalligraphy)\b/i.test(
+      trimmed
+    )
+  ) {
+    return true;
   }
 
-  return extractTextFromContentStream(bytes);
+  // Long run with no spaces (typically corrupted/encoded font string)
+  const words = trimmed.split(/\s+/);
+  const longestWord = words.reduce((m, w) => Math.max(m, w.length), 0);
+  if (longestWord > 26 && !/https?:\/\//i.test(trimmed)) {
+    return true;
+  }
+
+  // Ratio of readable letters/digits/basic punctuation vs weird symbols
+  const letterCount = (trimmed.match(/[A-Za-z]/g) || []).length;
+  const symbolCount = (trimmed.match(/[^A-Za-z0-9\s.,?!()\-+=/×÷=<>%:'";]/g) || []).length;
+  if (letterCount < 2) return true;
+  if (symbolCount > Math.max(2, trimmed.length * 0.22)) return true;
+
+  return false;
+}
+
+function isExamInstructionLine(line: string): boolean {
+  return /^(?:this\s+paper\s+consists|ensure\s+you\s+check|answer\s+all\s+(?:the\s+)?questions|instructions?\s*:|time\s+allowed|read\s+the\s+following\s+instructions|do\s+not\s+write\s+on\s+this\s+question\s+paper|candidates?\s+should\s+answer)/i.test(
+    line.trim()
+  );
 }
 
 function normalizeExtractedText(raw: string): string {
   let text = raw.replace(/\r\n?/g, '\n');
-
-  // Separate inline MCQ options A. ... B. ... C. ... D. ... onto clean lines while keeping order
   text = text.replace(/([^\n])\s+([A-D])\s*[.)]\s+/g, '$1\n$2. ');
-
-  // Separate inline question numbers if glued after punctuation or newlines
-  text = text.replace(/([?.!;:])\s+(?:Question\s+|Q\.?\s*)?(\d{1,3})\s*[.)]\s+(?=[A-Z])/gi, '$1\n$2. ');
 
   return text
     .split('\n')
     .map((line) => line.replace(/[ \t]+/g, ' ').trim())
-    .filter(Boolean)
+    .filter((line) => !isPdfGarbageLine(line))
+    .filter((line) => !isExamInstructionLine(line))
     .join('\n');
 }
 
@@ -184,21 +196,19 @@ function parseQuestionsFromNormalizedText(normalized: string): AssignmentQuestio
   let current: RawBlock | null = null;
 
   for (const line of lines) {
-    // Ignore obvious running headers/footers like "Page 1 of 3"
     if (/^page\s+\d+(\s+of\s+\d+)?$/i.test(line)) continue;
 
     const qMatch = line.match(qStartRegex);
     if (qMatch) {
       const num = parseInt(qMatch[1], 10);
       const rest = qMatch[2].trim();
-      // Avoid treating decimal numbers like "2.5 cm" as new questions unless sequential or at start
+      if (isPdfGarbageLine(rest) || isExamInstructionLine(rest)) continue;
+
       const isPlausibleNext =
         !current ||
         num === current.num + 1 ||
         num === 1 ||
-        /^(?:Question|Q\.?)\s*\d+/i.test(line) ||
-        line.endsWith('?') ||
-        rest.length > 18;
+        /^(?:Question|Q\.?)\s*\d+/i.test(line);
 
       if (isPlausibleNext && num >= 1 && num <= 200) {
         if (current) blocks.push(current);
@@ -213,65 +223,71 @@ function parseQuestionsFromNormalizedText(normalized: string): AssignmentQuestio
   }
 
   if (current) blocks.push(current);
-
-  // Keep original sequence order (Question 1, Question 2, Question 3...)
   blocks.sort((a, b) => a.num - b.num);
 
-  return blocks.map((block, index) => {
-    const optionsMap: Record<'A' | 'B' | 'C' | 'D', string> = {
-      A: '',
-      B: '',
-      C: '',
-      D: '',
-    };
-    const promptParts: string[] = [];
-    let detectedCorrect: 'A' | 'B' | 'C' | 'D' = 'A';
-    let lastOptionKey: 'A' | 'B' | 'C' | 'D' | null = null;
-    let hasAnyOption = false;
+  return blocks
+    .map((block, index) => {
+      const optionsMap: Record<'A' | 'B' | 'C' | 'D', string> = {
+        A: '',
+        B: '',
+        C: '',
+        D: '',
+      };
+      const promptParts: string[] = [];
+      let detectedCorrect: 'A' | 'B' | 'C' | 'D' = 'A';
+      let lastOptionKey: 'A' | 'B' | 'C' | 'D' | null = null;
+      let validOptionCount = 0;
 
-    for (const rawLine of block.lines) {
-      const ansMatch = rawLine.match(ansHintRegex);
-      if (ansMatch) {
-        detectedCorrect = ansMatch[1].toUpperCase() as 'A' | 'B' | 'C' | 'D';
-        continue;
-      }
+      for (const rawLine of block.lines) {
+        if (isPdfGarbageLine(rawLine) || isExamInstructionLine(rawLine)) continue;
 
-      const optMatch = rawLine.match(optRegex);
-      if (optMatch) {
-        const key = optMatch[1].toUpperCase() as 'A' | 'B' | 'C' | 'D';
-        optionsMap[key] = optMatch[2].trim();
-        lastOptionKey = key;
-        hasAnyOption = true;
-      } else if (lastOptionKey && rawLine.length < 140 && !rawLine.endsWith('?')) {
-        optionsMap[lastOptionKey] = `${optionsMap[lastOptionKey]} ${rawLine}`.trim();
-      } else {
-        lastOptionKey = null;
-        promptParts.push(rawLine);
-      }
-    }
+        const ansMatch = rawLine.match(ansHintRegex);
+        if (ansMatch) {
+          detectedCorrect = ansMatch[1].toUpperCase() as 'A' | 'B' | 'C' | 'D';
+          continue;
+        }
 
-    const combinedPrompt = promptParts.join(' ').trim() || `Question ${block.num}`;
-    const isMcq = hasAnyOption && Boolean(optionsMap.A || optionsMap.B);
-    const { cleaned: finalPrompt, marks } = extractMarksFromText(
-      combinedPrompt,
-      isMcq ? 2 : 5
-    );
-
-    const qItem: AssignmentQuestion = {
-      id: `q-${Date.now()}-${block.num || index + 1}-${Math.random().toString(36).slice(2, 5)}`,
-      prompt: finalPrompt,
-      type: isMcq ? 'mcq' : 'text',
-      marks,
-      ...(isMcq
-        ? {
-            options: optionsMap,
-            correctOption: detectedCorrect,
+        const optMatch = rawLine.match(optRegex);
+        if (optMatch) {
+          const key = optMatch[1].toUpperCase() as 'A' | 'B' | 'C' | 'D';
+          const optVal = optMatch[2].trim();
+          if (!isPdfGarbageLine(optVal)) {
+            optionsMap[key] = optVal;
+            lastOptionKey = key;
+            validOptionCount++;
           }
-        : {}),
-    };
+        } else if (lastOptionKey && rawLine.length < 140 && !rawLine.endsWith('?')) {
+          optionsMap[lastOptionKey] = `${optionsMap[lastOptionKey]} ${rawLine}`.trim();
+        } else {
+          lastOptionKey = null;
+          promptParts.push(rawLine);
+        }
+      }
 
-    return qItem;
-  });
+      const combinedPrompt = promptParts.join(' ').trim();
+      if (!combinedPrompt || combinedPrompt.length < 3) return null;
+
+      // Only treat as MCQ when at least 2 clean options (including A and B) are present
+      const isMcq = validOptionCount >= 2 && Boolean(optionsMap.A && optionsMap.B);
+      const { cleaned: finalPrompt, marks } = extractMarksFromText(
+        combinedPrompt,
+        isMcq ? 2 : 5
+      );
+
+      return {
+        id: `q-${Date.now()}-${block.num || index + 1}-${Math.random().toString(36).slice(2, 5)}`,
+        prompt: finalPrompt,
+        type: isMcq ? 'mcq' : 'text',
+        marks,
+        ...(isMcq
+          ? {
+              options: optionsMap,
+              correctOption: detectedCorrect,
+            }
+          : {}),
+      } satisfies AssignmentQuestion;
+    })
+    .filter((q): q is AssignmentQuestion => Boolean(q));
 }
 
 
