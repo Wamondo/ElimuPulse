@@ -175,18 +175,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     setIsExtractingPdf(true);
     setPdfExtractNotice('');
     try {
-      const result = await extractQuestionsFromPdfFile(file);
+      const result = await extractQuestionsFromPdfFile(file, (info) => {
+        setPdfExtractNotice(info.message);
+      });
       if (!assignTitle.trim() && result.suggestedTitle) {
         setAssignTitle(result.suggestedTitle);
       }
       if (result.questions.length > 0) {
         setDraftQuestions(result.questions);
         setPdfExtractNotice(
-          `Extracted ${result.questions.length} question(s) in exact order from "${file.name}". Review below and post to learners.`
+          `Extracted ${result.questions.length} question(s) in exact order from "${file.name}"${result.usedOcr ? ' via OCR' : ''}. Review below and post to learners.`
         );
       } else {
         setPdfExtractNotice(
-          `No selectable numbered questions were found in "${file.name}" (it may be a scanned/image PDF or use custom encoded fonts).${result.suggestedTitle ? ` Suggested title "${result.suggestedTitle}" filled if blank.` : ''} You can use "+ Multiple Choice" or "+ Written / Working Question" below to add questions.`
+          `No numbered questions could be read from "${file.name}"${result.usedOcr ? ' even after OCR' : ''}.${result.suggestedTitle ? ` Suggested title "${result.suggestedTitle}" filled if blank.` : ''} You can use "+ Multiple Choice" or "+ Written / Working Question" below to add questions.`
         );
       }
     } catch {
