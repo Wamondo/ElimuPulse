@@ -50,32 +50,82 @@ interface DashboardViewProps {
 }
 
 
-const MATH_SCIENCE_SYMBOLS = [
-  '×', '÷', '=', '≠', '≈', '≤', '≥',
-  '²', '³', '√', 'π', '°', 'Δ',
-  'cm²', 'cm³', '½', '¼', '¾', '→', '∴'
-];
+const SYMBOL_CATEGORIES: Record<string, string[]> = {
+  'Arithmetic & Signs': ['+', '−', '×', '÷', '±', '∓', '=', '≠', '≈', '≡', '≅', '∝', '<', '>', '≤', '≥', '≪', '≫'],
+  'Powers & Roots': ['²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹', '⁰', '¹', 'ⁿ', '√', '∛', '∜', '¹/₂', '½', '⅓', '⅔', '¼', '¾', '⅕', '⅛', '%', '‰'],
+  'Geometry & Units': ['∠', '∟', '⊥', '∥', '△', '□', '◇', '○', '●', '°', '′', '″', 'π', 'τ', 'φ', 'mm', 'cm', 'dm', 'm', 'km', 'mm²', 'cm²', 'm²', 'km²', 'ha', 'ml', 'L', 'cm³', 'm³', 'g', 'kg', 't'],
+  'Greek & Sets': ['α', 'β', 'γ', 'δ', 'ε', 'ζ', 'η', 'θ', 'ι', 'κ', 'λ', 'μ', 'ν', 'ξ', 'ο', 'ρ', 'σ', 'τ', 'υ', 'ϕ', 'χ', 'ψ', 'ω', 'Δ', 'Σ', 'Π', 'Ω', '∈', '∉', '⊂', '⊃', '⊆', '⊇', '∪', '∩', '∅', 'ℕ', 'ℤ', 'ℚ', 'ℝ'],
+  'Logic & Calculus': ['∀', '∃', '∄', '∴', '∵', '→', '←', '↔', '⇒', '⇔', '∞', '∂', '∇', '∫', '∬', '∮', '∏', '∑', '!'],
+};
 
-const QUICK_DIAGRAMS: { label: string; caption: string; svg: string }[] = [
+const ALL_MATH_SYMBOLS = Array.from(
+  new Set(Object.values(SYMBOL_CATEGORIES).flat())
+);
+
+type ShapePresetKey = 'triangle' | 'rectangle' | 'circle' | 'cube';
+
+interface DiagramMeasurements {
+  shape: ShapePresetKey;
+  base: string;
+  height: string;
+  length: string;
+  width: string;
+  radius: string;
+  unit: string;
+}
+
+function renderMeasuredDiagramSvg(m: DiagramMeasurements): string {
+  const u = (m.unit || 'cm').trim();
+  const b = (m.base || 'b').trim();
+  const h = (m.height || 'h').trim();
+  const l = (m.length || 'l').trim();
+  const w = (m.width || 'w').trim();
+  const r = (m.radius || 'r').trim();
+
+  if (m.shape === 'triangle') {
+    const bLabel = /^\d/.test(b) ? `${b} ${u}` : `b = ${b} ${u}`;
+    const hLabel = /^\d/.test(h) ? `${h} ${u}` : `h = ${h} ${u}`;
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 140" width="260" height="140"><rect width="260" height="140" fill="#f8fafc"/><polygon points="75,112 210,112 75,26" fill="#e0e7ff" stroke="#1e293b" stroke-width="2.5"/><polyline points="75,98 89,98 89,112" fill="none" stroke="#1e293b" stroke-width="1.8"/><text x="115" y="128" font-size="12" font-weight="bold" font-family="sans-serif" fill="#0f172a">${bLabel}</text><text x="12" y="72" font-size="12" font-weight="bold" font-family="sans-serif" fill="#1e40af">${hLabel}</text></svg>`;
+  }
+  if (m.shape === 'rectangle') {
+    const lLabel = /^\d/.test(l) ? `${l} ${u}` : `l = ${l} ${u}`;
+    const wLabel = /^\d/.test(w) ? `${w} ${u}` : `w = ${w} ${u}`;
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 140" width="260" height="140"><rect width="260" height="140" fill="#f8fafc"/><rect x="55" y="26" width="145" height="76" fill="#dcfce7" stroke="#1e293b" stroke-width="2.5"/><text x="102" y="120" font-size="12" font-weight="bold" font-family="sans-serif" fill="#0f172a">${lLabel}</text><text x="206" y="68" font-size="12" font-weight="bold" font-family="sans-serif" fill="#166534">${wLabel}</text></svg>`;
+  }
+  if (m.shape === 'circle') {
+    const rLabel = /^\d/.test(r) ? `r = ${r} ${u}` : `r = ${r} ${u}`;
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 140" width="260" height="140"><rect width="260" height="140" fill="#f8fafc"/><circle cx="115" cy="70" r="46" fill="#fef3c7" stroke="#1e293b" stroke-width="2.5"/><line x1="115" y1="70" x2="161" y2="70" stroke="#dc2626" stroke-width="2.2"/><circle cx="115" cy="70" r="3.5" fill="#0f172a"/><text x="166" y="74" font-size="12" font-weight="bold" font-family="sans-serif" fill="#dc2626">${rLabel}</text></svg>`;
+  }
+  const lLabel = /^\d/.test(l) ? `l=${l}${u}` : `l=${l}`;
+  const wLabel = /^\d/.test(w) ? `w=${w}${u}` : `w=${w}`;
+  const hLabel = /^\d/.test(h) ? `h=${h}${u}` : `h=${h}`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 145" width="260" height="145"><rect width="260" height="145" fill="#f8fafc"/><rect x="65" y="44" width="80" height="64" fill="#e0f2fe" stroke="#1e293b" stroke-width="2"/><polygon points="65,44 96,22 176,22 145,44" fill="#bae6fd" stroke="#1e293b" stroke-width="2"/><polygon points="145,44 176,22 176,86 145,108" fill="#7dd3fc" stroke="#1e293b" stroke-width="2"/><text x="72" y="124" font-size="11" font-weight="bold" font-family="sans-serif" fill="#0f172a">${lLabel} · ${wLabel}</text><text x="182" y="60" font-size="11" font-weight="bold" font-family="sans-serif" fill="#0369a1">${hLabel}</text></svg>`;
+}
+
+const QUICK_DIAGRAMS: { key: ShapePresetKey; label: string; caption: string; defaults: DiagramMeasurements }[] = [
   {
+    key: 'triangle',
     label: 'Triangle',
-    caption: 'Right / Base-Height Triangle Diagram',
-    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 130" width="240" height="130"><rect width="240" height="130" fill="#f8fafc"/><polygon points="55,105 185,105 55,25" fill="#e0e7ff" stroke="#1e293b" stroke-width="2.5"/><polyline points="55,91 69,91 69,105" fill="none" stroke="#1e293b" stroke-width="1.8"/><text x="115" y="120" font-size="12" font-family="sans-serif" fill="#0f172a">base (b)</text><text x="14" y="68" font-size="12" font-family="sans-serif" fill="#0f172a">height (h)</text></svg>`
+    caption: 'Triangle Diagram',
+    defaults: { shape: 'triangle', base: '12', height: '8', length: '10', width: '6', radius: '7', unit: 'cm' }
   },
   {
+    key: 'rectangle',
     label: 'Rectangle',
-    caption: 'Rectangle (Length × Width)',
-    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 130" width="240" height="130"><rect width="240" height="130" fill="#f8fafc"/><rect x="50" y="28" width="140" height="72" fill="#dcfce7" stroke="#1e293b" stroke-width="2.5"/><text x="102" y="116" font-size="12" font-family="sans-serif" fill="#0f172a">length (l)</text><text x="196" y="68" font-size="12" font-family="sans-serif" fill="#0f172a">w</text></svg>`
+    caption: 'Rectangle Diagram',
+    defaults: { shape: 'rectangle', base: '10', height: '6', length: '12', width: '7', radius: '7', unit: 'cm' }
   },
   {
+    key: 'circle',
     label: 'Circle',
-    caption: 'Circle with Radius (r)',
-    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 130" width="240" height="130"><rect width="240" height="130" fill="#f8fafc"/><circle cx="120" cy="65" r="42" fill="#fef3c7" stroke="#1e293b" stroke-width="2.5"/><line x1="120" y1="65" x2="162" y2="65" stroke="#dc2626" stroke-width="2"/><circle cx="120" cy="65" r="3" fill="#0f172a"/><text x="132" y="58" font-size="12" font-family="sans-serif" fill="#dc2626">r</text></svg>`
+    caption: 'Circle Diagram',
+    defaults: { shape: 'circle', base: '14', height: '10', length: '10', width: '6', radius: '7', unit: 'cm' }
   },
   {
+    key: 'cube',
     label: 'Cube / Prism',
-    caption: '3D Block / Volume Diagram',
-    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 130" width="240" height="130"><rect width="240" height="130" fill="#f8fafc"/><rect x="65" y="42" width="76" height="62" fill="#e0f2fe" stroke="#1e293b" stroke-width="2"/><polygon points="65,42 95,22 171,22 141,42" fill="#bae6fd" stroke="#1e293b" stroke-width="2"/><polygon points="141,42 171,22 171,84 141,104" fill="#7dd3fc" stroke="#1e293b" stroke-width="2"/><text x="92" y="118" font-size="11" font-family="sans-serif" fill="#0f172a">l × w × h</text></svg>`
+    caption: 'Prism / Block Diagram',
+    defaults: { shape: 'cube', base: '8', height: '5', length: '8', width: '6', radius: '7', unit: 'cm' }
   }
 ];
 
@@ -123,6 +173,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [markFeedbackInput, setMarkFeedbackInput] = useState<string>('Well done; meets competency expectations.');
   const [stepMarksDraft, setStepMarksDraft] = useState<Record<string, CalculationStepAnnotation[]>>({});
   const [crossAreaGradeFilter, setCrossAreaGradeFilter] = useState<string>('ALL');
+  const [symbolCategory, setSymbolCategory] = useState<string>('Arithmetic & Signs');
+  const [showAllSymbols, setShowAllSymbols] = useState<boolean>(false);
+  const [diagramMeasurementsByQ, setDiagramMeasurementsByQ] = useState<Record<string, DiagramMeasurements>>({});
   const [assignToast, setAssignToast] = useState<string | null>(null);
 
   useEffect(() => {
@@ -1152,22 +1205,55 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                               className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md"
                             />
 
-                            <div className="flex flex-wrap items-center gap-1 pt-0.5">
-                              <span className="text-[10px] font-semibold text-slate-500 mr-1">Symbols:</span>
-                              {MATH_SCIENCE_SYMBOLS.map((sym) => (
-                                <button
-                                  key={sym}
-                                  type="button"
-                                  onClick={() =>
-                                    updateDraftQuestion(q.id, {
-                                      prompt: `${q.prompt || ''}${sym}`
-                                    })
-                                  }
-                                  className="px-1.5 py-0.5 text-[11px] font-semibold bg-white hover:bg-indigo-50 text-slate-800 border border-slate-300 rounded cursor-pointer"
-                                >
-                                  {sym}
-                                </button>
-                              ))}
+                            <div className="p-2 bg-slate-50 border border-slate-200 rounded-md space-y-1.5">
+                              <div className="flex flex-wrap items-center justify-between gap-1">
+                                <div className="flex flex-wrap items-center gap-1">
+                                  {Object.keys(SYMBOL_CATEGORIES).map((cat) => (
+                                    <button
+                                      key={cat}
+                                      type="button"
+                                      onClick={() => {
+                                        setShowAllSymbols(false);
+                                        setSymbolCategory(cat);
+                                      }}
+                                      className={`px-1.5 py-0.5 text-[10px] font-bold rounded cursor-pointer ${
+                                        !showAllSymbols && symbolCategory === cat
+                                          ? 'bg-indigo-600 text-white'
+                                          : 'bg-white text-slate-700 border border-slate-300 hover:bg-indigo-50'
+                                      }`}
+                                    >
+                                      {cat}
+                                    </button>
+                                  ))}
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowAllSymbols((prev) => !prev)}
+                                    className={`px-1.5 py-0.5 text-[10px] font-bold rounded cursor-pointer ${
+                                      showAllSymbols
+                                        ? 'bg-emerald-600 text-white'
+                                        : 'bg-white text-emerald-700 border border-emerald-300 hover:bg-emerald-50'
+                                    }`}
+                                  >
+                                    All ({ALL_MATH_SYMBOLS.length})
+                                  </button>
+                                </div>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-1 max-h-24 overflow-y-auto">
+                                {(showAllSymbols ? ALL_MATH_SYMBOLS : (SYMBOL_CATEGORIES[symbolCategory] || ALL_MATH_SYMBOLS)).map((sym) => (
+                                  <button
+                                    key={sym}
+                                    type="button"
+                                    onClick={() =>
+                                      updateDraftQuestion(q.id, {
+                                        prompt: `${q.prompt || ''}${sym}`
+                                      })
+                                    }
+                                    className="px-1.5 py-0.5 text-xs font-semibold bg-white hover:bg-indigo-100 text-slate-900 border border-slate-300 rounded cursor-pointer"
+                                  >
+                                    {sym}
+                                  </button>
+                                ))}
+                              </div>
                             </div>
 
                             <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-200/80">
@@ -1205,12 +1291,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                   <button
                                     key={qd.label}
                                     type="button"
-                                    onClick={() =>
+                                    onClick={() => {
+                                      const nextMeas: DiagramMeasurements = { ...qd.defaults };
+                                      setDiagramMeasurementsByQ((prev) => ({ ...prev, [q.id]: nextMeas }));
                                       updateDraftQuestion(q.id, {
-                                        diagramUrl: svgToDataUrl(qd.svg),
-                                        diagramCaption: q.diagramCaption || qd.caption
-                                      })
-                                    }
+                                        diagramUrl: svgToDataUrl(renderMeasuredDiagramSvg(nextMeas)),
+                                        diagramCaption: `${qd.caption} (${nextMeas.unit})`
+                                      });
+                                    }}
                                     className="px-1.5 py-0.5 text-[10px] font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 rounded cursor-pointer"
                                   >
                                     +{qd.label}
@@ -1234,12 +1322,127 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                             </div>
 
                             {q.diagramUrl && (
-                              <div className="p-2 bg-white border border-slate-200 rounded-lg space-y-1.5">
+                              <div className="p-2.5 bg-white border border-slate-200 rounded-lg space-y-2">
                                 <img
                                   src={q.diagramUrl}
                                   alt={q.diagramCaption || `Question ${idx + 1} diagram`}
-                                  className="max-h-40 w-auto rounded border border-slate-100 object-contain"
+                                  className="max-h-44 w-auto rounded border border-slate-100 object-contain"
                                 />
+                                {(() => {
+                                  const m = diagramMeasurementsByQ[q.id];
+                                  if (!m) return null;
+                                  const applyMeas = (patch: Partial<DiagramMeasurements>) => {
+                                    const updated: DiagramMeasurements = { ...m, ...patch };
+                                    setDiagramMeasurementsByQ((prev) => ({ ...prev, [q.id]: updated }));
+                                    updateDraftQuestion(q.id, {
+                                      diagramUrl: svgToDataUrl(renderMeasuredDiagramSvg(updated)),
+                                    });
+                                  };
+                                  return (
+                                    <div className="p-2 bg-indigo-50/50 border border-indigo-100 rounded-md space-y-1.5">
+                                      <p className="text-[10px] font-bold text-indigo-950">
+                                        Edit Diagram Measurements:
+                                      </p>
+                                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                                        {m.shape === 'triangle' && (
+                                          <>
+                                            <label className="text-[10px] text-slate-700 font-semibold">
+                                              Base
+                                              <input
+                                                type="text"
+                                                value={m.base}
+                                                onChange={(e) => applyMeas({ base: e.target.value })}
+                                                className="mt-0.5 w-full px-1.5 py-0.5 text-xs bg-white border border-slate-300 rounded"
+                                              />
+                                            </label>
+                                            <label className="text-[10px] text-slate-700 font-semibold">
+                                              Height
+                                              <input
+                                                type="text"
+                                                value={m.height}
+                                                onChange={(e) => applyMeas({ height: e.target.value })}
+                                                className="mt-0.5 w-full px-1.5 py-0.5 text-xs bg-white border border-slate-300 rounded"
+                                              />
+                                            </label>
+                                          </>
+                                        )}
+                                        {m.shape === 'rectangle' && (
+                                          <>
+                                            <label className="text-[10px] text-slate-700 font-semibold">
+                                              Length
+                                              <input
+                                                type="text"
+                                                value={m.length}
+                                                onChange={(e) => applyMeas({ length: e.target.value })}
+                                                className="mt-0.5 w-full px-1.5 py-0.5 text-xs bg-white border border-slate-300 rounded"
+                                              />
+                                            </label>
+                                            <label className="text-[10px] text-slate-700 font-semibold">
+                                              Width
+                                              <input
+                                                type="text"
+                                                value={m.width}
+                                                onChange={(e) => applyMeas({ width: e.target.value })}
+                                                className="mt-0.5 w-full px-1.5 py-0.5 text-xs bg-white border border-slate-300 rounded"
+                                              />
+                                            </label>
+                                          </>
+                                        )}
+                                        {m.shape === 'circle' && (
+                                          <label className="text-[10px] text-slate-700 font-semibold">
+                                            Radius (r)
+                                            <input
+                                              type="text"
+                                              value={m.radius}
+                                              onChange={(e) => applyMeas({ radius: e.target.value })}
+                                              className="mt-0.5 w-full px-1.5 py-0.5 text-xs bg-white border border-slate-300 rounded"
+                                            />
+                                          </label>
+                                        )}
+                                        {m.shape === 'cube' && (
+                                          <>
+                                            <label className="text-[10px] text-slate-700 font-semibold">
+                                              Length
+                                              <input
+                                                type="text"
+                                                value={m.length}
+                                                onChange={(e) => applyMeas({ length: e.target.value })}
+                                                className="mt-0.5 w-full px-1.5 py-0.5 text-xs bg-white border border-slate-300 rounded"
+                                              />
+                                            </label>
+                                            <label className="text-[10px] text-slate-700 font-semibold">
+                                              Width
+                                              <input
+                                                type="text"
+                                                value={m.width}
+                                                onChange={(e) => applyMeas({ width: e.target.value })}
+                                                className="mt-0.5 w-full px-1.5 py-0.5 text-xs bg-white border border-slate-300 rounded"
+                                              />
+                                            </label>
+                                            <label className="text-[10px] text-slate-700 font-semibold">
+                                              Height
+                                              <input
+                                                type="text"
+                                                value={m.height}
+                                                onChange={(e) => applyMeas({ height: e.target.value })}
+                                                className="mt-0.5 w-full px-1.5 py-0.5 text-xs bg-white border border-slate-300 rounded"
+                                              />
+                                            </label>
+                                          </>
+                                        )}
+                                        <label className="text-[10px] text-slate-700 font-semibold">
+                                          Unit
+                                          <input
+                                            type="text"
+                                            value={m.unit}
+                                            onChange={(e) => applyMeas({ unit: e.target.value })}
+                                            className="mt-0.5 w-full px-1.5 py-0.5 text-xs bg-white border border-slate-300 rounded"
+                                          />
+                                        </label>
+                                      </div>
+                                    </div>
+                                  );
+                                })()}
                                 <input
                                   type="text"
                                   value={q.diagramCaption || ''}

@@ -418,7 +418,7 @@ Answer: = 216 cm³"
                                         />
                                         <div className="flex flex-wrap items-center gap-1">
                                           <span className="text-[10px] font-semibold text-slate-500 mr-1">Insert Symbol:</span>
-                                          {['×', '÷', '=', '≠', '≈', '≤', '≥', '²', '³', '√', 'π', '°', 'cm²', 'cm³', '½', '¼', '¾', '→', '∴'].map((sym) => (
+                                          {['+', '−', '×', '÷', '±', '=', '≠', '≈', '<', '>', '≤', '≥', '²', '³', '√', '∛', 'π', '°', '∠', '⊥', '∥', '△', '○', 'cm', 'm', 'cm²', 'm²', 'cm³', 'm³', '½', '⅓', '¼', '¾', '∞', '→', '∴', 'Δ', '∑', '∫', '∈', '∪', '∩'].map((sym) => (
                                             <button
                                               key={sym}
                                               type="button"
