@@ -797,11 +797,26 @@ Answer: = 216 cm³"
                                       <p className="text-[10px] font-bold text-amber-900">
                                         Your Uploaded Written Paper Work:
                                       </p>
-                                      <img
-                                        src={submission.sketchAttachments[q.id]}
-                                        alt={`Uploaded written work for Question ${idx + 1}`}
-                                        className="max-h-52 w-auto rounded border border-amber-300 bg-white object-contain"
-                                      />
+                                      <div className="relative inline-block max-w-full">
+                                        <img
+                                          src={submission.sketchAttachments[q.id]}
+                                          alt={`Uploaded written work for Question ${idx + 1}`}
+                                          className="max-h-64 w-auto rounded border border-amber-300 bg-white object-contain block"
+                                        />
+                                        {anns.map((pin, pIdx) => {
+                                          const p = pin as { stamp?: string; x?: number; y?: number };
+                                          if (!p?.stamp || typeof p.x !== 'number' || typeof p.y !== 'number') return null;
+                                          return (
+                                            <span
+                                              key={`lpin-${q.id}-${pIdx}`}
+                                              style={{ left: `${p.x}%`, top: `${p.y}%` }}
+                                              className="-translate-x-1/2 -translate-y-1/2 absolute inline-flex items-center px-1.5 py-0.5 rounded font-sans text-xs font-black text-red-600 bg-red-50/95 border border-red-400 shadow-xs pointer-events-none"
+                                            >
+                                              {p.stamp}
+                                            </span>
+                                          );
+                                        })}
+                                      </div>
                                     </div>
                                   )}
                                   {q.type === 'mcq' ? (

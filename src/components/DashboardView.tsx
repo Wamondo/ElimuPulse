@@ -172,6 +172,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [markScoreInput, setMarkScoreInput] = useState<string>('');
   const [markFeedbackInput, setMarkFeedbackInput] = useState<string>('Well done; meets competency expectations.');
   const [stepMarksDraft, setStepMarksDraft] = useState<Record<string, CalculationStepAnnotation[]>>({});
+  const [activePaperStamp, setActivePaperStamp] = useState<RedInkStamp>('M1');
   const [crossAreaGradeFilter, setCrossAreaGradeFilter] = useState<string>('ALL');
   const [symbolCategory, setSymbolCategory] = useState<string>('Arithmetic & Signs');
   const [showAllSymbols, setShowAllSymbols] = useState<boolean>(false);
@@ -1785,23 +1786,30 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                                   <div className="rounded-lg border border-amber-200 bg-amber-50/40 p-2 space-y-1.5">
                                                     <div className="flex flex-wrap items-center justify-between gap-2">
                                                       <span className="text-[11px] font-bold text-amber-950">
-                                                        Learner Uploaded Written Paper Work (No typed steps)
+                                                        Tap a mark style to highlight, then tap on the learner&apos;s paper work:
                                                       </span>
                                                       <div className="flex items-center gap-1 flex-wrap">
                                                         {(['✓', 'M1', 'A1', '✗'] as RedInkStamp[]).map((st) => {
-                                                          const paperAnn = currentAnns[0] || {};
+                                                          const isSelected = activePaperStamp === st;
                                                           return (
                                                             <button
                                                               key={st}
                                                               type="button"
-                                                              onClick={() =>
-                                                                updateStepAnn(0, {
-                                                                  stamp: paperAnn.stamp === st ? '' : st,
-                                                                })
+                                                              title={
+                                                                st === '✓'
+                                                                  ? 'Highlight Red Tick (Correct Step)'
+                                                                  : st === 'M1'
+                                                                  ? 'Highlight Method Mark (M1)'
+                                                                  : st === 'A1'
+                                                                  ? 'Highlight Accuracy Mark (A1)'
+                                                                  : 'Highlight Red Cross (Mistake)'
                                                               }
-                                                              className={`px-1.5 py-0.5 rounded text-[10px] font-black border transition-colors cursor-pointer ${
-                                                                paperAnn.stamp === st
-                                                                  ? 'bg-red-600 text-white border-red-700 shadow-2xs'
+                                                              onClick={() =>
+                                                                setActivePaperStamp((prev) => (prev === st ? '' : st))
+                                                              }
+                                                              className={`px-2 py-0.5 rounded text-[11px] font-black border transition-all cursor-pointer ${
+                                                                isSelected
+                                                                  ? 'bg-red-600 text-white border-red-800 ring-2 ring-red-300 scale-105 shadow-sm'
                                                                   : 'bg-white text-red-600 border-red-200 hover:bg-red-50'
                                                               }`}
                                                             >
@@ -1809,9 +1817,41 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                                             </button>
                                                           );
                                                         })}
+                                                        {currentAnns.length > 0 && (
+                                                          <>
+                                                            <button
+                                                              type="button"
+                                                              onClick={() => {
+                                                                const trimmed = currentAnns.slice(0, -1);
+                                                                setStepMarksDraft({
+                                                                  ...stepMarksDraft,
+                                                                  [draftKey]: trimmed,
+                                                                });
+                                                              }}
+                                                              className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-300 hover:bg-slate-200 cursor-pointer"
+                                                            >
+                                                              Undo
+                                                            </button>
+                                                            <button
+                                                              type="button"
+                                                              onClick={() => {
+                                                                setStepMarksDraft({
+                                                                  ...stepMarksDraft,
+                                                                  [draftKey]: [],
+                                                                });
+                                                              }}
+                                                              className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 cursor-pointer"
+                                                            >
+                                                              Clear
+                                                            </button>
+                                                          </>
+                                                        )}
                                                       </div>
                                                     </div>
-                                                    {(currentAnns[0]?.stamp === '✗' || currentAnns[0]?.mistakeNote) && (
+                                                    <p className="text-[10px] text-amber-900">
+                                                      Active mark: <strong>{activePaperStamp || 'None (select ✓, M1, A1, or ✗ above)'}</strong> — {currentAnns.filter((a) => a && a.stamp).length} placed on paper
+                                                    </p>
+                                                    {(currentAnns.some((a) => a?.stamp === '✗') || currentAnns[0]?.mistakeNote) && (
                                                       <input
                                                         type="text"
                                                         value={currentAnns[0]?.mistakeNote || ''}
@@ -1834,11 +1874,63 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                                     <p className="text-[10px] font-bold text-amber-950">
                                                       Uploaded Written Paper Work ({q.id}):
                                                     </p>
-                                                    <img
-                                                      src={activeSub.sketchAttachments[q.id]}
-                                                      alt={`Learner written work for ${q.id}`}
-                                                      className="max-h-60 w-auto rounded border border-amber-300 bg-white object-contain"
-                                                    />
+                                                    <div
+                                                      className="relative inline-block max-w-full select-none cursor-crosshair"
+                                                      onClick={(e) => {
+                                                        if (!activePaperStamp) return;
+                                                        const rect = e.currentTarget.getBoundingClientRect();
+                                                        if (!rect.width || !rect.height) return;
+                                                        const xPct = Math.max(
+                                                          2,
+                                                          Math.min(98, Number((((e.clientX - rect.left) / rect.width) * 100).toFixed(1)))
+                                                        );
+                                                        const yPct = Math.max(
+                                                          2,
+                                                          Math.min(98, Number((((e.clientY - rect.top) / rect.height) * 100).toFixed(1)))
+                                                        );
+                                                        const nextAnns: Array<CalculationStepAnnotation & { x?: number; y?: number }> = [
+                                                          ...currentAnns.filter((a) => a && a.stamp),
+                                                          { stamp: activePaperStamp, x: xPct, y: yPct },
+                                                        ];
+                                                        const updatedDraft = {
+                                                          ...stepMarksDraft,
+                                                          [draftKey]: nextAnns,
+                                                        };
+                                                        setStepMarksDraft(updatedDraft);
+
+                                                        let stampedMarks = 0;
+                                                        (item.questions || []).forEach((qq) => {
+                                                          const k = `${item.id}:${activeSub.learnerId}:${qq.id}`;
+                                                          const anns = updatedDraft[k] || activeSub.stepAnnotations?.[qq.id] || [];
+                                                          anns.forEach((st) => {
+                                                            if (st?.stamp === 'M1' || st?.stamp === 'A1' || st?.stamp === '✓') stampedMarks += 1;
+                                                            if (st?.stamp === 'M2' || st?.stamp === 'A2') stampedMarks += 2;
+                                                          });
+                                                        });
+                                                        if (stampedMarks > 0) {
+                                                          setMarkScoreInput(`${Math.min(stampedMarks, totalMarks)}/${totalMarks}`);
+                                                        }
+                                                      }}
+                                                    >
+                                                      <img
+                                                        src={activeSub.sketchAttachments[q.id]}
+                                                        alt={`Learner written work for ${q.id}`}
+                                                        className="max-h-72 w-auto rounded border border-amber-300 bg-white object-contain block pointer-events-none"
+                                                      />
+                                                      {currentAnns.map((pin, pIdx) => {
+                                                        const p = pin as CalculationStepAnnotation & { x?: number; y?: number };
+                                                        if (!p?.stamp || typeof p.x !== 'number' || typeof p.y !== 'number') return null;
+                                                        return (
+                                                          <span
+                                                            key={`pin-${q.id}-${pIdx}`}
+                                                            style={{ left: `${p.x}%`, top: `${p.y}%` }}
+                                                            className=" -translate-x-1/2 -translate-y-1/2 absolute inline-flex items-center px-1.5 py-0.5 rounded font-sans text-xs font-black text-red-600 bg-red-50/95 border border-red-400 shadow-xs pointer-events-none"
+                                                          >
+                                                            {p.stamp}
+                                                          </span>
+                                                        );
+                                                      })}
+                                                    </div>
                                                   </div>
                                                 )}
                                               </div>
