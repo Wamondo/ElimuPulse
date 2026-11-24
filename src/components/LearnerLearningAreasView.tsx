@@ -639,6 +639,20 @@ Answer: = 216 cm³"
                                   <p className="font-bold text-slate-900">
                                     {idx + 1}. {q.prompt} ({q.marks} mks)
                                   </p>
+                                  {q.diagramUrl && (
+                                    <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
+                                      <img
+                                        src={q.diagramUrl}
+                                        alt={q.diagramCaption || `Question ${idx + 1} diagram`}
+                                        className="max-h-40 w-auto rounded border border-slate-200 bg-white object-contain"
+                                      />
+                                      {q.diagramCaption && (
+                                        <p className="text-[10px] font-medium text-slate-600">
+                                          {q.diagramCaption}
+                                        </p>
+                                      )}
+                                    </div>
+                                  )}
                                   {q.type === 'mcq' ? (
                                     <p className="text-slate-700 mt-0.5">
                                       Your Answer: <strong>{ans}</strong>
