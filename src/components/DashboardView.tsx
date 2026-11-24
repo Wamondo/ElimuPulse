@@ -176,17 +176,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     setPdfExtractNotice('');
     try {
       const result = await extractQuestionsFromPdfFile(file);
+      if (!assignTitle.trim() && result.suggestedTitle) {
+        setAssignTitle(result.suggestedTitle);
+      }
       if (result.questions.length > 0) {
         setDraftQuestions(result.questions);
-        if (!assignTitle.trim() && result.suggestedTitle) {
-          setAssignTitle(result.suggestedTitle);
-        }
         setPdfExtractNotice(
           `Extracted ${result.questions.length} question(s) in exact order from "${file.name}". Review below and post to learners.`
         );
       } else {
         setPdfExtractNotice(
-          `Could not detect numbered text questions in "${file.name}" (it may be a scanned image PDF). You can add or edit questions manually below.`
+          `No selectable numbered questions were found in "${file.name}" (it may be a scanned/image PDF or use custom encoded fonts).${result.suggestedTitle ? ` Suggested title "${result.suggestedTitle}" filled if blank.` : ''} You can use "+ Multiple Choice" or "+ Written / Working Question" below to add questions.`
         );
       }
     } catch {
@@ -1206,14 +1206,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       </div>
                     </div>
 
+                    {pdfExtractNotice && (
+                      <div className="p-2 rounded-lg bg-indigo-50 border border-indigo-200 text-[11px] font-medium text-indigo-950">
+                        {pdfExtractNotice}
+                      </div>
+                    )}
+
                     {draftQuestions.length > 0 && (
                       <div className="space-y-2.5 pt-1">
-                        {pdfExtractNotice && (
-                                    <div className="p-2 rounded-lg bg-indigo-50 border border-indigo-200 text-[11px] font-medium text-indigo-950">
-                                      {pdfExtractNotice}
-                                    </div>
-                                  )}
-                                  {draftQuestions.map((q, idx) => (
+                        {draftQuestions.map((q, idx) => (
                           <div
                             key={q.id}
                             className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 space-y-2"

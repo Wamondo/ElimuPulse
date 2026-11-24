@@ -125,7 +125,6 @@ function isPdfGarbageLine(line: string): boolean {
   const trimmed = line.trim();
   if (!trimmed || trimmed.length < 2) return true;
 
-  // Known PDF internals / font names / metadata
   if (
     /\b(endobj|endstream|FlateDecode|FontDescriptor|CIDFont|ToUnicode|Type0|Type1|TrueType|Encoding|WinAnsiEncoding|MacRomanEncoding|BaseFont|StemV|ItalicAngle|FontBBox|CapHeight|Ascent|Descent|XHeight|Leading|WMode|DW|Adobe|Acrobat|Foxit|Ghostscript|Arial|Calibri|Cambria|TimesNewRoman|LucidaCalligraphy)\b/i.test(
       trimmed
@@ -134,14 +133,12 @@ function isPdfGarbageLine(line: string): boolean {
     return true;
   }
 
-  // Long run with no spaces (typically corrupted/encoded font string)
   const words = trimmed.split(/\s+/);
   const longestWord = words.reduce((m, w) => Math.max(m, w.length), 0);
   if (longestWord > 26 && !/https?:\/\//i.test(trimmed)) {
     return true;
   }
 
-  // Ratio of readable letters/digits/basic punctuation vs weird symbols
   const letterCount = (trimmed.match(/[A-Za-z]/g) || []).length;
   const symbolCount = (trimmed.match(/[^A-Za-z0-9\s.,?!()\-+=/×÷=<>%:'";]/g) || []).length;
   if (letterCount < 2) return true;
@@ -155,6 +152,42 @@ function isExamInstructionLine(line: string): boolean {
     line.trim()
   );
 }
+
+function detectDocumentTitle(normalizedText: string, fileName: string): string | undefined {
+  const lines = normalizedText
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  const qStartRegex = /^(?:Question\s+|Q\.?\s*)?(\d{1,3})\s*[.)\-:]\s+(.+)$/i;
+
+  for (const line of lines.slice(0, 8)) {
+    if (qStartRegex.test(line)) break;
+    if (isExamInstructionLine(line)) continue;
+    if (/^page\s+\d+/i.test(line)) continue;
+    if (line.length >= 4 && line.length <= 95 && /[A-Za-z]{3,}/.test(line)) {
+      return line.replace(/\s{2,}/g, ' ').trim();
+    }
+  }
+
+  const cleanFileTitle = fileName
+    .replace(/\.pdf$/i, '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+
+  if (
+    cleanFileTitle &&
+    !/^(doc|document|scan|scanned|file|untitled|download|whatsapp\s+document)(\s*\d+)?$/i.test(
+      cleanFileTitle
+    )
+  ) {
+    return cleanFileTitle;
+  }
+
+  return undefined;
+}
+
 
 function normalizeExtractedText(raw: string): string {
   let text = raw.replace(/\r\n?/g, '\n');
@@ -183,7 +216,7 @@ function extractMarksFromText(input: string, fallback: number): { cleaned: strin
 
 function parseQuestionsFromNormalizedText(normalized: string): AssignmentQuestion[] {
   const lines = normalized.split('\n');
-  const qStartRegex = /^(?:Question\s+|Q\.?\s*)?(\d{1,3})\s*[.)]\s+(.+)$/i;
+  const qStartRegex = /^(?:Question\s+|Q\.?\s*)?(\d{1,3})\s*[.)\-:]\s+(.+)$/i;
   const optRegex = /^[\[(]?([A-D])[\])).:]\s*(.+)$/i;
   const ansHintRegex = /^(?:Answer|Ans|Correct(?:\s+Option)?)\s*[:=-]\s*([A-D])\b/i;
 
@@ -267,7 +300,6 @@ function parseQuestionsFromNormalizedText(normalized: string): AssignmentQuestio
       const combinedPrompt = promptParts.join(' ').trim();
       if (!combinedPrompt || combinedPrompt.length < 3) return null;
 
-      // Only treat as MCQ when at least 2 clean options (including A and B) are present
       const isMcq = validOptionCount >= 2 && Boolean(optionsMap.A && optionsMap.B);
       const { cleaned: finalPrompt, marks } = extractMarksFromText(
         combinedPrompt,
@@ -290,22 +322,16 @@ function parseQuestionsFromNormalizedText(normalized: string): AssignmentQuestio
     .filter((q): q is AssignmentQuestion => Boolean(q));
 }
 
-
 export async function extractQuestionsFromPdfFile(file: File): Promise<ExtractedPdfResult> {
   const buffer = await file.arrayBuffer();
   const rawExtracted = await extractRawTextFromPdfArrayBuffer(buffer);
   const normalized = normalizeExtractedText(rawExtracted);
   const questions = parseQuestionsFromNormalizedText(normalized);
-
-  const cleanTitle = file.name
-    .replace(/\.pdf$/i, '')
-    .replace(/[_-]+/g, ' ')
-    .replace(/\s{2,}/g, ' ')
-    .trim();
+  const suggestedTitle = detectDocumentTitle(normalized, file.name);
 
   return {
     questions,
-    suggestedTitle: cleanTitle || undefined,
+    suggestedTitle,
     rawTextPreview: normalized.slice(0, 1200),
     extractedCount: questions.length,
   };
