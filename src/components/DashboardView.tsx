@@ -826,6 +826,194 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </tbody>
             </table>
           </div>
+
+          {/* Class Teacher Cross-Learning-Area Assignment Completion Tracker */}
+          {(() => {
+            const parseScoreNum = (val?: string) => {
+              if (!val) return null;
+              const m = String(val).match(/(\d+(?:\.\d+)?)/);
+              return m ? Number(m[1]) : null;
+            };
+
+            const effectiveGradeFilter =
+              crossAreaGradeFilter === 'ALL' && representedGrade
+                ? representedGrade
+                : crossAreaGradeFilter;
+
+            const allGrades = Array.from(
+              new Set([
+                ...(representedGrade ? [representedGrade] : []),
+                ...learners.map((l) => l.grade).filter(Boolean),
+                ...subjectAssignments.map((a) => a.grade).filter(Boolean),
+              ])
+            );
+            const filteredClassLearners = learners.filter((l) =>
+              effectiveGradeFilter === 'ALL_CLASSES'
+                ? true
+                : l.grade === effectiveGradeFilter
+            );
+
+            return (
+              <div className="bg-white rounded-xl border border-emerald-200 overflow-hidden">
+                <div className="px-5 py-4 border-b border-emerald-100 bg-emerald-50/40 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-sm font-bold text-slate-900">
+                      Class Teacher Cross-Learning-Area Assignment Tracker
+                    </h2>
+                    <p className="text-xs text-slate-600">
+                      Shows learners in {effectiveGradeFilter === 'ALL_CLASSES' ? 'all classes' : effectiveGradeFilter} who completed all assignments across every registered learning area and their pushed marks
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs font-semibold text-slate-700">Class / Grade:</label>
+                    <select
+                      value={effectiveGradeFilter}
+                      onChange={(e) => setCrossAreaGradeFilter(e.target.value)}
+                      className="px-2.5 py-1 text-xs bg-white border border-slate-300 rounded-md font-semibold"
+                    >
+                      {allGrades.map((g) => (
+                        <option key={g} value={g}>
+                          {g}
+                        </option>
+                      ))}
+                      <option value="ALL_CLASSES">All Classes</option>
+                    </select>
+                  </div>
+                </div>
+
+                {filteredClassLearners.length === 0 ? (
+                  <div className="p-5 text-xs text-slate-500">
+                    No learners found for the selected class filter.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-200 text-slate-700">
+                          <th className="py-2.5 px-3 font-bold">Learner</th>
+                          <th className="py-2.5 px-2.5 font-bold">Class</th>
+                          <th className="py-2.5 px-3 font-bold">Learning Areas & Assignment Marks</th>
+                          <th className="py-2.5 px-2.5 font-bold">Areas Done</th>
+                          <th className="py-2.5 px-3 font-bold">All Learning Areas Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {filteredClassLearners.map((learner) => {
+                          const assignedAreas = Array.from(
+                            new Set([
+                              ...(learner.learningAreas || []),
+                              ...subjectAssignments
+                                .filter((s) => !s.grade || s.grade === learner.grade)
+                                .map((s) => s.learningArea),
+                            ])
+                          );
+
+                          let areasAllCompleted = 0;
+                          const areaSummaries = assignedAreas.map((area) => {
+                            const setsForArea = subjectAssignments.filter(
+                              (s) =>
+                                s.learningArea === area &&
+                                (!s.grade || s.grade === learner.grade)
+                            );
+                            const doneInArea = setsForArea.filter(
+                              (s) => Boolean(s.submissions?.[learner.id])
+                            ).length;
+                            const earnedInArea = setsForArea.reduce((sum, s) => {
+                              const n = parseScoreNum(s.submissions?.[learner.id]?.awardedScore);
+                              return sum + (n ?? 0);
+                            }, 0);
+                            const maxInArea = setsForArea.reduce(
+                              (sum, s) =>
+                                sum +
+                                (s.questions || []).reduce(
+                                  (qSum, q) => qSum + (Number(q.marks) || 0),
+                                  0
+                                ),
+                              0
+                            );
+                            const completeAllInArea =
+                              setsForArea.length > 0 && doneInArea === setsForArea.length;
+                            if (completeAllInArea) areasAllCompleted += 1;
+
+                            return {
+                              area,
+                              doneInArea,
+                              totalInArea: setsForArea.length,
+                              completeAllInArea,
+                              scoreText:
+                                maxInArea > 0
+                                  ? `${earnedInArea}/${maxInArea}`
+                                  : earnedInArea > 0
+                                  ? `${earnedInArea}`
+                                  : '',
+                            };
+                          });
+
+                          const activeAreasWithSets = areaSummaries.filter(
+                            (a) => a.totalInArea > 0
+                          );
+                          const completedEveryArea =
+                            activeAreasWithSets.length > 0 &&
+                            areasAllCompleted === activeAreasWithSets.length;
+
+                          return (
+                            <tr key={learner.id} className="hover:bg-slate-50/70">
+                              <td className="py-2.5 px-3 font-semibold text-slate-900">
+                                {learner.name}
+                                <span className="block text-[10px] text-slate-500 font-normal">
+                                  {learner.studentId}
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-2.5 text-slate-700">{learner.grade}</td>
+                              <td className="py-2.5 px-3">
+                                <div className="flex flex-wrap gap-1.5">
+                                  {areaSummaries.map((as) => (
+                                    <span
+                                      key={as.area}
+                                      className={`px-2 py-0.5 rounded border text-[10px] font-semibold ${
+                                        as.completeAllInArea
+                                          ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
+                                          : as.doneInArea > 0
+                                          ? 'bg-amber-50 text-amber-900 border-amber-200'
+                                          : 'bg-slate-50 text-slate-600 border-slate-200'
+                                      }`}
+                                    >
+                                      {as.area}: {as.doneInArea}/{as.totalInArea}
+                                      {as.scoreText ? ` (${as.scoreText})` : ''}
+                                    </span>
+                                  ))}
+                                </div>
+                              </td>
+                              <td className="py-2.5 px-2.5 font-bold text-slate-800">
+                                {areasAllCompleted}/{activeAreasWithSets.length}
+                              </td>
+                              <td className="py-2.5 px-3">
+                                <span
+                                  className={`px-2 py-0.5 rounded-full text-[11px] font-bold border ${
+                                    completedEveryArea
+                                      ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                                      : areasAllCompleted > 0
+                                      ? 'bg-amber-100 text-amber-800 border-amber-200'
+                                      : 'bg-rose-100 text-rose-800 border-rose-200'
+                                  }`}
+                                >
+                                  {completedEveryArea
+                                    ? 'Completed All Areas'
+                                    : areasAllCompleted > 0
+                                    ? 'Partial Areas'
+                                    : 'Incomplete'}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       </div>
     );
@@ -2238,7 +2426,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           }}
         />
 
-        {/* Separate Assignments Broadsheet & Class Teacher Cross-Learning-Area Tracker */}
+        {/* Separate Assignments Broadsheet (Distinct from Regular School Assessments) */}
         {(() => {
           const broadsheetArea = selectedTeacherArea || registeredSubjects[0] || '';
           const areaSets = broadsheetArea
@@ -2406,165 +2594,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
 
 
-              {/* 2. Class Teacher Cross-Learning-Area Assignment Completion Tracker */}
-              <div className="bg-white rounded-xl border border-emerald-200 overflow-hidden">
-                <div className="px-5 py-4 border-b border-emerald-100 bg-emerald-50/40 flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-sm font-bold text-slate-900">
-                      Class Teacher Cross-Learning-Area Assignment Tracker
-                    </h2>
-                    <p className="text-xs text-slate-600">
-                      Shows learners who completed all assignments across every registered learning area and their pushed marks
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <label className="text-xs font-semibold text-slate-700">Class / Grade:</label>
-                    <select
-                      value={crossAreaGradeFilter}
-                      onChange={(e) => setCrossAreaGradeFilter(e.target.value)}
-                      className="px-2.5 py-1 text-xs bg-white border border-slate-300 rounded-md font-semibold"
-                    >
-                      <option value="ALL">All Classes</option>
-                      {allGrades.map((g) => (
-                        <option key={g} value={g}>
-                          {g}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {filteredClassLearners.length === 0 ? (
-                  <div className="p-5 text-xs text-slate-500">
-                    No learners found for the selected class filter.
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead>
-                        <tr className="bg-slate-50 border-b border-slate-200 text-slate-700">
-                          <th className="py-2.5 px-3 font-bold">Learner</th>
-                          <th className="py-2.5 px-2.5 font-bold">Class</th>
-                          <th className="py-2.5 px-3 font-bold">Learning Areas & Assignment Marks</th>
-                          <th className="py-2.5 px-2.5 font-bold">Areas Done</th>
-                          <th className="py-2.5 px-3 font-bold">All Learning Areas Status</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {filteredClassLearners.map((learner) => {
-                          const assignedAreas = Array.from(
-                            new Set([
-                              ...(learner.learningAreas || []),
-                              ...subjectAssignments
-                                .filter((s) => !s.grade || s.grade === learner.grade)
-                                .map((s) => s.learningArea),
-                            ])
-                          );
-
-                          let areasAllCompleted = 0;
-                          const areaSummaries = assignedAreas.map((area) => {
-                            const setsForArea = subjectAssignments.filter(
-                              (s) =>
-                                s.learningArea === area &&
-                                (!s.grade || s.grade === learner.grade)
-                            );
-                            const doneInArea = setsForArea.filter(
-                              (s) => Boolean(s.submissions?.[learner.id])
-                            ).length;
-                            const earnedInArea = setsForArea.reduce((sum, s) => {
-                              const n = parseScoreNum(s.submissions?.[learner.id]?.awardedScore);
-                              return sum + (n ?? 0);
-                            }, 0);
-                            const maxInArea = setsForArea.reduce(
-                              (sum, s) =>
-                                sum +
-                                (s.questions || []).reduce(
-                                  (qSum, q) => qSum + (Number(q.marks) || 0),
-                                  0
-                                ),
-                              0
-                            );
-                            const completeAllInArea =
-                              setsForArea.length > 0 && doneInArea === setsForArea.length;
-                            if (completeAllInArea) areasAllCompleted += 1;
-
-                            return {
-                              area,
-                              doneInArea,
-                              totalInArea: setsForArea.length,
-                              completeAllInArea,
-                              scoreText:
-                                maxInArea > 0
-                                  ? `${earnedInArea}/${maxInArea}`
-                                  : earnedInArea > 0
-                                  ? `${earnedInArea}`
-                                  : '',
-                            };
-                          });
-
-                          const activeAreasWithSets = areaSummaries.filter(
-                            (a) => a.totalInArea > 0
-                          );
-                          const completedEveryArea =
-                            activeAreasWithSets.length > 0 &&
-                            areasAllCompleted === activeAreasWithSets.length;
-
-                          return (
-                            <tr key={learner.id} className="hover:bg-slate-50/70">
-                              <td className="py-2.5 px-3 font-semibold text-slate-900">
-                                {learner.name}
-                                <span className="block text-[10px] text-slate-500 font-normal">
-                                  {learner.studentId}
-                                </span>
-                              </td>
-                              <td className="py-2.5 px-2.5 text-slate-700">{learner.grade}</td>
-                              <td className="py-2.5 px-3">
-                                <div className="flex flex-wrap gap-1.5">
-                                  {areaSummaries.map((as) => (
-                                    <span
-                                      key={as.area}
-                                      className={`px-2 py-0.5 rounded border text-[10px] font-semibold ${
-                                        as.completeAllInArea
-                                          ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
-                                          : as.doneInArea > 0
-                                          ? 'bg-amber-50 text-amber-900 border-amber-200'
-                                          : 'bg-slate-50 text-slate-600 border-slate-200'
-                                      }`}
-                                    >
-                                      {as.area}: {as.doneInArea}/{as.totalInArea}
-                                      {as.scoreText ? ` (${as.scoreText})` : ''}
-                                    </span>
-                                  ))}
-                                </div>
-                              </td>
-                              <td className="py-2.5 px-2.5 font-bold text-slate-800">
-                                {areasAllCompleted}/{activeAreasWithSets.length}
-                              </td>
-                              <td className="py-2.5 px-3">
-                                <span
-                                  className={`px-2 py-0.5 rounded-full text-[11px] font-bold border ${
-                                    completedEveryArea
-                                      ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
-                                      : areasAllCompleted > 0
-                                      ? 'bg-amber-100 text-amber-800 border-amber-200'
-                                      : 'bg-rose-100 text-rose-800 border-rose-200'
-                                  }`}
-                                >
-                                  {completedEveryArea
-                                    ? 'Completed All Areas'
-                                    : areasAllCompleted > 0
-                                    ? 'Partial Areas'
-                                    : 'Incomplete'}
-                                </span>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
             </div>
           );
         })()}
