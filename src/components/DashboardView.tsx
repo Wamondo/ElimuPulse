@@ -1794,84 +1794,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                                         : `Key: ${q.correctOption}`}
                                                     </span>
                                                   </p>
-                                                ) : calcSteps.length > 0 ? (
-                                                  <div className="rounded-lg border border-slate-200 bg-amber-50/20 divide-y divide-slate-200/80">
-                                                    {calcSteps.map((stepLine, sIdx) => {
-                                                      const ann = currentAnns[sIdx] || {};
-                                                      const isWrong = ann.stamp === '✗';
-                                                      const hasRedMark = Boolean(ann.stamp);
-                                                      return (
-                                                        <div key={sIdx} className="p-2 space-y-1.5">
-                                                          <div className="flex flex-wrap items-center justify-between gap-2">
-                                                            <div className="flex items-center gap-2 font-mono text-xs">
-                                                              <span className="text-[10px] font-sans font-semibold text-slate-400 w-11">
-                                                                Step {sIdx + 1}:
-                                                              </span>
-                                                              <span
-                                                                className={`font-bold ${
-                                                                  isWrong
-                                                                    ? 'text-red-700 underline decoration-wavy decoration-red-500'
-                                                                    : 'text-slate-900'
-                                                                }`}
-                                                              >
-                                                                {stepLine}
-                                                              </span>
-                                                              {hasRedMark && (
-                                                                <span className="inline-flex items-center px-1.5 py-0.5 rounded font-sans text-xs font-black text-red-600 bg-red-50 border border-red-300 shadow-2xs">
-                                                                  {ann.stamp}
-                                                                </span>
-                                                              )}
-                                                            </div>
-
-                                                            <div className="flex items-center gap-1 flex-wrap">
-                                                              {(['✓', 'M1', 'A1', '✗'] as RedInkStamp[]).map((st) => (
-                                                                <button
-                                                                  key={st}
-                                                                  type="button"
-                                                                  title={
-                                                                    st === '✓'
-                                                                      ? 'Red Tick (Correct Step)'
-                                                                      : st === 'M1'
-                                                                      ? 'Method Mark (Formula / Substitution)'
-                                                                      : st === 'A1'
-                                                                      ? 'Accuracy Mark (Final Answer & Units)'
-                                                                      : 'Red Cross (Mistake in this step)'
-                                                                  }
-                                                                  onClick={() =>
-                                                                    updateStepAnn(sIdx, {
-                                                                      stamp: ann.stamp === st ? '' : st,
-                                                                    })
-                                                                  }
-                                                                  className={`px-1.5 py-0.5 rounded text-[10px] font-black border transition-colors cursor-pointer ${
-                                                                    ann.stamp === st
-                                                                      ? 'bg-red-600 text-white border-red-700 shadow-2xs'
-                                                                      : 'bg-white text-red-600 border-red-200 hover:bg-red-50'
-                                                                  }`}
-                                                                >
-                                                                  {st}
-                                                                </button>
-                                                              ))}
-                                                            </div>
-                                                          </div>
-
-                                                          {(isWrong || ann.mistakeNote) && (
-                                                            <input
-                                                              type="text"
-                                                              value={ann.mistakeNote || ''}
-                                                              onChange={(e) =>
-                                                                updateStepAnn(sIdx, {
-                                                                  mistakeNote: e.target.value,
-                                                                })
-                                                              }
-                                                              placeholder="Red pen note: explain mistake or correction for learner (e.g. Volume unit is cm³, not cm²)..."
-                                                              className="w-full px-2 py-1 text-[11px] text-red-700 placeholder:text-red-300 bg-red-50/70 border border-red-200 rounded focus:outline-none focus:border-red-500"
-                                                            />
-                                                          )}
-                                                        </div>
-                                                      );
-                                                    })}
+                                                ) : ans ? (
+                                                  <div className="rounded-lg border border-slate-200 bg-slate-50/70 px-2.5 py-2 font-mono text-xs text-slate-900 whitespace-pre-wrap">
+                                                    {ans}
                                                   </div>
-                                                ) : activeSub.sketchAttachments?.[q.id] ? (
+                                                ) : (ans || activeSub.sketchAttachments?.[q.id]) ? (
                                                   <div className="rounded-lg border border-amber-200 bg-amber-50/40 p-2 space-y-1.5">
                                                     <div className="flex flex-wrap items-center justify-between gap-2">
                                                       <span className="text-[11px] font-bold text-amber-950">
