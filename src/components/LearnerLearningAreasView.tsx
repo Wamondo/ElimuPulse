@@ -5,6 +5,8 @@ import {
   LearnerAssignmentSubmission,
   loadLocalAssignments,
   saveAssignments,
+  saveAssignmentsAsync,
+  compressImageDataUrl,
   subscribeAssignments,
   calculateAssignmentTotalMarks,
   calculateAutoScore,
@@ -161,6 +163,7 @@ export const LearnerLearningAreasView: React.FC = () => {
   const [draftGeneralResponses, setDraftGeneralResponses] = useState<Record<string, string>>({});
   const [draftSketches, setDraftSketches] = useState<Record<string, Record<string, string>>>({});
   const [submitNotice, setSubmitNotice] = useState<string | null>(null);
+  const [submittingAssignmentId, setSubmittingAssignmentId] = useState<string | null>(null);
   const [expandedMarkedId, setExpandedMarkedId] = useState<string | null>(null);
 
   const getAssignmentsForArea = (area: string) => {
@@ -265,46 +268,64 @@ export const LearnerLearningAreasView: React.FC = () => {
     });
   };
 
-  const handleSubmitAssignment = (assignment: LearningAreaAssignmentItem) => {
-    const answers = draftAnswers[assignment.id] || {};
-    const generalResponse = (draftGeneralResponses[assignment.id] || '').trim();
-    const sketchAttachments = draftSketches[assignment.id] || {};
-    const hasSketchAttachments = Object.keys(sketchAttachments).length > 0;
-    const questions = assignment.questions || [];
-    const totalMarks = assignment.totalMarks || calculateAssignmentTotalMarks(questions);
-    const autoScore = calculateAutoScore(questions, answers);
+  const handleSubmitAssignment = async (assignment: LearningAreaAssignmentItem) => {
+    if (submittingAssignmentId === assignment.id) return;
+    setSubmittingAssignmentId(assignment.id);
+    try {
+      const answers = draftAnswers[assignment.id] || {};
+      const generalResponse = (draftGeneralResponses[assignment.id] || '').trim();
+      const rawSketches = draftSketches[assignment.id] || {};
+      const sketchAttachments: Record<string, string> = {};
+      for (const [k, url] of Object.entries(rawSketches)) {
+        if (typeof url === 'string' && url) {
+          sketchAttachments[k] = await compressImageDataUrl(url, 960, 0.72);
+        }
+      }
+      const hasSketchAttachments = Object.keys(sketchAttachments).length > 0;
+      const questions = assignment.questions || [];
+      const totalMarks = assignment.totalMarks || calculateAssignmentTotalMarks(questions);
+      const autoScore = calculateAutoScore(questions, answers);
 
-    const submission: LearnerAssignmentSubmission = {
-      learnerId: activeLearnerId,
-      learnerName: activeLearnerName,
-      studentId: activeStudentId,
-      grade: activeLearnerGrade || assignment.grade,
-      answers,
-      ...(hasSketchAttachments ? { sketchAttachments } : {}),
-      ...(generalResponse ? { generalResponse } : {}),
-      autoScore,
-      totalMarks,
-      status: 'submitted',
-      submittedAt: new Date().toISOString(),
-    };
-
-    const nextList = teacherAssignments.map((item) => {
-      if (item.id !== assignment.id) return item;
-      return {
-        ...item,
-        submissions: {
-          ...(item.submissions || {}),
-          [activeLearnerId]: submission,
-        },
+      const submission: LearnerAssignmentSubmission = {
+        learnerId: activeLearnerId,
+        learnerName: activeLearnerName,
+        studentId: activeStudentId,
+        grade: activeLearnerGrade || assignment.grade,
+        answers,
+        ...(hasSketchAttachments ? { sketchAttachments } : {}),
+        ...(generalResponse ? { generalResponse } : {}),
+        autoScore,
+        totalMarks,
+        status: 'submitted',
+        submittedAt: new Date().toISOString(),
       };
-    });
 
-    setTeacherAssignments(nextList);
-    saveAssignments(nextList);
-    setActiveAssignmentId(null);
-    setSubmitNotice(
-      `Submitted "${assignment.title}" directly to ${assignment.teacherName}. Once marked, it will appear in your Marked Assignments below.`
-    );
+      const nextList = teacherAssignments.map((item) => {
+        if (item.id !== assignment.id) return item;
+        return {
+          ...item,
+          submissions: {
+            ...(item.submissions || {}),
+            [activeLearnerId]: submission,
+          },
+        };
+      });
+
+      setTeacherAssignments(nextList);
+      const syncRes = await saveAssignmentsAsync(nextList);
+      setActiveAssignmentId(null);
+      if (syncRes.synced) {
+        setSubmitNotice(
+          `Submitted "${assignment.title}" directly to ${assignment.teacherName}. Once marked, it will appear in your Marked Assignments below.`
+        );
+      } else {
+        setSubmitNotice(
+          `Saved "${assignment.title}" on this device, but cloud upload had a network issue (${syncRes.error || 'offline'}). Keep this page open when back online so it finishes syncing.`
+        );
+      }
+    } finally {
+      setSubmittingAssignmentId(null);
+    }
   };
 
   return (
@@ -690,6 +711,7 @@ Answer: = 216 cm³"
                             <div className="flex justify-end">
                               <button
                                 type="button"
+                                disabled={submittingAssignmentId === assignment.id}
                                 onClick={() => handleSubmitAssignment(assignment)}
                                 className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg cursor-pointer"
                               >

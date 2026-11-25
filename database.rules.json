@@ -1,16 +1,27 @@
 {
   "rules": {
+    ".read": false,
+    ".write": false,
     "users": {
       ".read": true,
-      ".write": true
+      "$uid": {
+        ".write": "newData.exists()",
+        ".validate": "newData.isObject() && (!newData.child('role').exists() || newData.child('role').isString())"
+      }
     },
     "staffAccessRequests": {
       ".read": true,
-      ".write": true
+      "$reqId": {
+        ".write": "newData.exists()",
+        ".validate": "newData.isObject()"
+      }
     },
     "schools": {
       ".read": true,
-      ".write": true
+      ".write": "newData.exists()",
+      "$schoolId": {
+        ".validate": "newData.isObject()"
+      }
     },
     "elimupulse": {
       ".read": true,
@@ -19,11 +30,13 @@
         "$assignmentId": {
           ".read": true,
           ".write": "newData.exists()",
+          ".validate": "newData.isObject() && newData.child('id').isString() && newData.child('title').isString() && newData.child('title').val().length > 0 && newData.child('title').val().length <= 300",
           "submissions": {
             ".read": true,
             "$learnerId": {
               ".read": true,
-              ".write": "newData.exists()"
+              ".write": "newData.exists()",
+              ".validate": "newData.isObject() && newData.child('learnerId').isString() && newData.child('learnerName').isString() && newData.child('submittedAt').isString()"
             }
           }
         }

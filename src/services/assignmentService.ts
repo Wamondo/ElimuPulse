@@ -101,6 +101,115 @@ export function loadLocalAssignments(): LearningAreaAssignmentItem[] {
   }
 }
 
+
+export async function compressImageDataUrl(
+  dataUrl: string,
+  maxDimension = 960,
+  quality = 0.72
+): Promise<string> {
+  if (!dataUrl || !dataUrl.startsWith('data:image/') || dataUrl.startsWith('data:image/svg+xml')) {
+    return dataUrl;
+  }
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        let { width, height } = img;
+        if (!width || !height) {
+          resolve(dataUrl);
+          return;
+        }
+        if (width > maxDimension || height > maxDimension) {
+          const scale = Math.min(maxDimension / width, maxDimension / height);
+          width = Math.round(width * scale);
+          height = Math.round(height * scale);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(dataUrl);
+          return;
+        }
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+        const compressed = canvas.toDataURL('image/jpeg', quality);
+        resolve(compressed.length < dataUrl.length ? compressed : dataUrl);
+      } catch {
+        resolve(dataUrl);
+      }
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
+export async function saveAssignmentsAsync(
+  nextList: LearningAreaAssignmentItem[]
+): Promise<{ synced: boolean; error?: string }> {
+  const safeList = Array.isArray(nextList) ? nextList.filter((item) => item && item.id) : [];
+  try {
+    if (safeList.length > 0) {
+      localStorage.setItem(ASSIGNMENTS_STORAGE_KEY, JSON.stringify(safeList));
+    }
+    window.dispatchEvent(new Event('elimupulse-assignments-updated'));
+  } catch {
+    // ignore storage quota errors; cloud sync still runs
+  }
+
+  try {
+    const writes: Promise<void>[] = [];
+    for (const item of safeList) {
+      const cleanItem = sanitizeForFirebase(item);
+      writes.push(
+        set(ref(rtdb, `${RTDB_ASSIGNMENTS_PATH}/${encodeURIComponent(item.id)}`), cleanItem)
+      );
+      if (item.submissions && typeof item.submissions === 'object') {
+        for (const [learnerId, sub] of Object.entries(item.submissions)) {
+          if (sub && learnerId) {
+            writes.push(
+              set(
+                ref(
+                  rtdb,
+                  `${RTDB_ASSIGNMENTS_PATH}/${encodeURIComponent(item.id)}/submissions/${encodeURIComponent(learnerId)}`
+                ),
+                sanitizeForFirebase(sub)
+              )
+            );
+          }
+        }
+      }
+    }
+    await Promise.all(writes);
+    return { synced: true };
+  } catch (err) {
+    return {
+      synced: false,
+      error: err instanceof Error ? err.message : 'Network or permission error during cloud sync.',
+    };
+  }
+}
+
+export function exportAssignmentsBackupJson(items: LearningAreaAssignmentItem[]): void {
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    app: 'ElimuPulse',
+    count: items.length,
+    assignments: items,
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `elimupulse-assignments-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 export function saveAssignments(nextList: LearningAreaAssignmentItem[]): void {
   const safeList = Array.isArray(nextList) ? nextList.filter((item) => item && item.id) : [];
   try {

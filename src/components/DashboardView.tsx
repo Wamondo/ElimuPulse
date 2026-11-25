@@ -37,6 +37,9 @@ import {
   LearnerAssignmentSubmission,
   loadLocalAssignments,
   saveAssignments,
+  saveAssignmentsAsync,
+  compressImageDataUrl,
+  exportAssignmentsBackupJson,
   subscribeAssignments,
   calculateAssignmentTotalMarks,
   formatCalculationSteps,
@@ -225,7 +228,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const persistSubjectAssignments = (nextList: LearningAreaAssignmentItem[]) => {
     setSubjectAssignments(nextList);
-    saveAssignments(nextList);
+    saveAssignmentsAsync(nextList).then((res) => {
+      if (!res.synced) {
+        setAssignToast(`Saved locally on device, but cloud sync failed (${res.error || 'offline'}). It will retry automatically when online.`);
+      }
+    });
   };
 
   const addDraftQuestion = (type: 'mcq' | 'text') => {
@@ -1197,6 +1204,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                   }}
                                 />
                               </label>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                exportAssignmentsBackupJson(subjectAssignments);
+                                setAssignToast(`Exported backup JSON for ${subjectAssignments.length} assignment(s).`);
+                              }}
+                              className="px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg cursor-pointer"
+                            >
+                              Backup JSON
+                            </button>
                               <button
                           type="button"
                           onClick={() => addDraftQuestion('mcq')}
@@ -1340,10 +1357,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                       const file = e.target.files?.[0];
                                       if (!file) return;
                                       const reader = new FileReader();
-                                      reader.onload = () => {
+                                      reader.onload = async () => {
                                         if (typeof reader.result === 'string') {
+                                          const compressed = await compressImageDataUrl(reader.result, 960, 0.72);
                                           updateDraftQuestion(q.id, {
-                                            diagramUrl: reader.result,
+                                            diagramUrl: compressed,
                                             diagramCaption: q.diagramCaption || file.name
                                           });
                                         }

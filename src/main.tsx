@@ -1,3 +1,15 @@
+
+// Prevent stale cached chunk crashes after a new Firebase Hosting deployment
+if (typeof window !== 'undefined') {
+  window.addEventListener('vite:preloadError', () => {
+    const key = 'elimupulse_preload_reloaded';
+    if (!sessionStorage.getItem(key)) {
+      sessionStorage.setItem(key, '1');
+      window.location.reload();
+    }
+  });
+}
+
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
