@@ -132,15 +132,29 @@ async function extractTextFromDocxBuffer(buffer: ArrayBuffer): Promise<string> {
         const xml = decoder.decode(xmlBytes);
         const paragraphs = xml.split(/<w:p\b[^>]*>/g).slice(1);
         const lines: string[] = [];
+        let listCounter = 0;
+
         for (const p of paragraphs) {
+          const hasNumPr = /<w:numPr\b/i.test(p);
           const withBreaks = p
             .replace(/<w:tab\b[^>]*\/?>/g, ' ')
             .replace(/<w:br\b[^>]*\/?>/g, '\n');
           const texts = Array.from(withBreaks.matchAll(/<w:t\b[^>]*>([\s\S]*?)<\/w:t>/g)).map((m) =>
             decodeXmlEntities(m[1])
           );
-          const line = texts.join('').trim();
-          if (line) lines.push(line);
+          let line = texts.join('').replace(/\u00a0/g, ' ').trim();
+          if (!line) continue;
+
+          if (hasNumPr) {
+            listCounter += 1;
+            if (!/^(?:Question\s+|Q\.?\s*)?\d{1,3}\s*[.)\-:]/i.test(line)) {
+              line = `${listCounter}. ${line}`;
+            }
+          } else {
+            listCounter = 0;
+          }
+
+          lines.push(line);
         }
         return lines.join('\n');
       }
@@ -156,6 +170,7 @@ async function extractTextFromDocxBuffer(buffer: ArrayBuffer): Promise<string> {
 function isJpegBytes(bytes: Uint8Array): boolean {
   return bytes.length >= 4 && bytes[0] === 0xff && bytes[1] === 0xd8;
 }
+
 
 function isPngBytes(bytes: Uint8Array): boolean {
   return (
@@ -295,7 +310,7 @@ async function extractRawTextFromPdfArrayBuffer(buffer: ArrayBuffer): Promise<st
 }
 
 function isPdfGarbageLine(line: string): boolean {
-  const trimmed = line.trim();
+  const trimmed = line.replace(/\u00a0/g, ' ').trim();
   if (!trimmed || trimmed.length < 2) return true;
 
   if (
@@ -313,13 +328,15 @@ function isPdfGarbageLine(line: string): boolean {
   }
 
   const letterCount = (trimmed.match(/[A-Za-z]/g) || []).length;
-  const symbolCount = (trimmed.match(/[^A-Za-z0-9\s.,?!()\-+=/×÷=<>%:'";]/g) || []).length;
-  if (letterCount < 2) return true;
-  if (symbolCount > Math.max(2, trimmed.length * 0.22)) return true;
+  const digitCount = (trimmed.match(/[0-9\u00bc-\u00be\u2150-\u215e]/g) || []).length;
+  const symbolCount = (
+    trimmed.match(/[^A-Za-z0-9\u00bc-\u00be\u2150-\u215e\s.,?!()\-+=/×÷=<>%:'";]/g) || []
+  ).length;
+  if (letterCount + digitCount < 2) return true;
+  if (symbolCount > Math.max(2, trimmed.length * 0.25)) return true;
 
   return false;
 }
-
 
 function isExamInstructionLine(line: string): boolean {
   return /^(?:this\s+paper\s+consists|ensure\s+you\s+check|answer\s+all\s+(?:the\s+)?questions|instructions?\s*:|time\s+allowed|read\s+the\s+following\s+instructions|do\s+not\s+write\s+on\s+this\s+question\s+paper|candidates?\s+should\s+answer)/i.test(
@@ -333,7 +350,7 @@ function detectDocumentTitle(normalizedText: string, fileName: string): string |
     .map((l) => l.trim())
     .filter(Boolean);
 
-  const qStartRegex = /^(?:Question\s+|Q\.?\s*)?(\d{1,3})\s*[.)\-:]\s+(.+)$/i;
+  const qStartRegex = /^(?:Question\s+|Q\.?\s*)?(\d{1,3})\s*[.)\-:]\s*(.+)$/i;
 
   for (const line of lines.slice(0, 8)) {
     if (qStartRegex.test(line)) break;
@@ -362,8 +379,9 @@ function detectDocumentTitle(normalizedText: string, fileName: string): string |
   return undefined;
 }
 
+
 function normalizeExtractedText(raw: string): string {
-  let text = raw.replace(/\r\n?/g, '\n');
+  let text = raw.replace(/\u00a0/g, ' ').replace(/\r\n?/g, '\n');
   text = text.replace(/([^\n])\s+([A-D])\s*[.)]\s+/g, '$1\n$2. ');
 
   return text
@@ -389,7 +407,7 @@ function extractMarksFromText(input: string, fallback: number): { cleaned: strin
 
 function parseQuestionsFromNormalizedText(normalized: string): AssignmentQuestion[] {
   const lines = normalized.split('\n');
-  const qStartRegex = /^(?:Question\s+|Q\.?\s*)?(\d{1,3})\s*[.)\-:]\s+(.+)$/i;
+  const qStartRegex = /^(?:Question\s+|Q\.?\s*)?(\d{1,3})\s*[.)\-:]\s*(.+)$/i;
   const optRegex = /^[\[(]?([A-D])[\])).:]\s*(.+)$/i;
   const ansHintRegex = /^(?:Answer|Ans|Correct(?:\s+Option)?)\s*[:=-]\s*([A-D])\b/i;
 
@@ -408,18 +426,18 @@ function parseQuestionsFromNormalizedText(normalized: string): AssignmentQuestio
     if (qMatch) {
       const num = parseInt(qMatch[1], 10);
       const rest = qMatch[2].trim();
-      if (isPdfGarbageLine(rest) || isExamInstructionLine(rest)) continue;
+      if (rest.length >= 2 && !isPdfGarbageLine(rest) && !isExamInstructionLine(rest)) {
+        const isPlausibleNext =
+          !current ||
+          num === current.num + 1 ||
+          num === 1 ||
+          /^(?:Question|Q\.?)\s*\d+/i.test(line);
 
-      const isPlausibleNext =
-        !current ||
-        num === current.num + 1 ||
-        num === 1 ||
-        /^(?:Question|Q\.?)\s*\d+/i.test(line);
-
-      if (isPlausibleNext && num >= 1 && num <= 200) {
-        if (current) blocks.push(current);
-        current = { num, lines: [rest] };
-        continue;
+        if (isPlausibleNext && num >= 1 && num <= 200) {
+          if (current) blocks.push(current);
+          current = { num, lines: [rest] };
+          continue;
+        }
       }
     }
 
@@ -541,7 +559,7 @@ export async function extractQuestionsFromPdfFile(
   }
 
 
-  const questions = parseQuestionsFromNormalizedText(normalized);
+const questions = parseQuestionsFromNormalizedText(normalized);
   const suggestedTitle = detectDocumentTitle(normalized, file.name);
 
   return {
