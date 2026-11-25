@@ -19,7 +19,8 @@
     "schools": {
       ".read": true,
       "$schoolId": {
-        ".validate": "newData.hasChildren()"
+        ".validate": "newData.hasChildren()",
+        ".write": "newData.exists()"
       }
     },
     "elimupulse": {
