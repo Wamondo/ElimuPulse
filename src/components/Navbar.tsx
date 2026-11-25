@@ -314,8 +314,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <span className="text-emerald-700 font-semibold">{schoolProfile?.primaryWingName || `${schoolProfile?.name || ''} Primary Wing`}</span>
                       <span>&</span>
                       <span className="text-indigo-700 font-semibold">{schoolProfile?.juniorWingName || `${schoolProfile?.name || ''} Junior Wing`}</span>
-                      <span className="text-slate-300">·</span>
-                      <span className="text-slate-400 font-mono text-[10px]">{schoolProfile?.registrationNumber || schoolProfile?.county}</span>
+                      {currentUser?.role !== 'teacher' && (
+                        <>
+                          <span className="text-slate-300">·</span>
+                          <span className="text-slate-400 font-mono text-[10px]">{schoolProfile?.registrationNumber || schoolProfile?.county}</span>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -628,14 +632,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                 )}
                 </div>
               </div>
-            ) : (
+              ) : currentUser?.role !== 'teacher' ? (
               <div className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 border border-slate-300 rounded-md">
                 <div className="w-2 h-2 rounded-full bg-emerald-600" />
                 <span className="max-w-[130px] truncate font-semibold text-slate-800">{currentUser?.name}</span>
                 <span className="text-slate-400">·</span>
                 <span className="font-semibold text-indigo-700">{getRoleBadge(currentUser)}</span>
               </div>
-            )}
+              ) : null}
 
             {/* Quick Sign Out Button */}
             <button
