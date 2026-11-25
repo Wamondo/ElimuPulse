@@ -1178,10 +1178,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       </div>
                       <div className="flex flex-wrap items-center gap-1.5">
                         <label className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold cursor-pointer shadow-2xs">
-                                <span>{isExtractingPdf ? 'Extracting PDF...' : '📄 Upload PDF Questions'}</span>
+                                <span>{isExtractingPdf ? 'Extracting...' : '📄 Upload Questions (PDF / Word / Image)'}</span>
                                 <input
                                   type="file"
-                                  accept="application/pdf,.pdf"
+                                  accept="application/pdf,.pdf,.docx,.txt,.md,image/*"
                                   disabled={isExtractingPdf}
                                   className="hidden"
                                   onChange={(e) => {

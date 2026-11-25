@@ -5,6 +5,12 @@ export interface ExtractedPdfResult {
   suggestedTitle?: string;
   rawTextPreview: string;
   extractedCount: number;
+  usedOcr?: boolean;
+}
+
+export interface PdfExtractionProgress {
+  stage: 'text' | 'ocr';
+  message: string;
 }
 
 function decodePdfLiteralString(raw: string): string {
@@ -62,9 +68,12 @@ function extractTextFromContentStream(streamBytes: Uint8Array): string {
   return lines.join('\n');
 }
 
-async function decompressFlate(bytes: Uint8Array): Promise<Uint8Array | null> {
+async function decompressFlate(
+  bytes: Uint8Array,
+  formats: ReadonlyArray<'deflate' | 'deflate-raw'> = ['deflate', 'deflate-raw']
+): Promise<Uint8Array | null> {
   if (typeof DecompressionStream === 'undefined') return null;
-  for (const fmt of ['deflate', 'deflate-raw'] as const) {
+  for (const fmt of formats) {
     try {
       const ds = new DecompressionStream(fmt);
       const writer = ds.writable.getWriter();
@@ -77,6 +86,170 @@ async function decompressFlate(bytes: Uint8Array): Promise<Uint8Array | null> {
     }
   }
   return null;
+}
+
+function decodeXmlEntities(str: string): string {
+  return str
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(parseInt(n, 10)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
+}
+
+async function extractTextFromDocxBuffer(buffer: ArrayBuffer): Promise<string> {
+  const bytes = new Uint8Array(buffer);
+  const view = new DataView(buffer);
+  const decoder = new TextDecoder('utf-8');
+
+  let offset = 0;
+  while (offset + 30 <= bytes.length) {
+    const sig = view.getUint32(offset, true);
+    if (sig !== 0x04034b50) break;
+
+    const method = view.getUint16(offset + 8, true);
+    const compSize = view.getUint32(offset + 18, true);
+    const nameLen = view.getUint16(offset + 26, true);
+    const extraLen = view.getUint16(offset + 28, true);
+    const nameStart = offset + 30;
+    const dataStart = nameStart + nameLen + extraLen;
+    const dataEnd = dataStart + compSize;
+    if (dataEnd > bytes.length) break;
+
+    const entryName = decoder.decode(bytes.slice(nameStart, nameStart + nameLen));
+    if (entryName === 'word/document.xml') {
+      const slice = bytes.slice(dataStart, dataEnd);
+      let xmlBytes: Uint8Array | null = null;
+      if (method === 0) {
+        xmlBytes = slice;
+      } else if (method === 8) {
+        xmlBytes = await decompressFlate(slice, ['deflate-raw', 'deflate']);
+      }
+
+      if (xmlBytes) {
+        const xml = decoder.decode(xmlBytes);
+        const paragraphs = xml.split(/<w:p\b[^>]*>/g).slice(1);
+        const lines: string[] = [];
+        for (const p of paragraphs) {
+          const withBreaks = p
+            .replace(/<w:tab\b[^>]*\/?>/g, ' ')
+            .replace(/<w:br\b[^>]*\/?>/g, '\n');
+          const texts = Array.from(withBreaks.matchAll(/<w:t\b[^>]*>([\s\S]*?)<\/w:t>/g)).map((m) =>
+            decodeXmlEntities(m[1])
+          );
+          const line = texts.join('').trim();
+          if (line) lines.push(line);
+        }
+        return lines.join('\n');
+      }
+      break;
+    }
+
+    offset = dataEnd;
+  }
+
+  return '';
+}
+
+function isJpegBytes(bytes: Uint8Array): boolean {
+  return bytes.length >= 4 && bytes[0] === 0xff && bytes[1] === 0xd8;
+}
+
+function isPngBytes(bytes: Uint8Array): boolean {
+  return (
+    bytes.length >= 8 &&
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47
+  );
+}
+
+async function extractEmbeddedImageBlobsFromPdf(buffer: ArrayBuffer): Promise<Blob[]> {
+  const bytes = new Uint8Array(buffer);
+  const latin1 = new TextDecoder('latin1').decode(bytes);
+  const blobs: Blob[] = [];
+  const streamHeaderRegex = /stream\r?\n/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = streamHeaderRegex.exec(latin1)) !== null) {
+    const startIdx = match.index + match[0].length;
+    const endIdx = latin1.indexOf('endstream', startIdx);
+    if (endIdx === -1) break;
+
+    let trimEnd = endIdx;
+    if (latin1[trimEnd - 1] === '\n') trimEnd--;
+    if (latin1[trimEnd - 1] === '\r') trimEnd--;
+
+    const dictBefore = latin1.slice(Math.max(0, match.index - 450), match.index);
+    const streamSlice = bytes.slice(startIdx, trimEnd);
+
+    if (/\/DCTDecode\b/.test(dictBefore) && isJpegBytes(streamSlice)) {
+      blobs.push(new Blob([streamSlice], { type: 'image/jpeg' }));
+    } else if (isPngBytes(streamSlice)) {
+      blobs.push(new Blob([streamSlice], { type: 'image/png' }));
+    } else if (/\/FlateDecode\b/.test(dictBefore)) {
+      const inflated = await decompressFlate(streamSlice);
+      if (inflated) {
+        if (isJpegBytes(inflated)) {
+          blobs.push(new Blob([inflated], { type: 'image/jpeg' }));
+        } else if (isPngBytes(inflated)) {
+          blobs.push(new Blob([inflated], { type: 'image/png' }));
+        }
+      }
+    }
+
+    streamHeaderRegex.lastIndex = endIdx + 9;
+    if (blobs.length >= 12) break;
+  }
+
+  return blobs;
+}
+
+async function runOcrOnImageSources(
+  sources: Array<Blob | File>,
+  onProgress?: (info: PdfExtractionProgress) => void
+): Promise<string> {
+  if (typeof window === 'undefined' || sources.length === 0) return '';
+
+  onProgress?.({ stage: 'ocr', message: 'Loading OCR engine...' });
+  let worker: Awaited<ReturnType<Awaited<typeof import('tesseract.js')>['createWorker']>> | null = null;
+  try {
+    const modName = 'tesseract.js';
+    const Tesseract = (await import(/* @vite-ignore */ modName)) as typeof import('tesseract.js');
+    worker = await Tesseract.createWorker('eng');
+  } catch {
+    onProgress?.({
+      stage: 'ocr',
+      message: 'OCR package not available; skipping image OCR.',
+    });
+    return '';
+  }
+
+  const pageTexts: string[] = [];
+  try {
+    for (let i = 0; i < sources.length; i++) {
+      onProgress?.({
+        stage: 'ocr',
+        message:
+          sources.length === 1
+            ? 'Running OCR on picture...'
+            : `Running OCR on page/image ${i + 1} of ${sources.length}...`,
+      });
+      const { data } = await worker.recognize(sources[i]);
+      if (data?.text?.trim()) {
+        pageTexts.push(data.text.trim());
+      }
+    }
+  } finally {
+    if (worker) {
+      await worker.terminate();
+    }
+  }
+
+  return pageTexts.join('\n\n');
 }
 
 async function extractRawTextFromPdfArrayBuffer(buffer: ArrayBuffer): Promise<string> {
@@ -147,6 +320,7 @@ function isPdfGarbageLine(line: string): boolean {
   return false;
 }
 
+
 function isExamInstructionLine(line: string): boolean {
   return /^(?:this\s+paper\s+consists|ensure\s+you\s+check|answer\s+all\s+(?:the\s+)?questions|instructions?\s*:|time\s+allowed|read\s+the\s+following\s+instructions|do\s+not\s+write\s+on\s+this\s+question\s+paper|candidates?\s+should\s+answer)/i.test(
     line.trim()
@@ -171,14 +345,14 @@ function detectDocumentTitle(normalizedText: string, fileName: string): string |
   }
 
   const cleanFileTitle = fileName
-    .replace(/\.pdf$/i, '')
+    .replace(/\.(pdf|docx?|txt|md|jpe?g|png|webp|gif|bmp)$/i, '')
     .replace(/[_-]+/g, ' ')
     .replace(/\s{2,}/g, ' ')
     .trim();
 
   if (
     cleanFileTitle &&
-    !/^(doc|document|scan|scanned|file|untitled|download|whatsapp\s+document)(\s*\d+)?$/i.test(
+    !/^(doc|document|scan|scanned|file|untitled|download|whatsapp\s+document|img|image|photo)(\s*\d+)?$/i.test(
       cleanFileTitle
     )
   ) {
@@ -187,7 +361,6 @@ function detectDocumentTitle(normalizedText: string, fileName: string): string |
 
   return undefined;
 }
-
 
 function normalizeExtractedText(raw: string): string {
   let text = raw.replace(/\r\n?/g, '\n');
@@ -322,10 +495,52 @@ function parseQuestionsFromNormalizedText(normalized: string): AssignmentQuestio
     .filter((q): q is AssignmentQuestion => Boolean(q));
 }
 
-export async function extractQuestionsFromPdfFile(file: File): Promise<ExtractedPdfResult> {
-  const buffer = await file.arrayBuffer();
-  const rawExtracted = await extractRawTextFromPdfArrayBuffer(buffer);
-  const normalized = normalizeExtractedText(rawExtracted);
+export async function extractQuestionsFromPdfFile(
+  file: File,
+  onProgress?: (info: PdfExtractionProgress) => void
+): Promise<ExtractedPdfResult> {
+  const lowerName = file.name.toLowerCase();
+  const isImage = file.type.startsWith('image/') || /\.(jpe?g|png|webp|gif|bmp|heic)$/i.test(lowerName);
+  const isDocx =
+    lowerName.endsWith('.docx') ||
+    file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  const isPlainText = lowerName.endsWith('.txt') || lowerName.endsWith('.md') || file.type.startsWith('text/');
+
+  let normalized = '';
+  let usedOcr = false;
+
+  if (isImage) {
+    const ocrText = await runOcrOnImageSources([file], onProgress);
+    usedOcr = Boolean(ocrText.trim());
+    normalized = normalizeExtractedText(ocrText);
+  } else if (isDocx) {
+    onProgress?.({ stage: 'text', message: 'Reading Word document...' });
+    const buffer = await file.arrayBuffer();
+    const docText = await extractTextFromDocxBuffer(buffer);
+    normalized = normalizeExtractedText(docText);
+  } else if (isPlainText) {
+    onProgress?.({ stage: 'text', message: 'Reading text document...' });
+    const rawText = await file.text();
+    normalized = normalizeExtractedText(rawText);
+  } else {
+    const buffer = await file.arrayBuffer();
+    onProgress?.({ stage: 'text', message: 'Reading PDF text layer...' });
+    const rawExtracted = await extractRawTextFromPdfArrayBuffer(buffer);
+    normalized = normalizeExtractedText(rawExtracted);
+    let questionsCheck = parseQuestionsFromNormalizedText(normalized);
+
+    if (questionsCheck.length === 0) {
+      const imageBlobs = await extractEmbeddedImageBlobsFromPdf(buffer);
+      const ocrText = await runOcrOnImageSources(imageBlobs, onProgress);
+      if (ocrText.trim()) {
+        usedOcr = true;
+        normalized = normalizeExtractedText(ocrText);
+        questionsCheck = parseQuestionsFromNormalizedText(normalized);
+      }
+    }
+  }
+
+
   const questions = parseQuestionsFromNormalizedText(normalized);
   const suggestedTitle = detectDocumentTitle(normalized, file.name);
 
@@ -334,5 +549,6 @@ export async function extractQuestionsFromPdfFile(file: File): Promise<Extracted
     suggestedTitle,
     rawTextPreview: normalized.slice(0, 1200),
     extractedCount: questions.length,
+    usedOcr,
   };
 }
