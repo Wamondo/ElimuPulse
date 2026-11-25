@@ -165,6 +165,22 @@ export const LearnerLearningAreasView: React.FC = () => {
   const [submitNotice, setSubmitNotice] = useState<string | null>(null);
   const [submittingAssignmentId, setSubmittingAssignmentId] = useState<string | null>(null);
   const [expandedMarkedId, setExpandedMarkedId] = useState<string | null>(null);
+  const [printableSheet, setPrintableSheet] = useState<{
+    mode: 'assignment' | 'marked';
+    assignment: LearningAreaAssignmentItem;
+    submission?: LearnerAssignmentSubmission;
+  } | null>(null);
+
+  const openPrintSheet = (sheet: {
+    mode: 'assignment' | 'marked';
+    assignment: LearningAreaAssignmentItem;
+    submission?: LearnerAssignmentSubmission;
+  }) => {
+    setPrintableSheet(sheet);
+    setTimeout(() => {
+      window.print();
+    }, 120);
+  };
   const [computerShift, setComputerShift] = useState(false);
   const workingInputRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
 
@@ -445,7 +461,7 @@ export const LearnerLearningAreasView: React.FC = () => {
                   <h3 className="text-sm font-bold text-slate-900">Assignments to Be Done</h3>
                 </div>
                 <span className="text-[11px] text-slate-500">
-                  Answer directly on screen — no printing needed
+                  Answer on screen or print a worksheet copy
                 </span>
               </div>
 
@@ -495,7 +511,7 @@ export const LearnerLearningAreasView: React.FC = () => {
                             </p>
                           </div>
 
-                          <button
+                          <div className="flex items-center gap-2 shrink-0"><button type="button" onClick={() => openPrintSheet({ mode: 'assignment', assignment })} className="px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg cursor-pointer">Print Assignment</button><button
                             type="button"
                             onClick={() =>
                               setActiveAssignmentId(isOpen ? null : assignment.id)
@@ -510,7 +526,7 @@ export const LearnerLearningAreasView: React.FC = () => {
                                 ? 'View / Update Answers'
                                 : 'Answer Questions'}
                             </span>
-                          </button>
+                          </button></div>
                         </div>
 
                         {isOpen && (
@@ -935,15 +951,24 @@ export const LearnerLearningAreasView: React.FC = () => {
                               {displayScore}
                             </span>
                             {submission && questions.length > 0 && (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setExpandedMarkedId(isExpanded ? null : assignment.id)
-                                }
-                                className="px-2.5 py-1 text-[11px] font-semibold text-slate-700 bg-white border border-slate-200 rounded-md cursor-pointer"
-                              >
-                                {isExpanded ? 'Hide Script' : 'View Marked Script'}
-                              </button>
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => openPrintSheet({ mode: 'marked', assignment, submission })}
+                                  className="px-2.5 py-1 text-[11px] font-semibold text-emerald-800 bg-white hover:bg-emerald-50 border border-emerald-300 rounded-md cursor-pointer"
+                                >
+                                  Print Marked Script
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setExpandedMarkedId(isExpanded ? null : assignment.id)
+                                  }
+                                  className="px-2.5 py-1 text-[11px] font-semibold text-slate-700 bg-white border border-slate-200 rounded-md cursor-pointer"
+                                >
+                                  {isExpanded ? 'Hide Script' : 'View Marked Script'}
+                                </button>
+                              </>
                             )}
                           </div>
                         </div>
@@ -1071,6 +1096,120 @@ export const LearnerLearningAreasView: React.FC = () => {
           </div>
         )}
       </main>
+      {printableSheet && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4 print:static print:inset-auto print:bg-white print:p-0 print:block">
+          <style>{`@media print { body * { visibility: hidden !important; } #elimu-printable-sheet, #elimu-printable-sheet * { visibility: visible !important; } #elimu-printable-sheet { position: fixed !important; left: 0 !important; top: 0 !important; width: 100% !important; max-width: 100% !important; margin: 0 !important; padding: 16px !important; box-shadow: none !important; border: none !important; background: #ffffff !important; } .no-print { display: none !important; } }`}</style>
+          <div
+            id="elimu-printable-sheet"
+            className="w-full max-w-2xl max-h-[88vh] overflow-y-auto bg-white text-slate-900 rounded-xl border border-slate-300 p-5 space-y-4 shadow-xl print:max-h-none print:overflow-visible"
+          >
+            <div className="flex items-start justify-between gap-3 border-b border-slate-300 pb-3">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wide text-indigo-700">
+                  {printableSheet.mode === 'marked' ? 'Marked Assignment Review Copy' : 'Assigned Learner Worksheet'}
+                </p>
+                <h2 className="text-base font-extrabold text-slate-900 mt-0.5">
+                  {printableSheet.assignment.title}
+                </h2>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  {printableSheet.assignment.learningArea} · {printableSheet.assignment.grade} · Teacher: {printableSheet.assignment.teacherName} · Due: {printableSheet.assignment.dueDate}
+                </p>
+                <p className="text-xs font-semibold text-slate-800 mt-1">
+                  Learner: {activeLearnerName} ({activeLearnerId})
+                </p>
+              </div>
+              <div className="flex items-center gap-2 no-print shrink-0">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg cursor-pointer"
+                >
+                  Print / Save PDF
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPrintableSheet(null)}
+                  className="px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+
+            {printableSheet.mode === 'marked' && (
+              <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 flex flex-wrap items-center justify-between gap-2 text-xs">
+                <div>
+                  <span className="font-bold text-emerald-950">Teacher Remarks: </span>
+                  <span className="text-emerald-900">
+                    {printableSheet.submission?.teacherFeedback || printableSheet.assignment.feedback || 'Marked by subject teacher.'}
+                  </span>
+                </div>
+                <span className="font-extrabold text-emerald-900 bg-emerald-100 px-2.5 py-1 rounded">
+                  Score: {printableSheet.submission?.awardedScore || printableSheet.assignment.score || 'Marked'}
+                </span>
+              </div>
+            )}
+
+            {printableSheet.assignment.instructions && (
+              <p className="text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-lg p-2.5">
+                <strong>Instructions:</strong> {printableSheet.assignment.instructions}
+              </p>
+            )}
+
+            <div className="space-y-3">
+              {(printableSheet.assignment.questions || []).map((q, idx) => {
+                const subAns = printableSheet.submission?.answers?.[q.id] || '';
+                const stepAnns = printableSheet.submission?.stepAnnotations?.[q.id] || [];
+                const stampsList = stepAnns.map((s) => s?.stamp).filter(Boolean);
+                return (
+                  <div
+                    key={q.id}
+                    className="p-3 rounded-lg border border-slate-200 space-y-2 text-xs break-inside-avoid"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-bold text-slate-900">
+                        Q{idx + 1}. {q.prompt}
+                      </p>
+                      <span className="text-[11px] font-semibold text-slate-600 shrink-0">
+                        ({q.marks} {q.marks === 1 ? 'mark' : 'marks'})
+                      </span>
+                    </div>
+
+                    {q.type === 'mcq' && q.options && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 pl-3 text-slate-700">
+                        {(['A', 'B', 'C', 'D'] as const).map((opt) => (
+                          <div key={opt}>
+                            <strong>{opt}.</strong> {q.options?.[opt] || '—'}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {printableSheet.mode === 'assignment' ? (
+                      <div className="pt-1 space-y-1.5">
+                        <p className="text-[11px] font-semibold text-slate-500">Learner Working / Answer:</p>
+                        <div className="h-14 border-b border-dashed border-slate-400" />
+                        <div className="h-6 border-b border-dashed border-slate-300" />
+                      </div>
+                    ) : (
+                      <div className="pt-1 space-y-1.5">
+                        <div className="p-2 rounded bg-slate-50 border border-slate-200 font-mono text-slate-900 whitespace-pre-wrap">
+                          {subAns || printableSheet.submission?.generalResponse || 'No written response recorded.'}
+                        </div>
+                        {stampsList.length > 0 && (
+                          <p className="text-[11px] font-bold text-red-600">
+                            Teacher Marks: {stampsList.join(' · ')}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
