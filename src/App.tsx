@@ -277,47 +277,49 @@ const MainLayout: React.FC = () => {
       })()}
 
       {/* Registry Backup & Restore Bar */}
-      <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-3">
-        <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs">
-          <div className="flex items-center gap-2 text-slate-700 font-medium">
-            <Database className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-            <span>
-              Registry Safety: <strong>{teachers.length}</strong> Teachers · <strong>{learners.length}</strong> Learners · <strong>{parents.length}</strong> Parents
-            </span>
-            {backupNotice && (
-              <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
-                {backupNotice}
+      {currentUser?.role !== 'teacher' && (
+        <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs">
+            <div className="flex items-center gap-2 text-slate-700 font-medium">
+              <Database className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+              <span>
+                Registry Safety: <strong>{teachers.length}</strong> Teachers · <strong>{learners.length}</strong> Learners · <strong>{parents.length}</strong> Parents
               </span>
-            )}
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <button
-              type="button"
-              onClick={handleDownloadBackupJson}
-              className="px-2.5 py-1 text-[11px] font-semibold text-indigo-700 bg-white hover:bg-indigo-50 border border-indigo-200 rounded-lg cursor-pointer"
-            >
-              Download Backup JSON
-            </button>
-            <button
-              type="button"
-              disabled={isRestoringSnapshot}
-              onClick={handleRestoreFromRtdbOrLocal}
-              className="px-2.5 py-1 text-[11px] font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg cursor-pointer disabled:opacity-60"
-            >
-              {isRestoringSnapshot ? 'Restoring...' : 'Restore RTDB Snapshot'}
-            </button>
-            <label className="px-2.5 py-1 text-[11px] font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg cursor-pointer">
-              <span>Restore Backup File</span>
-              <input
-                type="file"
-                accept="application/json,.json"
-                onChange={handleRestoreFromFile}
-                className="hidden"
-              />
-            </label>
+              {backupNotice && (
+                <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                  {backupNotice}
+                </span>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                onClick={handleDownloadBackupJson}
+                className="px-2.5 py-1 text-[11px] font-semibold text-indigo-700 bg-white hover:bg-indigo-50 border border-indigo-200 rounded-lg cursor-pointer"
+              >
+                Download Backup JSON
+              </button>
+              <button
+                type="button"
+                disabled={isRestoringSnapshot}
+                onClick={handleRestoreFromRtdbOrLocal}
+                className="px-2.5 py-1 text-[11px] font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg cursor-pointer disabled:opacity-60"
+              >
+                {isRestoringSnapshot ? 'Restoring...' : 'Restore RTDB Snapshot'}
+              </button>
+              <label className="px-2.5 py-1 text-[11px] font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg cursor-pointer">
+                <span>Restore Backup File</span>
+                <input
+                  type="file"
+                  accept="application/json,.json"
+                  onChange={handleRestoreFromFile}
+                  className="hidden"
+                />
+              </label>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Main Content Viewport */}
       <main className="flex-1 min-w-0 max-w-7xl w-full mx-auto overflow-x-hidden px-4 sm:px-6 lg:px-8 py-6">
