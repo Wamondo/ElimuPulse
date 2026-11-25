@@ -187,8 +187,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           `Extracted ${result.questions.length} question(s) in exact order from "${file.name}"${result.usedOcr ? ' via OCR' : ''}. Review below and post to learners.`
         );
       } else {
+        const previewSnippet = result.rawTextPreview
+          ? ` Read preview: "${result.rawTextPreview.slice(0, 140).replace(/\s+/g, ' ').trim()}"`
+          : '';
         setPdfExtractNotice(
-          `No numbered questions could be read from "${file.name}"${result.usedOcr ? ' even after OCR' : ''}.${result.suggestedTitle ? ` Suggested title "${result.suggestedTitle}" filled if blank.` : ''} You can use "+ Multiple Choice" or "+ Written / Working Question" below to add questions.`
+          `No numbered questions could be read from "${file.name}"${result.usedOcr ? ' even after OCR' : ''}.${result.suggestedTitle ? ` Suggested title "${result.suggestedTitle}" filled if blank.` : ''}${previewSnippet} Tip: For two-column or photo exams, try cropping one column or a single question first, or add below.`
         );
       }
     } catch {

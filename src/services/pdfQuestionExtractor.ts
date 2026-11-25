@@ -309,7 +309,7 @@ async function extractRawTextFromPdfArrayBuffer(buffer: ArrayBuffer): Promise<st
   return collected.join('\n\n');
 }
 
-function isPdfGarbageLine(line: string): boolean {
+function isPdfGarbageLine(line: string, lenient = false): boolean {
   const trimmed = line.replace(/\u00a0/g, ' ').trim();
   if (!trimmed || trimmed.length < 2) return true;
 
@@ -323,17 +323,20 @@ function isPdfGarbageLine(line: string): boolean {
 
   const words = trimmed.split(/\s+/);
   const longestWord = words.reduce((m, w) => Math.max(m, w.length), 0);
-  if (longestWord > 26 && !/https?:\/\//i.test(trimmed)) {
+  if (longestWord > 32 && !/https?:\/\//i.test(trimmed)) {
     return true;
   }
 
   const letterCount = (trimmed.match(/[A-Za-z]/g) || []).length;
-  const digitCount = (trimmed.match(/[0-9\u00bc-\u00be\u2150-\u215e]/g) || []).length;
-  const symbolCount = (
-    trimmed.match(/[^A-Za-z0-9\u00bc-\u00be\u2150-\u215e\s.,?!()\-+=/×÷=<>%:'";]/g) || []
-  ).length;
+  const digitCount = (trimmed.match(/[0-9\u00bc-\u00be\u2150-\u215e²³π°]/g) || []).length;
   if (letterCount + digitCount < 2) return true;
-  if (symbolCount > Math.max(2, trimmed.length * 0.25)) return true;
+
+  if (!lenient) {
+    const symbolCount = (
+      trimmed.match(/[^A-Za-z0-9\u00bc-\u00be\u2150-\u215e²³π°\s.,?!()\-+=/×÷=<>%:'";]/g) || []
+    ).length;
+    if (symbolCount > Math.max(2, trimmed.length * 0.25)) return true;
+  }
 
   return false;
 }
@@ -380,14 +383,15 @@ function detectDocumentTitle(normalizedText: string, fileName: string): string |
 }
 
 
-function normalizeExtractedText(raw: string): string {
+function normalizeExtractedText(raw: string, fromOcr = false): string {
   let text = raw.replace(/\u00a0/g, ' ').replace(/\r\n?/g, '\n');
+  text = text.replace(/^[|!lI]\s+(?=\d{1,3}\s*[.)])/gm, '');
   text = text.replace(/([^\n])\s+([A-D])\s*[.)]\s+/g, '$1\n$2. ');
 
   return text
     .split('\n')
     .map((line) => line.replace(/[ \t]+/g, ' ').trim())
-    .filter((line) => !isPdfGarbageLine(line))
+    .filter((line) => !isPdfGarbageLine(line, fromOcr))
     .filter((line) => !isExamInstructionLine(line))
     .join('\n');
 }
@@ -530,7 +534,7 @@ export async function extractQuestionsFromPdfFile(
   if (isImage) {
     const ocrText = await runOcrOnImageSources([file], onProgress);
     usedOcr = Boolean(ocrText.trim());
-    normalized = normalizeExtractedText(ocrText);
+    normalized = normalizeExtractedText(ocrText, true);
   } else if (isDocx) {
     onProgress?.({ stage: 'text', message: 'Reading Word document...' });
     const buffer = await file.arrayBuffer();
@@ -539,12 +543,12 @@ export async function extractQuestionsFromPdfFile(
   } else if (isPlainText) {
     onProgress?.({ stage: 'text', message: 'Reading text document...' });
     const rawText = await file.text();
-    normalized = normalizeExtractedText(rawText);
+    normalized = normalizeExtractedText(rawText, false);
   } else {
     const buffer = await file.arrayBuffer();
     onProgress?.({ stage: 'text', message: 'Reading PDF text layer...' });
     const rawExtracted = await extractRawTextFromPdfArrayBuffer(buffer);
-    normalized = normalizeExtractedText(rawExtracted);
+    normalized = normalizeExtractedText(rawExtracted, false);
     let questionsCheck = parseQuestionsFromNormalizedText(normalized);
 
     if (questionsCheck.length === 0) {
@@ -552,7 +556,7 @@ export async function extractQuestionsFromPdfFile(
       const ocrText = await runOcrOnImageSources(imageBlobs, onProgress);
       if (ocrText.trim()) {
         usedOcr = true;
-        normalized = normalizeExtractedText(ocrText);
+        normalized = normalizeExtractedText(ocrText, true);
         questionsCheck = parseQuestionsFromNormalizedText(normalized);
       }
     }
