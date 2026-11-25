@@ -446,60 +446,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         <h1 className="text-3xl font-black tracking-tight text-white">
           ElimuPulse
         </h1>
-        <p className="mt-1 text-sm text-indigo-200 font-semibold">
-          {schoolProfile?.name || 'Comprehensive School Portal'}
-        </p>
       </div>
 
       <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-md">
-        {/* Institution Selector Bar */}
-        {registeredSchools && registeredSchools.length > 0 && (
-          <div className="mb-4 bg-white/10 backdrop-blur-md border border-white/15 rounded-xl p-2.5 flex items-center justify-between gap-2">
-            <div className="relative flex-1">
-              <button
-                type="button"
-                onClick={() => setShowSchoolDropdown(!showSchoolDropdown)}
-                className="w-full text-left flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-slate-900/60 hover:bg-slate-900/80 border border-white/10 transition-colors"
-              >
-                <div className="truncate">
-                  <span className="text-[10px] text-indigo-300 font-mono block">Selected Institution:</span>
-                  <span className="text-xs font-bold text-white truncate block">
-                    {schoolProfile?.name || 'Academic Institution'}
-                  </span>
-                </div>
-                <ChevronDown className="w-3.5 h-3.5 text-slate-300 shrink-0" />
-              </button>
-
-              {showSchoolDropdown && (
-                <div className="absolute left-0 top-full mt-1.5 w-full bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-30 p-1.5 space-y-1">
-                  {registeredSchools.map((sch) => (
-                    <button
-                      key={sch.id}
-                      type="button"
-                      onClick={() => {
-                        switchActiveSchool(sch.id);
-                        setShowSchoolDropdown(false);
-                      }}
-                      className={`w-full text-left px-3 py-2 rounded-lg flex items-center justify-between text-xs ${
-                        sch.id === currentSchoolId
-                          ? 'bg-indigo-600/30 border border-indigo-500/40 text-indigo-200 font-bold'
-                          : 'hover:bg-slate-800 text-slate-300'
-                      }`}
-                    >
-                      <span className="truncate">{sch.name}</span>
-                      {sch.id === currentSchoolId && <Check className="w-3.5 h-3.5 text-indigo-400" />}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        <div className="mb-4">
-          <PWAInstallButton variant="banner" />
-        </div>
-
         {/* MAIN AUTH CARD */}
         <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden text-slate-900">
           {pendingUser ? (
