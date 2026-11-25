@@ -264,8 +264,7 @@ async function runOcrOnImageSources(
   onProgress?.({ stage: 'ocr', message: 'Loading OCR engine...' });
   let worker: Awaited<ReturnType<Awaited<typeof import('tesseract.js')>['createWorker']>> | null = null;
   try {
-    const modName = 'tesseract.js';
-    const Tesseract = (await import(/* @vite-ignore */ modName)) as typeof import('tesseract.js');
+    const Tesseract = await import('tesseract.js');
     worker = await Tesseract.createWorker('eng');
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err || 'Failed to start OCR worker');
