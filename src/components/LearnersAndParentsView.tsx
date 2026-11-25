@@ -272,7 +272,7 @@ export const LearnersAndParentsView: React.FC<LearnersAndParentsViewProps> = ({
           </p>
         </div>
 
-        {(isOwner || currentUser?.role === 'admin' || currentUser?.role === 'teacher') && (
+        {canManageLearnerRecords && (
           <div className="flex items-center gap-2 self-start md:self-auto flex-wrap">
             <button
               onClick={() => setIsBulkOnboardOpen(true)}
