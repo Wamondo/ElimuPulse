@@ -188,10 +188,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         );
       } else {
         const previewSnippet = result.rawTextPreview
-          ? ` Read preview: "${result.rawTextPreview.slice(0, 140).replace(/\s+/g, ' ').trim()}"`
+          ? ` Read preview: "${result.rawTextPreview.slice(0, 160).replace(/\s+/g, ' ').trim()}"`
+          : '';
+        const errSnippet = result.ocrError
+          ? ` OCR detail: ${result.ocrError.slice(0, 140)}`
           : '';
         setPdfExtractNotice(
-          `No numbered questions could be read from "${file.name}"${result.usedOcr ? ' even after OCR' : ''}.${result.suggestedTitle ? ` Suggested title "${result.suggestedTitle}" filled if blank.` : ''}${previewSnippet} Tip: For two-column or photo exams, try cropping one column or a single question first, or add below.`
+          `No numbered questions could be read from "${file.name}"${result.usedOcr ? ' even after OCR' : ''}.${result.suggestedTitle ? ` Suggested title "${result.suggestedTitle}" filled if blank.` : ''}${previewSnippet}${errSnippet} You can also use "+ Multiple Choice" or "+ Written / Working Question" below to add questions.`
         );
       }
     } catch {

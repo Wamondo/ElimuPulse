@@ -6,6 +6,7 @@ export interface ExtractedPdfResult {
   rawTextPreview: string;
   extractedCount: number;
   usedOcr?: boolean;
+  ocrError?: string;
 }
 
 export interface PdfExtractionProgress {
@@ -171,7 +172,6 @@ function isJpegBytes(bytes: Uint8Array): boolean {
   return bytes.length >= 4 && bytes[0] === 0xff && bytes[1] === 0xd8;
 }
 
-
 function isPngBytes(bytes: Uint8Array): boolean {
   return (
     bytes.length >= 8 &&
@@ -181,6 +181,7 @@ function isPngBytes(bytes: Uint8Array): boolean {
     bytes[3] === 0x47
   );
 }
+
 
 async function extractEmbeddedImageBlobsFromPdf(buffer: ArrayBuffer): Promise<Blob[]> {
   const bytes = new Uint8Array(buffer);
@@ -223,11 +224,42 @@ async function extractEmbeddedImageBlobsFromPdf(buffer: ArrayBuffer): Promise<Bl
   return blobs;
 }
 
+async function tryNativeTextDetector(sources: Array<Blob | File>): Promise<string> {
+  if (typeof window === 'undefined') return '';
+  const TextDetectorCtor = (window as unknown as {
+    TextDetector?: new () => { detect: (img: ImageBitmap) => Promise<Array<{ rawValue?: string }>> };
+  }).TextDetector;
+  if (!TextDetectorCtor || typeof createImageBitmap === 'undefined') return '';
+
+  try {
+    const detector = new TextDetectorCtor();
+    const parts: string[] = [];
+    for (const src of sources) {
+      const bitmap = await createImageBitmap(src);
+      try {
+        const blocks = await detector.detect(bitmap);
+        const text = blocks.map((b) => b.rawValue || '').join('\n').trim();
+        if (text) parts.push(text);
+      } finally {
+        bitmap.close();
+      }
+    }
+    return parts.join('\n\n');
+  } catch {
+    return '';
+  }
+}
+
 async function runOcrOnImageSources(
   sources: Array<Blob | File>,
   onProgress?: (info: PdfExtractionProgress) => void
-): Promise<string> {
-  if (typeof window === 'undefined' || sources.length === 0) return '';
+): Promise<{ text: string; error?: string }> {
+  if (typeof window === 'undefined' || sources.length === 0) return { text: '' };
+
+  const nativeText = await tryNativeTextDetector(sources);
+  if (nativeText.trim()) {
+    return { text: nativeText };
+  }
 
   onProgress?.({ stage: 'ocr', message: 'Loading OCR engine...' });
   let worker: Awaited<ReturnType<Awaited<typeof import('tesseract.js')>['createWorker']>> | null = null;
@@ -235,12 +267,9 @@ async function runOcrOnImageSources(
     const modName = 'tesseract.js';
     const Tesseract = (await import(/* @vite-ignore */ modName)) as typeof import('tesseract.js');
     worker = await Tesseract.createWorker('eng');
-  } catch {
-    onProgress?.({
-      stage: 'ocr',
-      message: 'OCR package not available; skipping image OCR.',
-    });
-    return '';
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err || 'Failed to start OCR worker');
+    return { text: '', error: reason };
   }
 
   const pageTexts: string[] = [];
@@ -258,13 +287,19 @@ async function runOcrOnImageSources(
         pageTexts.push(data.text.trim());
       }
     }
+    return { text: pageTexts.join('\n\n') };
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err || 'OCR recognition failed');
+    return { text: pageTexts.join('\n\n'), error: reason };
   } finally {
     if (worker) {
-      await worker.terminate();
+      try {
+        await worker.terminate();
+      } catch {
+        // ignore cleanup error
+      }
     }
   }
-
-  return pageTexts.join('\n\n');
 }
 
 async function extractRawTextFromPdfArrayBuffer(buffer: ArrayBuffer): Promise<string> {
@@ -341,6 +376,7 @@ function isPdfGarbageLine(line: string, lenient = false): boolean {
   return false;
 }
 
+
 function isExamInstructionLine(line: string): boolean {
   return /^(?:this\s+paper\s+consists|ensure\s+you\s+check|answer\s+all\s+(?:the\s+)?questions|instructions?\s*:|time\s+allowed|read\s+the\s+following\s+instructions|do\s+not\s+write\s+on\s+this\s+question\s+paper|candidates?\s+should\s+answer)/i.test(
     line.trim()
@@ -381,7 +417,6 @@ function detectDocumentTitle(normalizedText: string, fileName: string): string |
 
   return undefined;
 }
-
 
 function normalizeExtractedText(raw: string, fromOcr = false): string {
   let text = raw.replace(/\u00a0/g, ' ').replace(/\r\n?/g, '\n');
@@ -530,16 +565,18 @@ export async function extractQuestionsFromPdfFile(
 
   let normalized = '';
   let usedOcr = false;
+  let ocrError: string | undefined;
 
   if (isImage) {
-    const ocrText = await runOcrOnImageSources([file], onProgress);
-    usedOcr = Boolean(ocrText.trim());
-    normalized = normalizeExtractedText(ocrText, true);
+    const ocrOutcome = await runOcrOnImageSources([file], onProgress);
+    ocrError = ocrOutcome.error;
+    usedOcr = Boolean(ocrOutcome.text.trim());
+    normalized = normalizeExtractedText(ocrOutcome.text, true);
   } else if (isDocx) {
     onProgress?.({ stage: 'text', message: 'Reading Word document...' });
     const buffer = await file.arrayBuffer();
     const docText = await extractTextFromDocxBuffer(buffer);
-    normalized = normalizeExtractedText(docText);
+    normalized = normalizeExtractedText(docText, false);
   } else if (isPlainText) {
     onProgress?.({ stage: 'text', message: 'Reading text document...' });
     const rawText = await file.text();
@@ -549,15 +586,15 @@ export async function extractQuestionsFromPdfFile(
     onProgress?.({ stage: 'text', message: 'Reading PDF text layer...' });
     const rawExtracted = await extractRawTextFromPdfArrayBuffer(buffer);
     normalized = normalizeExtractedText(rawExtracted, false);
-    let questionsCheck = parseQuestionsFromNormalizedText(normalized);
+    const questionsCheck = parseQuestionsFromNormalizedText(normalized);
 
     if (questionsCheck.length === 0) {
       const imageBlobs = await extractEmbeddedImageBlobsFromPdf(buffer);
-      const ocrText = await runOcrOnImageSources(imageBlobs, onProgress);
-      if (ocrText.trim()) {
+      const ocrOutcome = await runOcrOnImageSources(imageBlobs, onProgress);
+      ocrError = ocrOutcome.error;
+      if (ocrOutcome.text.trim()) {
         usedOcr = true;
-        normalized = normalizeExtractedText(ocrText, true);
-        questionsCheck = parseQuestionsFromNormalizedText(normalized);
+        normalized = normalizeExtractedText(ocrOutcome.text, true);
       }
     }
   }
@@ -572,5 +609,6 @@ const questions = parseQuestionsFromNormalizedText(normalized);
     rawTextPreview: normalized.slice(0, 1200),
     extractedCount: questions.length,
     usedOcr,
+    ocrError,
   };
 }
