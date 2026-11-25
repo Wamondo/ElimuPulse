@@ -1114,8 +1114,54 @@ export const LearnerLearningAreasView: React.FC = () => {
         )}
       </main>
       {printableSheet && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4 print:static print:inset-auto print:bg-white print:p-0 print:block">
-          <style>{`@media print { html, body { height: auto !important; overflow: visible !important; background: #ffffff !important; } body * { visibility: hidden !important; } #elimu-printable-sheet, #elimu-printable-sheet * { visibility: visible !important; } #elimu-printable-sheet { position: static !important; width: 100% !important; max-width: 100% !important; max-height: none !important; overflow: visible !important; margin: 0 !important; padding: 12px !important; box-shadow: none !important; border: none !important; background: #ffffff !important; } .no-print { display: none !important; } }`}</style>
+        <div
+          id="elimu-print-backdrop"
+          className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4"
+        >
+          <style>{`
+            @media print {
+              html, body {
+                margin: 0 !important;
+                padding: 0 !important;
+                height: auto !important;
+                overflow: visible !important;
+                background: #ffffff !important;
+              }
+              body * {
+                visibility: hidden !important;
+              }
+              #elimu-print-backdrop {
+                position: absolute !important;
+                left: 0 !important;
+                top: 0 !important;
+                right: 0 !important;
+                bottom: auto !important;
+                display: block !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                background: #ffffff !important;
+                visibility: visible !important;
+              }
+              #elimu-printable-sheet, #elimu-printable-sheet * {
+                visibility: visible !important;
+              }
+              #elimu-printable-sheet {
+                position: static !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                max-height: none !important;
+                overflow: visible !important;
+                margin: 0 !important;
+                padding: 12px !important;
+                box-shadow: none !important;
+                border: none !important;
+                background: #ffffff !important;
+              }
+              .no-print {
+                display: none !important;
+              }
+            }
+          `}</style>
           <div
             id="elimu-printable-sheet"
             className="w-full max-w-2xl max-h-[88vh] overflow-y-auto bg-white text-slate-900 rounded-xl border border-slate-300 p-5 space-y-4 shadow-xl"
@@ -1182,7 +1228,12 @@ export const LearnerLearningAreasView: React.FC = () => {
                   (p): p is { stamp: string; x: number; y: number } =>
                     Boolean(p?.stamp) && typeof p?.x === 'number' && typeof p?.y === 'number'
                 );
-                const textStamps = stepAnns.map((s) => s?.stamp).filter(Boolean);
+                const legacyStamps = stepAnns
+                  .map((s) => s?.stamp)
+                  .filter((s): s is string => Boolean(s));
+                const answerLines = (subAns || printableSheet.submission?.generalResponse || '')
+                  .split(/\r?\n/)
+                  .filter((l) => l.trim().length > 0);
                 return (
                   <div
                     key={q.id}
@@ -1222,6 +1273,7 @@ export const LearnerLearningAreasView: React.FC = () => {
                       </div>
                     )}
 
+
                     {printableSheet.mode === 'assignment' ? (
                       <div className="pt-1 space-y-1.5">
                         <p className="text-[11px] font-semibold text-slate-500">Learner Working / Answer:</p>
@@ -1252,23 +1304,41 @@ export const LearnerLearningAreasView: React.FC = () => {
                           </div>
                         )}
 
-                        <div className="relative p-2.5 rounded bg-slate-50 border border-slate-300 font-mono text-slate-900 whitespace-pre-wrap leading-relaxed">
-                          {subAns || printableSheet.submission?.generalResponse || 'No written response recorded.'}
-                          {!sketchUrl && coordPins.map((p, pIdx) => (
-                            <span
-                              key={`ptext-${q.id}-${pIdx}`}
-                              style={{ left: `${p.x}%`, top: `${p.y}%` }}
-                              className="-translate-x-1/2 -translate-y-1/2 absolute inline-flex items-center px-1.5 py-0.5 rounded font-sans text-xs font-black text-red-600 bg-red-50/95 border border-red-400"
-                            >
-                              {p.stamp}
-                            </span>
-                          ))}
-                        </div>
-
-                        {coordPins.length === 0 && textStamps.length > 0 && (
-                          <p className="text-[11px] font-bold text-red-600">
-                            Teacher Marks: {textStamps.join(' · ')}
-                          </p>
+                        {coordPins.length > 0 ? (
+                          <div className="relative p-2.5 rounded bg-slate-50 border border-slate-300 font-mono text-slate-900 whitespace-pre-wrap leading-relaxed">
+                            {subAns || printableSheet.submission?.generalResponse || 'No written response recorded.'}
+                            {!sketchUrl && coordPins.map((p, pIdx) => (
+                              <span
+                                key={`ptext-${q.id}-${pIdx}`}
+                                style={{ left: `${p.x}%`, top: `${p.y}%` }}
+                                className="-translate-x-1/2 -translate-y-1/2 absolute inline-flex items-center px-1.5 py-0.5 rounded font-sans text-xs font-black text-red-600 bg-red-50/95 border border-red-400"
+                              >
+                                {p.stamp}
+                              </span>
+                            ))}
+                          </div>
+                        ) : answerLines.length > 0 ? (
+                          <div className="rounded bg-slate-50 border border-slate-300 divide-y divide-slate-200 font-mono text-slate-900">
+                            {answerLines.map((lineText, lIdx) => (
+                              <div key={lIdx} className="px-2.5 py-1.5 flex items-center justify-between gap-2">
+                                <span className="whitespace-pre-wrap">{lineText}</span>
+                                {legacyStamps[lIdx] && (
+                                  <span className="font-sans text-xs font-black text-red-600 bg-red-50 border border-red-300 px-1.5 py-0.5 rounded shrink-0">
+                                    {legacyStamps[lIdx]}
+                                  </span>
+                                )}
+                              </div>
+                            ))}
+                            {legacyStamps.length > answerLines.length && (
+                              <div className="px-2.5 py-1 text-[11px] font-sans font-bold text-red-600">
+                                Additional Marks: {legacyStamps.slice(answerLines.length).join(' · ')}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="p-2.5 rounded bg-slate-50 border border-slate-300 font-mono text-slate-900 whitespace-pre-wrap">
+                            No written response recorded.
+                          </div>
                         )}
                       </div>
                     )}
