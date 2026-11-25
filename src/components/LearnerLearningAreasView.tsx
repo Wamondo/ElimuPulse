@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import {
   LearningAreaAssignmentItem,
@@ -165,6 +165,8 @@ export const LearnerLearningAreasView: React.FC = () => {
   const [submitNotice, setSubmitNotice] = useState<string | null>(null);
   const [submittingAssignmentId, setSubmittingAssignmentId] = useState<string | null>(null);
   const [expandedMarkedId, setExpandedMarkedId] = useState<string | null>(null);
+  const [computerShift, setComputerShift] = useState(false);
+  const workingInputRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
 
   const getAssignmentsForArea = (area: string) => {
     const learnerGradeKey = activeLearnerGrade.toLowerCase();
@@ -541,8 +543,8 @@ export const LearnerLearningAreasView: React.FC = () => {
                                             {q.diagramCaption}
                                           </p>
                                         )}
-                                      </div>
-                                    )}
+                                          </div>
+                                        )}
 
                                     {q.type === 'mcq' && q.options ? (
                                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
@@ -574,77 +576,239 @@ export const LearnerLearningAreasView: React.FC = () => {
                                         })}
                                       </div>
                                     ) : (
-                                      <div className="space-y-1.5">
+                                      <div className="space-y-2">
                                         <textarea
-                                          rows={3}
+                                          ref={(el) => {
+                                            workingInputRefs.current[q.id] = el;
+                                          }}
+                                          rows={4}
                                           value={currentAnswers[q.id] || ''}
                                           onChange={(e) =>
                                             handleAnswerChange(assignment.id, q.id, e.target.value)
                                           }
-                                          placeholder="Write each calculation step on a new line:
-Formula: V = l x w x h
-Substitution: = 6 x 6 x 6
-Working: = 36 x 6
-Answer: = 216 cm³"
-                                          className="w-full px-2.5 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:border-indigo-500 focus:outline-none"
+                                          placeholder="Type your working or use the computer keyboard below...\nExample: 23 ÷ 50 = 46 ÷ 100 = 0.46"
+                                          className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:border-indigo-500 focus:outline-none font-mono"
                                         />
-                                        <div className="flex flex-wrap items-center gap-1">
-                                          <span className="text-[10px] font-semibold text-slate-500 mr-1">Insert Symbol:</span>
-                                          {['+', '−', '×', '÷', '±', '=', '≠', '≈', '<', '>', '≤', '≥', '²', '³', '√', '∛', 'π', '°', '∠', '⊥', '∥', '△', '○', 'cm', 'm', 'cm²', 'm²', 'cm³', 'm³', '½', '⅓', '¼', '¾', '∞', '→', '∴', 'Δ', '∑', '∫', '∈', '∪', '∩'].map((sym) => (
+                                        <div className="p-2.5 bg-slate-200/90 border border-slate-400 rounded-xl space-y-1.5 select-none shadow-inner">
+                                          <div className="flex items-center justify-between gap-2 text-[10px] font-bold text-slate-600 px-0.5">
+                                            <span>COMPUTER KEYBOARD ({computerShift ? 'SHIFT ON' : 'STANDARD'})</span>
                                             <button
-                                              key={sym}
                                               type="button"
-                                              onClick={() =>
-                                                handleAnswerChange(
-                                                  assignment.id,
-                                                  q.id,
-                                                  `${currentAnswers[q.id] || ''}${sym}`
-                                                )
-                                              }
-                                              className="px-1.5 py-0.5 text-[11px] font-semibold bg-slate-50 hover:bg-indigo-50 text-slate-800 border border-slate-300 rounded cursor-pointer"
+                                              onClick={() => handleAnswerChange(assignment.id, q.id, '')}
+                                              className="px-2 py-0.5 text-[10px] font-bold bg-white hover:bg-rose-50 text-rose-700 border border-slate-300 rounded cursor-pointer"
                                             >
-                                              {sym}
+                                              Clear All
                                             </button>
-                                          ))}
-                                        <div className="p-2 bg-amber-50/60 border border-amber-200 rounded-lg space-y-2">
-                                          <div className="flex flex-wrap items-center justify-between gap-2">
-                                            <span className="text-[11px] font-semibold text-amber-950">
-                                              Worked on paper instead? Upload a photo of your written work for Q{idx + 1}:
-                                            </span>
-                                            <label className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-amber-950 bg-white hover:bg-amber-100 border border-amber-300 rounded-md cursor-pointer">
-                                              <span>📷 Upload / Camera Photo</span>
-                                              <input
-                                                type="file"
-                                                accept="image/*"
-                                                className="hidden"
-                                                onChange={(e) => {
-                                                  handlePaperPhotoUpload(assignment.id, q.id, e.target.files?.[0]);
-                                                  e.currentTarget.value = '';
-                                                }}
-                                              />
-                                            </label>
                                           </div>
-                                          {draftSketches[assignment.id]?.[q.id] && (
-                                            <div className="space-y-1.5">
-                                              <img
-                                                src={draftSketches[assignment.id][q.id]}
-                                                alt={`Uploaded written work for Question ${idx + 1}`}
-                                                className="max-h-56 w-auto rounded-lg border border-amber-300 bg-white object-contain"
-                                              />
-                                              <div className="flex items-center justify-between text-[10px] text-amber-900">
-                                                <span>Attached written paper work ready to send</span>
+                                          {(() => {
+                                            const currentVal = currentAnswers[q.id] || '';
+                                            const applyEdit = (transform: (val: string, start: number, end: number) => { nextVal: string; nextCursor: number }) => {
+                                              const el = workingInputRefs.current[q.id];
+                                              const start = el ? (el.selectionStart ?? currentVal.length) : currentVal.length;
+                                              const end = el ? (el.selectionEnd ?? currentVal.length) : currentVal.length;
+                                              const { nextVal, nextCursor } = transform(currentVal, start, end);
+                                              handleAnswerChange(assignment.id, q.id, nextVal);
+                                              requestAnimationFrame(() => {
+                                                const target = workingInputRefs.current[q.id];
+                                                if (target) {
+                                                  target.focus();
+                                                  target.setSelectionRange(nextCursor, nextCursor);
+                                                }
+                                              });
+                                            };
+                                            const insertText = (snippet: string) => {
+                                              applyEdit((val, start, end) => ({
+                                                nextVal: val.slice(0, start) + snippet + val.slice(end),
+                                                nextCursor: start + snippet.length,
+                                              }));
+                                              if (computerShift) setComputerShift(false);
+                                            };
+                                            const handleBackspaceKey = () => {
+                                              applyEdit((val, start, end) => {
+                                                if (start !== end) {
+                                                  return { nextVal: val.slice(0, start) + val.slice(end), nextCursor: start };
+                                                }
+                                                if (start === 0) return { nextVal: val, nextCursor: 0 };
+                                                return { nextVal: val.slice(0, start - 1) + val.slice(start), nextCursor: start - 1 };
+                                              });
+                                            };
+                                            const handleDeleteKey = () => {
+                                              applyEdit((val, start, end) => {
+                                                if (start !== end) {
+                                                  return { nextVal: val.slice(0, start) + val.slice(end), nextCursor: start };
+                                                }
+                                                if (start >= val.length) return { nextVal: val, nextCursor: val.length };
+                                                return { nextVal: val.slice(0, start) + val.slice(start + 1), nextCursor: start };
+                                              });
+                                            };
+
+                                            const numRow = [
+                                              { base: '1', shift: '!' },
+                                              { base: '2', shift: '@' },
+                                              { base: '3', shift: '#' },
+                                              { base: '4', shift: '$' },
+                                              { base: '5', shift: '%' },
+                                              { base: '6', shift: '^' },
+                                              { base: '7', shift: '&' },
+                                              { base: '8', shift: '*' },
+                                              { base: '9', shift: '(' },
+                                              { base: '0', shift: ')' },
+                                              { base: '-', shift: '_' },
+                                              { base: '=', shift: '+' },
+                                            ];
+                                            const row1 = ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', { base: '[', shift: '{' }, { base: ']', shift: '}' }, { base: '\\', shift: '|' }];
+                                            const row2 = ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', { base: ';', shift: ':' }, { base: "'", shift: '"' }];
+                                            const row3 = ['z', 'x', 'c', 'v', 'b', 'n', 'm', { base: ',', shift: '<' }, { base: '.', shift: '>' }, { base: '/', shift: '?' }];
+                                            const mathRow = ['+', '−', '×', '÷', '±', '≠', '≈', '≤', '≥', '²', '³', '√', '∛', 'π', '°', '∠', '⊥', '∥', '△', '○', 'cm', 'm', 'cm²', 'm²', 'cm³', 'm³', '½', '⅓', '¼', '¾', '∞', '→', '∴'];
+
+                                            const renderKeyItem = (item: string | { base: string; shift: string }, keyIdx: number) => {
+                                              if (typeof item === 'string') {
+                                                const label = computerShift ? item.toUpperCase() : item;
+                                                return (
+                                                  <button
+                                                    key={`k-${keyIdx}-${item}`}
+                                                    type="button"
+                                                    onClick={() => insertText(label)}
+                                                    className="flex-1 min-w-[24px] h-7 px-1 text-[11px] font-semibold bg-white hover:bg-indigo-50 active:bg-indigo-100 text-slate-900 border border-slate-300 rounded shadow-2xs cursor-pointer"
+                                                  >
+                                                    {label}
+                                                  </button>
+                                                );
+                                              }
+                                              const activeChar = computerShift ? item.shift : item.base;
+                                              return (
                                                 <button
+                                                  key={`ks-${keyIdx}-${item.base}`}
                                                   type="button"
-                                                  onClick={() => handleRemovePaperPhoto(assignment.id, q.id)}
-                                                  className="font-bold text-rose-700 hover:underline cursor-pointer"
+                                                  onClick={() => insertText(activeChar)}
+                                                  className="flex-1 min-w-[26px] h-7 px-1 leading-tight bg-white hover:bg-indigo-50 active:bg-indigo-100 text-slate-900 border border-slate-300 rounded shadow-2xs cursor-pointer flex flex-col items-center justify-center"
                                                 >
-                                                  Remove Photo
+                                                  <span className="text-[9px] text-slate-400 leading-none">{computerShift ? item.base : item.shift}</span>
+                                                  <span className="text-[11px] font-bold text-slate-900 leading-tight">{activeChar}</span>
                                                 </button>
+                                              );
+                                            };
+
+                                            return (
+                                              <div className="space-y-1">
+                                                <div className="flex items-center gap-1">
+                                                  {numRow.map((k, i) => renderKeyItem(k, i))}
+                                                  <button
+                                                    type="button"
+                                                    onClick={handleBackspaceKey}
+                                                    className="px-2 h-7 text-[11px] font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded shadow-2xs cursor-pointer shrink-0"
+                                                  >
+                                                    ⌫ Backspace
+                                                  </button>
+                                                </div>
+                                                <div className="flex items-center gap-1">
+                                                  {row1.map((k, i) => renderKeyItem(k, i))}
+                                                  <button
+                                                    type="button"
+                                                    onClick={handleDeleteKey}
+                                                    className="px-2 h-7 text-[11px] font-bold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded shadow-2xs cursor-pointer shrink-0"
+                                                  >
+                                                    Delete
+                                                  </button>
+                                                </div>
+                                                <div className="flex items-center gap-1">
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => setComputerShift((prev) => !prev)}
+                                                    className={`px-2.5 h-7 text-[11px] font-bold rounded border shadow-2xs cursor-pointer shrink-0 ${
+                                                      computerShift
+                                                        ? 'bg-indigo-600 text-white border-indigo-700'
+                                                        : 'bg-slate-100 hover:bg-white text-slate-800 border-slate-300'
+                                                    }`}
+                                                  >
+                                                    ⇧ Shift
+                                                  </button>
+                                                  {row2.map((k, i) => renderKeyItem(k, i))}
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => insertText('\n')}
+                                                    className="px-2.5 h-7 text-[11px] font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-300 rounded shadow-2xs cursor-pointer shrink-0"
+                                                  >
+                                                    ↵ Enter
+                                                  </button>
+                                                </div>
+                                                <div className="flex items-center gap-1">
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => setComputerShift((prev) => !prev)}
+                                                    className={`px-2 h-7 text-[11px] font-bold rounded border shadow-2xs cursor-pointer shrink-0 ${
+                                                      computerShift
+                                                        ? 'bg-indigo-600 text-white border-indigo-700'
+                                                        : 'bg-slate-100 hover:bg-white text-slate-800 border-slate-300'
+                                                    }`}
+                                                  >
+                                                    ⇧ Shift
+                                                  </button>
+                                                  {row3.map((k, i) => renderKeyItem(k, i))}
+                                                </div>
+                                                <div className="flex items-center gap-1 pt-0.5">
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => insertText(' ')}
+                                                    className="flex-1 h-7 text-[11px] font-semibold bg-white hover:bg-indigo-50 active:bg-indigo-100 text-slate-800 border border-slate-300 rounded shadow-2xs cursor-pointer"
+                                                  >
+                                                    Space Bar
+                                                  </button>
+                                                </div>
+                                                <div className="flex flex-wrap items-center gap-1 pt-1 border-t border-slate-300/80">
+                                                  {mathRow.map((sym) => (
+                                                    <button
+                                                      key={sym}
+                                                      type="button"
+                                                      onClick={() => insertText(sym)}
+                                                      className="px-1.5 py-0.5 text-[11px] font-semibold bg-white hover:bg-indigo-50 text-slate-800 border border-slate-300 rounded cursor-pointer"
+                                                    >
+                                                      {sym}
+                                                    </button>
+                                                  ))}
+                                                </div>
                                               </div>
+                                            );
+                                          })()}
+                                        </div>
+                                        <div className="p-2 bg-amber-50/60 border border-amber-200 rounded-lg space-y-2">
+                                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                              <span className="text-[11px] font-semibold text-amber-950">
+                                                Worked on paper instead? Upload a photo of your written work for Q{idx + 1}:
+                                              </span>
+                                              <label className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-amber-950 bg-white hover:bg-amber-100 border border-amber-300 rounded-md cursor-pointer">
+                                                <span>📷 Upload / Camera Photo</span>
+                                                <input
+                                                  type="file"
+                                                  accept="image/*"
+                                                  className="hidden"
+                                                  onChange={(e) => {
+                                                    handlePaperPhotoUpload(assignment.id, q.id, e.target.files?.[0]);
+                                                    e.currentTarget.value = '';
+                                                  }}
+                                                />
+                                              </label>
                                             </div>
-                                          )}
-                                        </div>
-                                        </div>
+                                            {draftSketches[assignment.id]?.[q.id] && (
+                                              <div className="space-y-1.5">
+                                                <img
+                                                  src={draftSketches[assignment.id][q.id]}
+                                                  alt={`Uploaded written work for Question ${idx + 1}`}
+                                                  className="max-h-56 w-auto rounded-lg border border-amber-300 bg-white object-contain"
+                                                />
+                                                <div className="flex items-center justify-between text-[10px] text-amber-900">
+                                                  <span>Attached written paper work ready to send</span>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => handleRemovePaperPhoto(assignment.id, q.id)}
+                                                    className="font-bold text-rose-700 hover:underline cursor-pointer"
+                                                  >
+                                                    Remove Photo
+                                                  </button>
+                                                </div>
+                                              </div>
+                                            )}
+                                          </div>
                                         </div>
                                     )}
                                   </div>
