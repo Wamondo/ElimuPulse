@@ -1811,11 +1811,59 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                                         : `Key: ${q.correctOption}`}
                                                     </span>
                                                   </p>
-                                                ) : ans ? (
-                                                  <div className="rounded-lg border border-slate-200 bg-slate-50/70 px-2.5 py-2 font-mono text-xs text-slate-900 whitespace-pre-wrap">
-                                                    {ans}
-                                                  </div>
                                                 ) : (ans || activeSub.sketchAttachments?.[q.id]) ? (
+                                                  <>
+                                                    {ans && (
+                                                      <div
+                                                        onClick={(e) => {
+                                                          const stampToUse = activePaperStamp || '✓';
+                                                          const rect = e.currentTarget.getBoundingClientRect();
+                                                          const xPct = rect.width
+                                                            ? Math.max(4, Math.min(96, Number((((e.clientX - rect.left) / rect.width) * 100).toFixed(1))))
+                                                            : 85;
+                                                          const yPct = rect.height
+                                                            ? Math.max(10, Math.min(90, Number((((e.clientY - rect.top) / rect.height) * 100).toFixed(1))))
+                                                            : 50;
+                                                          const nextAnns: Array<CalculationStepAnnotation & { x?: number; y?: number }> = [
+                                                            ...currentAnns.filter((a) => a && a.stamp),
+                                                            { stamp: stampToUse, x: xPct, y: yPct },
+                                                          ];
+                                                          const updatedDraft = {
+                                                            ...stepMarksDraft,
+                                                            [draftKey]: nextAnns,
+                                                          };
+                                                          setStepMarksDraft(updatedDraft);
+                                                          let stampedMarks = 0;
+                                                          (item.questions || []).forEach((qq) => {
+                                                            const k = `${item.id}:${activeSub.learnerId}:${qq.id}`;
+                                                            const anns = updatedDraft[k] || activeSub.stepAnnotations?.[qq.id] || [];
+                                                            anns.forEach((stItem) => {
+                                                              if (stItem?.stamp === 'M1' || stItem?.stamp === 'A1' || stItem?.stamp === '✓') stampedMarks += 1;
+                                                              if (stItem?.stamp === 'M2' || stItem?.stamp === 'A2') stampedMarks += 2;
+                                                            });
+                                                          });
+                                                          setMarkScoreInput(`${Math.min(stampedMarks, totalMarks)}/${totalMarks}`);
+                                                        }}
+                                                        title="Tap anywhere on the learner's answer to place the active red-ink mark"
+                                                        className="relative rounded-lg border border-slate-300 bg-white px-2.5 py-2 font-mono text-xs text-slate-900 whitespace-pre-wrap cursor-crosshair select-none"
+                                                      >
+                                                        {ans}
+                                                        {currentAnns
+                                                          .filter((a) => a && a.stamp)
+                                                          .map((ann, aIdx) => (
+                                                            <span
+                                                              key={aIdx}
+                                                              style={{
+                                                                left: `${(ann as { x?: number }).x ?? Math.min(92, 76 + aIdx * 6)}%`,
+                                                                top: `${(ann as { y?: number }).y ?? Math.min(82, 22 + aIdx * 18)}%`,
+                                                              }}
+                                                              className="pointer-events-none -translate-x-1/2 -translate-y-1/2 absolute px-1.5 py-0.5 rounded bg-red-600/90 text-white font-black text-[10px] shadow-sm border border-white"
+                                                            >
+                                                              {ann.stamp}
+                                                            </span>
+                                                          ))}
+                                                      </div>
+                                                    )}
                                                   <div className="rounded-lg border border-amber-200 bg-amber-50/40 p-2 space-y-1.5">
                                                     <div className="flex flex-wrap items-center justify-between gap-2">
                                                       <span className="text-[11px] font-bold text-amber-950">
@@ -1837,9 +1885,35 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                                                   ? 'Highlight Accuracy Mark (A1)'
                                                                   : 'Highlight Red Cross (Mistake)'
                                                               }
-                                                              onClick={() =>
-                                                                setActivePaperStamp((prev) => (prev === st ? '' : st))
-                                                              }
+                                                              onClick={() => {
+                                                                setActivePaperStamp(st);
+                                                                if (!activeSub.sketchAttachments?.[q.id]) {
+                                                                  const existingCount = currentAnns.filter((a) => a && a.stamp).length;
+                                                                  const nextAnns: Array<CalculationStepAnnotation & { x?: number; y?: number }> = [
+                                                                    ...currentAnns.filter((a) => a && a.stamp),
+                                                                    {
+                                                                      stamp: st,
+                                                                      x: Math.min(92, 72 + (existingCount % 4) * 6),
+                                                                      y: Math.min(85, 22 + existingCount * 16),
+                                                                    },
+                                                                  ];
+                                                                  const updatedDraft = {
+                                                                    ...stepMarksDraft,
+                                                                    [draftKey]: nextAnns,
+                                                                  };
+                                                                  setStepMarksDraft(updatedDraft);
+                                                                  let stampedMarks = 0;
+                                                                  (item.questions || []).forEach((qq) => {
+                                                                    const k = `${item.id}:${activeSub.learnerId}:${qq.id}`;
+                                                                    const anns = updatedDraft[k] || activeSub.stepAnnotations?.[qq.id] || [];
+                                                                    anns.forEach((stItem) => {
+                                                                      if (stItem?.stamp === 'M1' || stItem?.stamp === 'A1' || stItem?.stamp === '✓') stampedMarks += 1;
+                                                                      if (stItem?.stamp === 'M2' || stItem?.stamp === 'A2') stampedMarks += 2;
+                                                                    });
+                                                                  });
+                                                                  setMarkScoreInput(`${Math.min(stampedMarks, totalMarks)}/${totalMarks}`);
+                                                                }
+                                                              }}
                                                               className={`px-2 py-0.5 rounded text-[11px] font-black border transition-all cursor-pointer ${
                                                                 isSelected
                                                                   ? 'bg-red-600 text-white border-red-800 ring-2 ring-red-300 scale-105 shadow-sm'
@@ -1898,6 +1972,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                                       />
                                                     )}
                                                   </div>
+                                                  </>
                                                 ) : (
                                                   <p className="text-slate-500 italic">No calculation or answer submitted.</p>
                                                 )}

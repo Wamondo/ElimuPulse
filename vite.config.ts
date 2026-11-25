@@ -53,6 +53,9 @@ export default defineConfig(() => {
           ],
         },
         workbox: {
+          skipWaiting: true,
+          clientsClaim: true,
+          cleanupOutdatedCaches: true,
           navigateFallbackDenylist: [/^\/api/],
           maximumFileSizeToCacheInBytes: 8 * 1024 * 1024, // 8 MiB to accommodate full application bundle
           globPatterns: ['**/*.{js,css,html,ico,png,svg,jpg,jpeg,woff,woff2}'],
