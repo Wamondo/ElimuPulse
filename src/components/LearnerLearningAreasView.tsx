@@ -1045,6 +1045,23 @@ export const LearnerLearningAreasView: React.FC = () => {
                                           : `Correct Answer: ${q.correctOption}`}
                                       </span>
                                     </p>
+                                  ) : anns.some((p) => typeof (p as { x?: number }).x === 'number' && typeof (p as { y?: number }).y === 'number') ? (
+                                    <div className="relative rounded-lg border border-slate-300 bg-slate-50 p-3 font-mono text-xs text-slate-900 whitespace-pre-wrap leading-relaxed">
+                                      {ans}
+                                      {anns.map((pin, pIdx) => {
+                                        const p = pin as { stamp?: string; x?: number; y?: number };
+                                        if (!p?.stamp || typeof p.x !== 'number' || typeof p.y !== 'number') return null;
+                                        return (
+                                          <span
+                                            key={`tpin-${q.id}-${pIdx}`}
+                                            style={{ left: `${p.x}%`, top: `${p.y}%` }}
+                                            className="-translate-x-1/2 -translate-y-1/2 absolute inline-flex items-center px-1.5 py-0.5 rounded font-sans text-xs font-black text-red-600 bg-red-50/95 border border-red-400 shadow-xs pointer-events-none"
+                                          >
+                                            {p.stamp}
+                                          </span>
+                                        );
+                                      })}
+                                    </div>
                                   ) : calcSteps.length > 0 ? (
                                     <div className="rounded-lg border border-slate-200 bg-slate-50/60 divide-y divide-slate-200/70">
                                       {calcSteps.map((stepLine, sIdx) => {
@@ -1098,10 +1115,10 @@ export const LearnerLearningAreasView: React.FC = () => {
       </main>
       {printableSheet && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4 print:static print:inset-auto print:bg-white print:p-0 print:block">
-          <style>{`@media print { body * { visibility: hidden !important; } #elimu-printable-sheet, #elimu-printable-sheet * { visibility: visible !important; } #elimu-printable-sheet { position: fixed !important; left: 0 !important; top: 0 !important; width: 100% !important; max-width: 100% !important; margin: 0 !important; padding: 16px !important; box-shadow: none !important; border: none !important; background: #ffffff !important; } .no-print { display: none !important; } }`}</style>
+          <style>{`@media print { html, body { height: auto !important; overflow: visible !important; background: #ffffff !important; } body * { visibility: hidden !important; } #elimu-printable-sheet, #elimu-printable-sheet * { visibility: visible !important; } #elimu-printable-sheet { position: static !important; width: 100% !important; max-width: 100% !important; max-height: none !important; overflow: visible !important; margin: 0 !important; padding: 12px !important; box-shadow: none !important; border: none !important; background: #ffffff !important; } .no-print { display: none !important; } }`}</style>
           <div
             id="elimu-printable-sheet"
-            className="w-full max-w-2xl max-h-[88vh] overflow-y-auto bg-white text-slate-900 rounded-xl border border-slate-300 p-5 space-y-4 shadow-xl print:max-h-none print:overflow-visible"
+            className="w-full max-w-2xl max-h-[88vh] overflow-y-auto bg-white text-slate-900 rounded-xl border border-slate-300 p-5 space-y-4 shadow-xl"
           >
             <div className="flex items-start justify-between gap-3 border-b border-slate-300 pb-3">
               <div>
@@ -1159,8 +1176,13 @@ export const LearnerLearningAreasView: React.FC = () => {
             <div className="space-y-3">
               {(printableSheet.assignment.questions || []).map((q, idx) => {
                 const subAns = printableSheet.submission?.answers?.[q.id] || '';
+                const sketchUrl = printableSheet.submission?.sketchAttachments?.[q.id] || '';
                 const stepAnns = printableSheet.submission?.stepAnnotations?.[q.id] || [];
-                const stampsList = stepAnns.map((s) => s?.stamp).filter(Boolean);
+                const coordPins = stepAnns.filter(
+                  (p): p is { stamp: string; x: number; y: number } =>
+                    Boolean(p?.stamp) && typeof p?.x === 'number' && typeof p?.y === 'number'
+                );
+                const textStamps = stepAnns.map((s) => s?.stamp).filter(Boolean);
                 return (
                   <div
                     key={q.id}
@@ -1174,6 +1196,21 @@ export const LearnerLearningAreasView: React.FC = () => {
                         ({q.marks} {q.marks === 1 ? 'mark' : 'marks'})
                       </span>
                     </div>
+
+                    {q.diagramUrl && (
+                      <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
+                        <img
+                          src={q.diagramUrl}
+                          alt={q.diagramCaption || `Question ${idx + 1} diagram`}
+                          className="max-h-48 w-auto rounded border border-slate-200 bg-white object-contain"
+                        />
+                        {q.diagramCaption && (
+                          <p className="text-[10px] font-medium text-slate-600">
+                            {q.diagramCaption}
+                          </p>
+                        )}
+                      </div>
+                    )}
 
                     {q.type === 'mcq' && q.options && (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 pl-3 text-slate-700">
@@ -1192,13 +1229,45 @@ export const LearnerLearningAreasView: React.FC = () => {
                         <div className="h-6 border-b border-dashed border-slate-300" />
                       </div>
                     ) : (
-                      <div className="pt-1 space-y-1.5">
-                        <div className="p-2 rounded bg-slate-50 border border-slate-200 font-mono text-slate-900 whitespace-pre-wrap">
+                      <div className="pt-1 space-y-2">
+                        {sketchUrl && (
+                          <div className="space-y-1">
+                            <p className="text-[10px] font-bold text-slate-600">Learner Written Paper Work:</p>
+                            <div className="relative inline-block max-w-full">
+                              <img
+                                src={sketchUrl}
+                                alt={`Written work for Q${idx + 1}`}
+                                className="max-h-60 w-auto rounded border border-slate-300 bg-white object-contain block"
+                              />
+                              {coordPins.map((p, pIdx) => (
+                                <span
+                                  key={`psketch-${q.id}-${pIdx}`}
+                                  style={{ left: `${p.x}%`, top: `${p.y}%` }}
+                                  className="-translate-x-1/2 -translate-y-1/2 absolute inline-flex items-center px-1.5 py-0.5 rounded font-sans text-xs font-black text-red-600 bg-red-50/95 border border-red-400"
+                                >
+                                  {p.stamp}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="relative p-2.5 rounded bg-slate-50 border border-slate-300 font-mono text-slate-900 whitespace-pre-wrap leading-relaxed">
                           {subAns || printableSheet.submission?.generalResponse || 'No written response recorded.'}
+                          {!sketchUrl && coordPins.map((p, pIdx) => (
+                            <span
+                              key={`ptext-${q.id}-${pIdx}`}
+                              style={{ left: `${p.x}%`, top: `${p.y}%` }}
+                              className="-translate-x-1/2 -translate-y-1/2 absolute inline-flex items-center px-1.5 py-0.5 rounded font-sans text-xs font-black text-red-600 bg-red-50/95 border border-red-400"
+                            >
+                              {p.stamp}
+                            </span>
+                          ))}
                         </div>
-                        {stampsList.length > 0 && (
+
+                        {coordPins.length === 0 && textStamps.length > 0 && (
                           <p className="text-[11px] font-bold text-red-600">
-                            Teacher Marks: {stampsList.join(' · ')}
+                            Teacher Marks: {textStamps.join(' · ')}
                           </p>
                         )}
                       </div>
