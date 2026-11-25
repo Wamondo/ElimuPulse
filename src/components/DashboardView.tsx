@@ -1255,12 +1255,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                               </div>
                             </div>
 
-                            <input
-                              type="text"
+                            <textarea
+                              rows={Math.max(2, Math.ceil((q.prompt || '').length / 44) + ((q.prompt || '').match(/\n/g) || []).length)}
+                              ref={(el) => {
+                                if (el) {
+                                  el.style.height = 'auto';
+                                  el.style.height = `${Math.max(54, el.scrollHeight)}px`;
+                                }
+                              }}
                               value={q.prompt}
-                              onChange={(e) => updateDraftQuestion(q.id, { prompt: e.target.value })}
-                              placeholder={`Type Question ${idx + 1} here...`}
-                              className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md"
+                              onChange={(e) => {
+                                updateDraftQuestion(q.id, { prompt: e.target.value });
+                                e.currentTarget.style.height = 'auto';
+                                e.currentTarget.style.height = `${Math.max(54, e.currentTarget.scrollHeight)}px`;
+                              }}
+                              placeholder={
+                                q.type === 'mcq'
+                                  ? 'Type multiple choice question...'
+                                  : 'Type written / working question...'
+                              }
+                              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm leading-relaxed resize-y overflow-hidden"
                             />
 
                             <div className="p-2 bg-slate-50 border border-slate-200 rounded-md space-y-1.5">
