@@ -586,10 +586,10 @@ export const LearnerLearningAreasView: React.FC = () => {
                                           onChange={(e) =>
                                             handleAnswerChange(assignment.id, q.id, e.target.value)
                                           }
-                                          placeholder="Type your working or use the computer keyboard below...\nExample: 23 ÷ 50 = 46 ÷ 100 = 0.46"
+                                          placeholder={"Type your working or use the computer keyboard below...\nExample: 23 ÷ 50 = 46 ÷ 100 = 0.46"}
                                           className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:border-indigo-500 focus:outline-none font-mono"
                                         />
-                                        <div className="p-2.5 bg-slate-200/90 border border-slate-400 rounded-xl space-y-1.5 select-none shadow-inner">
+                                        <div className="p-2 bg-slate-200/90 border border-slate-400 rounded-xl space-y-1.5 select-none shadow-inner overflow-hidden">
                                           <div className="flex items-center justify-between gap-2 text-[10px] font-bold text-slate-600 px-0.5">
                                             <span>COMPUTER KEYBOARD ({computerShift ? 'SHIFT ON' : 'STANDARD'})</span>
                                             <button
@@ -669,7 +669,7 @@ export const LearnerLearningAreasView: React.FC = () => {
                                                     key={`k-${keyIdx}-${item}`}
                                                     type="button"
                                                     onClick={() => insertText(label)}
-                                                    className="flex-1 min-w-[24px] h-7 px-1 text-[11px] font-semibold bg-white hover:bg-indigo-50 active:bg-indigo-100 text-slate-900 border border-slate-300 rounded shadow-2xs cursor-pointer"
+                                                    className="flex-1 min-w-[20px] sm:min-w-[24px] h-7 px-0.5 sm:px-1 text-[10px] sm:text-[11px] font-semibold bg-white hover:bg-indigo-50 active:bg-indigo-100 text-slate-900 border border-slate-300 rounded shadow-2xs cursor-pointer"
                                                   >
                                                     {label}
                                                   </button>
@@ -681,7 +681,7 @@ export const LearnerLearningAreasView: React.FC = () => {
                                                   key={`ks-${keyIdx}-${item.base}`}
                                                   type="button"
                                                   onClick={() => insertText(activeChar)}
-                                                  className="flex-1 min-w-[26px] h-7 px-1 leading-tight bg-white hover:bg-indigo-50 active:bg-indigo-100 text-slate-900 border border-slate-300 rounded shadow-2xs cursor-pointer flex flex-col items-center justify-center"
+                                                  className="flex-1 min-w-[21px] sm:min-w-[26px] h-7 px-0.5 sm:px-1 leading-tight bg-white hover:bg-indigo-50 active:bg-indigo-100 text-slate-900 border border-slate-300 rounded shadow-2xs cursor-pointer flex flex-col items-center justify-center"
                                                 >
                                                   <span className="text-[9px] text-slate-400 leading-none">{computerShift ? item.base : item.shift}</span>
                                                   <span className="text-[11px] font-bold text-slate-900 leading-tight">{activeChar}</span>
@@ -691,27 +691,27 @@ export const LearnerLearningAreasView: React.FC = () => {
 
                                             return (
                                               <div className="space-y-1">
-                                                <div className="flex items-center gap-1">
+                                                <div className="flex flex-wrap items-center gap-0.5 sm:gap-1">
                                                   {numRow.map((k, i) => renderKeyItem(k, i))}
                                                   <button
                                                     type="button"
                                                     onClick={handleBackspaceKey}
-                                                    className="px-2 h-7 text-[11px] font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded shadow-2xs cursor-pointer shrink-0"
+                                                    className="px-1.5 h-7 text-[10px] font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded shadow-2xs cursor-pointer"
                                                   >
-                                                    ⌫ Backspace
+                                                    ⌫ Bksp
                                                   </button>
                                                 </div>
-                                                <div className="flex items-center gap-1">
+                                                <div className="flex flex-wrap items-center gap-0.5 sm:gap-1">
                                                   {row1.map((k, i) => renderKeyItem(k, i))}
                                                   <button
                                                     type="button"
                                                     onClick={handleDeleteKey}
-                                                    className="px-2 h-7 text-[11px] font-bold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded shadow-2xs cursor-pointer shrink-0"
+                                                    className="px-1.5 h-7 text-[10px] font-bold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded shadow-2xs cursor-pointer"
                                                   >
-                                                    Delete
+                                                    Del
                                                   </button>
                                                 </div>
-                                                <div className="flex items-center gap-1">
+                                                <div className="flex flex-wrap items-center gap-0.5 sm:gap-1">
                                                   <button
                                                     type="button"
                                                     onClick={() => setComputerShift((prev) => !prev)}
@@ -727,12 +727,12 @@ export const LearnerLearningAreasView: React.FC = () => {
                                                   <button
                                                     type="button"
                                                     onClick={() => insertText('\n')}
-                                                    className="px-2.5 h-7 text-[11px] font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-300 rounded shadow-2xs cursor-pointer shrink-0"
+                                                    className="px-2 h-7 text-[10px] font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-300 rounded shadow-2xs cursor-pointer"
                                                   >
                                                     ↵ Enter
                                                   </button>
                                                 </div>
-                                                <div className="flex items-center gap-1">
+                                                <div className="flex flex-wrap items-center gap-0.5 sm:gap-1">
                                                   <button
                                                     type="button"
                                                     onClick={() => setComputerShift((prev) => !prev)}
