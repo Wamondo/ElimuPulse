@@ -206,7 +206,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       setIsExtractingPdf(false);
     }
   };
-  const [onlyMySets, setOnlyMySets] = useState<boolean>(true);
+  const [onlyMySets, setOnlyMySets] = useState<boolean>(false);
   const [markingId, setMarkingId] = useState<string | null>(null);
   const [selectedSubmissionLearnerId, setSelectedSubmissionLearnerId] = useState<string>('');
   const [markScoreInput, setMarkScoreInput] = useState<string>('');
@@ -1013,8 +1013,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
             const toDoItems = areaItems.filter((a) => {
               const subs = Object.values(a.submissions || {});
+              const hasPendingSub = subs.some(
+                (s) =>
+                  s &&
+                  s.status !== 'marked' &&
+                  (s.status === 'submitted' ||
+                    Boolean(s.submittedAt) ||
+                    Object.keys(s.answers || {}).length > 0 ||
+                    Object.keys(s.sketchAttachments || {}).length > 0)
+              );
               if (subs.length === 0) return a.status === 'todo';
-              return subs.some((s) => s.status === 'submitted') || a.status === 'todo';
+              return hasPendingSub || a.status === 'todo';
             });
 
             const markedEntries: Array<{
@@ -1615,7 +1624,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       <div className="space-y-2.5">
                         {toDoItems.map((item) => {
                           const allSubs = Object.values(item.submissions || {});
-                          const pendingSubs = allSubs.filter((s) => s.status === 'submitted');
+                          const pendingSubs = allSubs.filter(
+                              (s) =>
+                                s &&
+                                s.status !== 'marked' &&
+                                (s.status === 'submitted' ||
+                                  Boolean(s.submittedAt) ||
+                                  Object.keys(s.answers || {}).length > 0 ||
+                                  Object.keys(s.sketchAttachments || {}).length > 0)
+                            );
                           const markedCount = allSubs.filter((s) => s.status === 'marked').length;
                           const totalMarks = item.totalMarks || calculateAssignmentTotalMarks(item.questions);
                           const activeSub =
