@@ -39,7 +39,7 @@ type ParsedDocContent =
   | { kind: 'slides'; slides: { title: string; lines: string[] }[] }
   | { kind: 'table'; sheetName: string; rows: string[][] };
 
-const STAMP_CHOICES: RedInkStamp[] = ['✓', 'M1', 'M2', 'A1', 'A2', '✗'];
+const STAMP_CHOICES: RedInkStamp[] = ['✓', '✓✓', '✗', 'M1', 'M2', 'M3', 'M0', 'A1', 'A2', 'A3', 'A0', 'B1', 'B2', 'B3', 'B0', 'C1', 'S1', 'P1', 'L1', 'CAO', 'FT', 'BOD', '^'];
 
 const PDFJS_CDN_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174';
 let pdfJsLoadPromise: Promise<any> | null = null;
@@ -535,8 +535,8 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
           onClick={(e) => handleRemovePin(e, pIdx)}
           title={readOnly ? pin.stamp : 'Tap stamp to remove'}
           style={{ left: `${leftPct}%`, top: `${topPct}%` }}
-          className={`-translate-x-1/2 -translate-y-1/2 absolute z-10 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-black text-red-600 bg-red-50/95 border border-red-500 shadow-xs select-none ${
-            readOnly ? 'pointer-events-none' : 'cursor-pointer hover:bg-red-100'
+          className={`-translate-x-1/2 -translate-y-1/2 absolute z-10 inline-flex items-center font-black text-red-600 select-none leading-none [text-shadow:0_0_3px_#fff,0_0_2px_#fff] ${pin.stamp === '✓' || pin.stamp === '✓✓' || pin.stamp === '✗' ? 'text-xl' : 'text-sm tracking-tight'} ${
+            readOnly ? 'pointer-events-none' : 'cursor-pointer hover:scale-125 transition-transform'
           }`}
         >
           {pin.stamp}

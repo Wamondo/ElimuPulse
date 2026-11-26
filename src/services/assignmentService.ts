@@ -19,7 +19,7 @@ export interface AssignmentQuestion {
   marks: number;
 }
 
-export type RedInkStamp = '✓' | 'M1' | 'M2' | 'A1' | 'A2' | '✗' | '';
+export type RedInkStamp = '✓' | '✓✓' | '✗' | 'M1' | 'M2' | 'M3' | 'M0' | 'A1' | 'A2' | 'A3' | 'A0' | 'B1' | 'B2' | 'B3' | 'B0' | 'C1' | 'S1' | 'P1' | 'L1' | 'CAO' | 'FT' | 'BOD' | '^';
 
 export interface CalculationStepAnnotation {
   stamp?: RedInkStamp;
