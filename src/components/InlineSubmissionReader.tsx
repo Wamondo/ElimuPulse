@@ -287,7 +287,7 @@ async function renderPdfPagesVisual(
   maxPages = 25
 ): Promise<{ pages: string[]; totalPages: number }> {
   const pdfjsLib = await loadPdfJsFromCdn();
-  const loadingTask = pdfjsLib.getDocument({ data: bytes });
+  const loadingTask = pdfjsLib.getDocument({ data: bytes, disableWorker: true });
   const pdf = await loadingTask.promise;
   const totalPages = pdf.numPages;
   const count = Math.min(totalPages, maxPages);
