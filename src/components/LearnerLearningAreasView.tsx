@@ -1,3 +1,4 @@
+import { InlineSubmissionReader, ReaderAttachmentItem, StampedPin } from './InlineSubmissionReader';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import {
@@ -1156,7 +1157,7 @@ export const LearnerLearningAreasView: React.FC = () => {
                             <span className="px-2.5 py-1 text-xs font-bold text-emerald-800 bg-emerald-100 border border-emerald-200 rounded-md shrink-0">
                               {displayScore}
                             </span>
-                            {submission && questions.length > 0 && (
+                            {submission && (questions.length > 0 || (submission.attachments || []).length > 0 || Boolean(submission.sketchAttachments?.['_general'])) && (
                               <>
                                 <button
                                   type="button"
@@ -1179,7 +1180,34 @@ export const LearnerLearningAreasView: React.FC = () => {
                           </div>
                         </div>
 
-                        {isExpanded && submission && questions.length > 0 && (
+                        {isExpanded && submission && (questions.length > 0 || (submission.attachments || []).length > 0 || Boolean(submission.sketchAttachments?.['_general'])) && (
+                          <div className="pt-2 border-t border-emerald-200/70 space-y-2">
+                            {((submission.attachments || []).length > 0 || submission.sketchAttachments?.['_general']) && (() => {
+                              const readerItems: ReaderAttachmentItem[] =
+                                (submission.attachments || []).length > 0
+                                  ? submission.attachments!
+                                  : [
+                                      {
+                                        id: '_general',
+                                        name: 'Uploaded Written Paper',
+                                        mimeType: 'image/jpeg',
+                                        dataUrl: submission.sketchAttachments!['_general'],
+                                      },
+                                    ];
+                              const annsByAtt: Record<string, StampedPin[]> = {};
+                              readerItems.forEach((att) => {
+                                annsByAtt[att.id] =
+                                  (submission.stepAnnotations?.[`att_${att.id}`] as StampedPin[]) || [];
+                              });
+                              return (
+                                <InlineSubmissionReader
+                                  attachments={readerItems}
+                                  annotationsByKey={annsByAtt}
+                                  readOnly={true}
+                                />
+                              );
+                            })()}
+                            {questions.length > 0 && (
                           <div className="pt-2 border-t border-emerald-200/70 space-y-1.5">
                             {questions.map((q, idx) => {
                               const ans = submission.answers?.[q.id] || '—';
@@ -1233,9 +1261,9 @@ export const LearnerLearningAreasView: React.FC = () => {
                                             </span>
                                           );
                                         })}
-                                      </div>
-                                    </div>
-                                  )}
+                            </div>
+                          </div>
+                        )}
                                   {q.type === 'mcq' ? (
                                     <p className="text-slate-700 mt-0.5">
                                       Your Answer: <strong>{ans}</strong>
@@ -1308,6 +1336,8 @@ export const LearnerLearningAreasView: React.FC = () => {
                                 </div>
                               );
                             })}
+                          </div>
+                            )}
                           </div>
                         )}
                       </div>

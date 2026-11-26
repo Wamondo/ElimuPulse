@@ -101,7 +101,6 @@ async function unpackZipEntries(bytes: Uint8Array): Promise<Record<string, Uint8
     const nameStart = offset + 30;
     const dataStart = nameStart + nameLen + extraLen;
 
-    // Handle data descriptor (bit 3) when compSize is 0 in local header
     if ((flags & 0x08) !== 0 && compSize === 0) {
       let scan = dataStart;
       while (scan + 16 <= bytes.length) {
@@ -169,7 +168,6 @@ function parseDocxXml(xml: string): string[] {
   return lines;
 }
 
-
 function parsePptxSlides(entries: Record<string, Uint8Array>): { title: string; lines: string[] }[] {
   const decoder = new TextDecoder('utf-8');
   const slideNames = Object.keys(entries)
@@ -181,7 +179,7 @@ function parsePptxSlides(entries: Record<string, Uint8Array>): { title: string; 
     });
 
   return slideNames.map((name, idx) => {
-    const xml = decoder.decode(entries[name]!);
+    const xml = decoder.decode(entries[name]);
     const paras = xml.split(/<a:p\b[^>]*>/g).slice(1);
     const lines: string[] = [];
     for (const p of paras) {
@@ -216,7 +214,7 @@ function parseXlsxSheet(entries: Record<string, Uint8Array>): string[][] {
     .sort()[0];
   if (!sheetKey) return [];
 
-  const sheetXml = decoder.decode(entries[sheetKey]!);
+  const sheetXml = decoder.decode(entries[sheetKey]);
   const rowBlocks = sheetXml.split(/<row\b[^>]*>/g).slice(1);
   const rows: string[][] = [];
 
@@ -269,6 +267,7 @@ function extractPdfTextLines(bytes: Uint8Array): string[] {
   return lines;
 }
 
+
 export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
   attachments,
   annotationsByKey,
@@ -281,7 +280,7 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
   const [parsedContent, setParsedContent] = useState<ParsedDocContent | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
-  const [pdfViewMode, setPdfViewMode] = useState<'embed' | 'text'>('embed');
+  const [pdfViewMode, setPdfViewMode] = useState<'text' | 'embed'>('text');
 
   const safeIdx = Math.min(selectedIdx, Math.max(0, attachments.length - 1));
   const current = attachments[safeIdx];
@@ -315,6 +314,7 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
           const lines = extractPdfTextLines(bytes);
           if (!cancelled) {
             setParsedContent({ kind: 'pdf', blobUrl, extractedLines: lines });
+            setPdfViewMode(lines.length > 0 ? 'text' : 'embed');
           }
           return;
         }
@@ -366,8 +366,6 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
           return;
         }
 
-
-        // OpenDocument (.odt, .odp, .ods)
         if (/\.(odt|odp|ods)$/.test(lowerName)) {
           const entries = await unpackZipEntries(bytes);
           const contentXml = entries['content.xml'];
@@ -389,7 +387,6 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
           }
         }
 
-        // Fallback for .txt, .rtf, .md, .doc, or any text-based file
         const rawText = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
         const cleanedText = lowerName.endsWith('.rtf')
           ? rawText
@@ -441,34 +438,48 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
 
   if (!current) return null;
 
-  const handleImageClick = (e: React.MouseEvent<HTMLDivElement>) => {
+  // Universal exact-tap placement across images, Word docs, PDFs, slides, and tables
+  const handleExactTapStamp = (e: React.MouseEvent<HTMLDivElement>) => {
     if (readOnly || !onUpdateAnnotations || !activeStamp) return;
     const rect = e.currentTarget.getBoundingClientRect();
-    const x = Math.round(((e.clientX - rect.left) / rect.width) * 100);
-    const y = Math.round(((e.clientY - rect.top) / rect.height) * 100);
+    if (rect.width <= 0 || rect.height <= 0) return;
+    const x = Math.max(2, Math.min(98, Number((((e.clientX - rect.left) / rect.width) * 100).toFixed(2))));
+    const y = Math.max(1, Math.min(99, Number((((e.clientY - rect.top) / rect.height) * 100).toFixed(2))));
     onUpdateAnnotations(current.id, [...currentPins, { stamp: activeStamp, x, y }]);
   };
 
-  const handleLineStamp = (lineIndex: number) => {
-    if (readOnly || !onUpdateAnnotations || !activeStamp) return;
-    const existingIdx = currentPins.findIndex((p) => p.lineIndex === lineIndex);
-    if (existingIdx >= 0) {
-      // Toggle off if same stamp, otherwise update stamp
-      const existing = currentPins[existingIdx];
-      if (existing.stamp === activeStamp) {
-        onUpdateAnnotations(
-          current.id,
-          currentPins.filter((_, idx) => idx !== existingIdx)
-        );
-      } else {
-        const next = [...currentPins];
-        next[existingIdx] = { ...existing, stamp: activeStamp };
-        onUpdateAnnotations(current.id, next);
-      }
-    } else {
-      onUpdateAnnotations(current.id, [...currentPins, { stamp: activeStamp, lineIndex }]);
-    }
+  const handleRemovePin = (e: React.MouseEvent, pinIdx: number) => {
+    e.stopPropagation();
+    if (readOnly || !onUpdateAnnotations) return;
+    onUpdateAnnotations(
+      current.id,
+      currentPins.filter((_, idx) => idx !== pinIdx)
+    );
   };
+
+  const renderOverlayPins = () =>
+    currentPins.map((pin, pIdx) => {
+      const leftPct = typeof pin.x === 'number' ? pin.x : 88;
+      const topPct =
+        typeof pin.y === 'number'
+          ? pin.y
+          : typeof pin.lineIndex === 'number'
+          ? Math.min(96, 6 + pin.lineIndex * 5)
+          : 15;
+      return (
+        <span
+          key={pIdx}
+          onClick={(e) => handleRemovePin(e, pIdx)}
+          title={readOnly ? pin.stamp : 'Tap stamp to remove'}
+          style={{ left: `${leftPct}%`, top: `${topPct}%` }}
+          className={`-translate-x-1/2 -translate-y-1/2 absolute z-10 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-black text-red-600 bg-red-50/95 border border-red-500 shadow-xs select-none ${
+            readOnly ? 'pointer-events-none' : 'cursor-pointer hover:bg-red-100'
+          }`}
+        >
+          {pin.stamp}
+        </span>
+      );
+    });
 
   return (
     <div
@@ -531,6 +542,7 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
           </div>
         </div>
 
+
         {/* Red-Ink Marking Toolbar (Teacher Mode) */}
         {!readOnly && onSelectStamp && onUpdateAnnotations && (
           <div className="px-3 py-1.5 bg-rose-50/80 border-b border-rose-200 flex flex-wrap items-center justify-between gap-2">
@@ -578,7 +590,7 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
         {/* Inline Reader Body */}
         <div
           className={`p-3 bg-white overflow-y-auto ${
-            isExpanded ? 'flex-1' : 'max-h-[420px]'
+            isExpanded ? 'flex-1' : 'max-h-[440px]'
           }`}
         >
           {isLoading ? (
@@ -589,11 +601,11 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
             <div className="space-y-1.5">
               {!readOnly && (
                 <p className="text-[10px] font-semibold text-slate-500">
-                  Tap anywhere on the photo to place your active red-ink stamp ({activeStamp}).
+                  Tap the exact spot on the photo to place ({activeStamp}). Tap a placed stamp to remove it.
                 </p>
               )}
               <div
-                onClick={handleImageClick}
+                onClick={handleExactTapStamp}
                 className={`relative inline-block max-w-full border border-slate-300 rounded-lg overflow-hidden bg-slate-50 ${
                   readOnly ? '' : 'cursor-crosshair'
                 }`}
@@ -601,17 +613,9 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
                 <img
                   src={current.dataUrl}
                   alt={current.name}
-                  className="max-h-[520px] w-auto object-contain block"
+                  className="max-h-[540px] w-auto object-contain block"
                 />
-                {currentPins.map((pin, pIdx) => (
-                  <span
-                    key={pIdx}
-                    style={{ left: `${pin.x ?? 80}%`, top: `${pin.y ?? 20}%` }}
-                    className="-translate-x-1/2 -translate-y-1/2 absolute px-1.5 py-0.5 rounded text-xs font-black text-red-600 bg-red-50/95 border border-red-500 shadow-xs pointer-events-none"
-                  >
-                    {pin.stamp}
-                  </span>
-                ))}
+                {renderOverlayPins()}
               </div>
             </div>
           ) : parsedContent?.kind === 'pdf' ? (
@@ -619,21 +623,12 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[10px] font-bold text-slate-600 flex items-center gap-1">
                   <Eye className="w-3 h-3 text-indigo-600" />
-                  <span>PDF Inline Viewer</span>
+                  <span>
+                    PDF Inline Viewer
+                    {!readOnly && pdfViewMode === 'text' ? ' · Tap exact spot on page to stamp' : ''}
+                  </span>
                 </span>
                 <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setPdfViewMode('embed')}
-                    className={`px-2 py-0.5 text-[10px] font-bold rounded border cursor-pointer ${
-                      pdfViewMode === 'embed'
-                        ? 'bg-indigo-600 text-white border-indigo-700'
-                        : 'bg-white text-slate-700 border-slate-300'
-                    }`}
-                  >
-
-                    PDF Page View
-                  </button>
                   <button
                     type="button"
                     onClick={() => setPdfViewMode('text')}
@@ -643,7 +638,18 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
                         : 'bg-white text-slate-700 border-slate-300'
                     }`}
                   >
-                    Text &amp; Red-Ink Stamp View
+                    Markable Script View
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPdfViewMode('embed')}
+                    className={`px-2 py-0.5 text-[10px] font-bold rounded border cursor-pointer ${
+                      pdfViewMode === 'embed'
+                        ? 'bg-indigo-600 text-white border-indigo-700'
+                        : 'bg-white text-slate-700 border-slate-300'
+                    }`}
+                  >
+                    Raw PDF Frame
                   </button>
                 </div>
               </div>
@@ -652,77 +658,62 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
                 <iframe
                   src={parsedContent.blobUrl}
                   title={current.name}
-                  className="w-full h-[360px] rounded-lg border border-slate-300 bg-slate-100"
+                  className="w-full h-[380px] rounded-lg border border-slate-300 bg-slate-100"
                 />
               ) : (
-                <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg bg-slate-50/50">
+                <div
+                  onClick={handleExactTapStamp}
+                  className={`relative border border-slate-300 rounded-lg bg-white p-4 shadow-2xs space-y-2.5 ${
+                    readOnly ? '' : 'cursor-crosshair'
+                  }`}
+                >
                   {parsedContent.extractedLines.length === 0 ? (
-                    <p className="p-3 text-xs text-slate-600">
-                      This PDF appears to be a scanned image PDF. Switch to <strong>PDF Page View</strong> above or use Download.
+                    <p className="text-xs text-slate-600">
+                      This PDF is a scanned image PDF. Switch to <strong>Raw PDF Frame</strong> above or use Download.
                     </p>
                   ) : (
-                    parsedContent.extractedLines.map((line, idx) => {
-                      const linePin = currentPins.find((p) => p.lineIndex === idx);
-                      return (
-                        <div
-                          key={idx}
-                          onClick={() => handleLineStamp(idx)}
-                          className={`px-3 py-1.5 text-xs flex items-start justify-between gap-2 ${
-                            readOnly ? '' : 'hover:bg-amber-50/70 cursor-pointer'
-                          }`}
-                        >
-                          <span className="text-slate-900 whitespace-pre-wrap leading-relaxed">
-                            {line}
-                          </span>
-                          {linePin?.stamp && (
-                            <span className="px-1.5 py-0.5 rounded text-[11px] font-black text-red-600 bg-red-50 border border-red-400 shrink-0">
-                              {linePin.stamp}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })
+                    parsedContent.extractedLines.map((line, idx) => (
+                      <p key={idx} className="text-xs text-slate-900 whitespace-pre-wrap leading-relaxed">
+                        {line}
+                      </p>
+                    ))
                   )}
+                  {renderOverlayPins()}
                 </div>
               )}
             </div>
           ) : parsedContent?.kind === 'slides' ? (
-            <div className="space-y-3">
+            <div className="space-y-1.5">
               <p className="text-[10px] font-bold text-slate-500 flex items-center gap-1">
                 <Presentation className="w-3.5 h-3.5 text-amber-600" />
                 <span>
                   Presentation ({parsedContent.slides.length} Slides)
-                  {!readOnly ? ' · Tap any slide to stamp red ink' : ''}
+                  {!readOnly ? ` · Tap the exact spot on any slide to stamp (${activeStamp})` : ''}
                 </span>
               </p>
-              {parsedContent.slides.map((slide, sIdx) => {
-                const slidePin = currentPins.find((p) => p.lineIndex === sIdx);
-                return (
+              <div
+                onClick={handleExactTapStamp}
+                className={`relative space-y-3 p-2 rounded-lg border border-slate-300 bg-slate-50/50 ${
+                  readOnly ? '' : 'cursor-crosshair'
+                }`}
+              >
+                {parsedContent.slides.map((slide, sIdx) => (
                   <div
                     key={sIdx}
-                    onClick={() => handleLineStamp(sIdx)}
-                    className={`p-3 rounded-lg border border-slate-200 bg-slate-50/70 space-y-1 ${
-                      readOnly ? '' : 'hover:border-indigo-400 cursor-pointer'
-                    }`}
+                    className="p-3 rounded-lg border border-slate-200 bg-white space-y-1 shadow-2xs"
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700">
-                        {slide.title}
-                      </span>
-                      {slidePin?.stamp && (
-                        <span className="px-1.5 py-0.5 rounded text-[11px] font-black text-red-600 bg-red-50 border border-red-400">
-                          {slidePin.stamp}
-                        </span>
-                      )}
-                    </div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700">
+                      {slide.title}
+                    </span>
                     {slide.lines.map((l, lIdx) => (
                       <p key={lIdx} className="text-xs text-slate-800 leading-relaxed">
                         {l}
                       </p>
                     ))}
                   </div>
-                );
-              })}
+                ))}
+                {renderOverlayPins()}
+              </div>
             </div>
           ) : parsedContent?.kind === 'table' ? (
             <div className="space-y-1.5">
@@ -730,73 +721,55 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
                 <TableIcon className="w-3.5 h-3.5 text-emerald-600" />
                 <span>
                   {parsedContent.sheetName}
-                  {!readOnly ? ' · Tap any row to stamp red ink' : ''}
+                  {!readOnly ? ` · Tap the exact cell/spot to stamp (${activeStamp})` : ''}
                 </span>
               </p>
-              <div className="overflow-x-auto border border-slate-200 rounded-lg">
+              <div
+                onClick={handleExactTapStamp}
+                className={`relative overflow-x-auto border border-slate-300 rounded-lg bg-white ${
+                  readOnly ? '' : 'cursor-crosshair'
+                }`}
+              >
                 <table className="min-w-full text-xs divide-y divide-slate-200">
                   <tbody className="divide-y divide-slate-100">
-                    {parsedContent.rows.map((row, rIdx) => {
-                      const rowPin = currentPins.find((p) => p.lineIndex === rIdx);
-                      return (
-                        <tr
-                          key={rIdx}
-                          onClick={() => handleLineStamp(rIdx)}
-                          className={
-                            rIdx === 0
-                              ? 'bg-slate-100 font-bold text-slate-900'
-                              : readOnly
-                              ? 'bg-white'
-                              : 'bg-white hover:bg-amber-50 cursor-pointer'
-                          }
-                        >
-                          {row.map((cell, cIdx) => (
-                            <td key={cIdx} className="px-2.5 py-1.5 border-r border-slate-100 whitespace-nowrap">
-                              {cell}
-                            </td>
-                          ))}
-                          {rowPin?.stamp && (
-                            <td className="px-2 py-1 text-right">
-                              <span className="px-1.5 py-0.5 rounded text-[10px] font-black text-red-600 bg-red-50 border border-red-400">
-                                {rowPin.stamp}
-                              </span>
-                            </td>
-                          )}
-                        </tr>
-                      );
-                    })}
+                    {parsedContent.rows.map((row, rIdx) => (
+                      <tr
+                        key={rIdx}
+                        className={rIdx === 0 ? 'bg-slate-100 font-bold text-slate-900' : 'bg-white'}
+                      >
+                        {row.map((cell, cIdx) => (
+                          <td key={cIdx} className="px-2.5 py-1.5 border-r border-slate-100 whitespace-nowrap">
+                            {cell}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
+                {renderOverlayPins()}
               </div>
             </div>
           ) : parsedContent?.kind === 'lines' ? (
             <div className="space-y-1.5">
               <div className="flex items-center justify-between text-[10px] font-bold text-slate-500">
                 <span>{parsedContent.label}</span>
-                {!readOnly && <span>Tap any line/question to stamp red ink ({activeStamp})</span>}
+                {!readOnly && <span>Tap exact spot on paper to place ({activeStamp}) · Tap stamp to remove</span>}
               </div>
-              <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg bg-slate-50/40">
-                {parsedContent.lines.map((line, lIdx) => {
-                  const linePin = currentPins.find((p) => p.lineIndex === lIdx);
-                  return (
-                    <div
-                      key={lIdx}
-                      onClick={() => handleLineStamp(lIdx)}
-                      className={`px-3 py-2 text-xs flex items-start justify-between gap-2 ${
-                        readOnly ? '' : 'hover:bg-amber-50/80 cursor-pointer'
-                      }`}
-                    >
-                      <span className="text-slate-900 whitespace-pre-wrap leading-relaxed font-sans">
-                        {line}
-                      </span>
-                      {linePin?.stamp && (
-                        <span className="px-1.5 py-0.5 rounded text-[11px] font-black text-red-600 bg-red-50 border border-red-400 shrink-0">
-                          {linePin.stamp}
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
+              <div
+                onClick={handleExactTapStamp}
+                className={`relative border border-slate-300 rounded-lg bg-white p-4 shadow-2xs space-y-2.5 ${
+                  readOnly ? '' : 'cursor-crosshair'
+                }`}
+              >
+                {parsedContent.lines.map((line, lIdx) => (
+                  <p
+                    key={lIdx}
+                    className="text-xs text-slate-900 whitespace-pre-wrap leading-relaxed font-sans"
+                  >
+                    {line}
+                  </p>
+                ))}
+                {renderOverlayPins()}
               </div>
             </div>
           ) : null}
