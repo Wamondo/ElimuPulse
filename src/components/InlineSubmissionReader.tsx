@@ -9,7 +9,7 @@ import {
   Download,
   Undo2,
   Trash2,
-  Eye,
+  ExternalLink,
 } from 'lucide-react';
 import type { CalculationStepAnnotation, RedInkStamp } from '../services/assignmentService';
 
@@ -34,7 +34,7 @@ interface InlineSubmissionReaderProps {
 
 type ParsedDocContent =
   | { kind: 'image' }
-  | { kind: 'pdf'; blobUrl: string; extractedLines: string[] }
+  | { kind: 'pdf'; lines: string[]; blobUrl: string }
   | { kind: 'lines'; label: string; lines: string[] }
   | { kind: 'slides'; slides: { title: string; lines: string[] }[] }
   | { kind: 'table'; sheetName: string; rows: string[][] };
@@ -55,9 +55,9 @@ function dataUrlToBytes(dataUrl: string): Uint8Array {
   return new TextEncoder().encode(decodeURIComponent(body));
 }
 
-async function inflateRaw(bytes: Uint8Array): Promise<Uint8Array | null> {
+async function inflateBytes(bytes: Uint8Array): Promise<Uint8Array | null> {
   if (typeof DecompressionStream === 'undefined') return null;
-  for (const fmt of ['deflate-raw', 'deflate'] as const) {
+  for (const fmt of ['deflate', 'deflate-raw'] as const) {
     try {
       const ds = new DecompressionStream(fmt);
       const writer = ds.writable.getWriter();
@@ -112,6 +112,7 @@ async function unpackZipEntries(bytes: Uint8Array): Promise<Record<string, Uint8
       }
     }
 
+
     const dataEnd = dataStart + compSize;
     if (dataEnd > bytes.length || compSize === 0) {
       if (compSize === 0 && dataStart <= bytes.length) {
@@ -127,7 +128,7 @@ async function unpackZipEntries(bytes: Uint8Array): Promise<Record<string, Uint8
     if (method === 0) {
       map[name] = slice;
     } else if (method === 8) {
-      const inflated = await inflateRaw(slice);
+      const inflated = await inflateBytes(slice);
       if (inflated) map[name] = inflated;
     }
 
@@ -245,28 +246,87 @@ function parseXlsxSheet(entries: Record<string, Uint8Array>): string[][] {
   return rows;
 }
 
-function extractPdfTextLines(bytes: Uint8Array): string[] {
-  const latin1 = new TextDecoder('latin1').decode(bytes);
+function decodePdfLiteralString(raw: string): string {
+  return raw
+    .replace(/\\n/g, '\n')
+    .replace(/\\r/g, '')
+    .replace(/\\t/g, ' ')
+    .replace(/\\\(/g, '(')
+    .replace(/\\\)/g, ')')
+    .replace(/\\\\/g, '\\')
+    .replace(/\\([0-7]{1,3})/g, (_, oct) => String.fromCharCode(parseInt(oct, 8)));
+}
+
+function extractTextFromPdfContentStream(streamText: string): string[] {
   const lines: string[] = [];
-  const btEtRegex = /BT\b([\s\S]*?)\bET\b/g;
-  let m: RegExpExecArray | null;
-  while ((m = btEtRegex.exec(latin1)) !== null) {
-    const block = m[1];
-    const parts = Array.from(block.matchAll(/\((?:\\.|[^\\()])*\)/g)).map((p) =>
-      p[0]
-        .slice(1, -1)
-        .replace(/\\n/g, '\n')
-        .replace(/\\r/g, '')
-        .replace(/\\\(/g, '(')
-        .replace(/\\\)/g, ')')
-        .replace(/\\\\/g, '\\')
-    );
-    const joined = parts.join('').trim();
-    if (joined) lines.push(joined);
+  const btBlocks = streamText.match(/BT[\s\S]*?ET/g) || [];
+  for (const block of btBlocks) {
+    const parts: string[] = [];
+    const tokens = block.matchAll(/\((?:\\.|[^\\()])*\)\s*Tj|\[((?:\\.|[^\]])*)\]\s*TJ/g);
+    for (const tok of tokens) {
+      if (tok[1] !== undefined) {
+        const inner = Array.from(tok[1].matchAll(/\(((?:\\.|[^\\()])*)\)/g)).map((m) =>
+          decodePdfLiteralString(m[1])
+        );
+        parts.push(inner.join(''));
+      } else {
+        const lit = tok[0].match(/^\(((?:\\.|[^\\()])*)\)/);
+        if (lit) parts.push(decodePdfLiteralString(lit[1]));
+      }
+    }
+    const joined = parts
+      .join(' ')
+      .replace(/[^\x20-\x7E\n]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (joined.length >= 2 && /[A-Za-z0-9]/.test(joined)) {
+      lines.push(joined);
+    }
   }
   return lines;
 }
 
+
+async function extractPdfLinesAsync(bytes: Uint8Array): Promise<string[]> {
+  const latin1 = new TextDecoder('latin1').decode(bytes);
+  const extracted: string[] = [];
+  const streamRegex = /<<([\s\S]*?)>>\s*stream\r?\n/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = streamRegex.exec(latin1)) !== null) {
+    const dict = match[1] || '';
+    if (/\/Subtype\s*\/Image\b/i.test(dict)) continue;
+
+    const startIdx = match.index + match[0].length;
+    const endIdx = latin1.indexOf('endstream', startIdx);
+    if (endIdx === -1) break;
+
+    let rawSlice = bytes.slice(startIdx, endIdx);
+    if (rawSlice.length > 0 && rawSlice[rawSlice.length - 1] === 0x0a) {
+      rawSlice = rawSlice.slice(0, -1);
+    }
+    if (rawSlice.length > 0 && rawSlice[rawSlice.length - 1] === 0x0d) {
+      rawSlice = rawSlice.slice(0, -1);
+    }
+
+    let decodedText = '';
+    if (/\/FlateDecode\b/i.test(dict)) {
+      const inflated = await inflateBytes(rawSlice);
+      if (inflated) {
+        decodedText = new TextDecoder('latin1').decode(inflated);
+      }
+    } else if (!/\/Filter\b/i.test(dict)) {
+      decodedText = new TextDecoder('latin1').decode(rawSlice);
+    }
+
+    if (decodedText && decodedText.includes('BT')) {
+      extracted.push(...extractTextFromPdfContentStream(decodedText));
+    }
+    streamRegex.lastIndex = endIdx + 9;
+  }
+
+  return extracted.slice(0, 350);
+}
 
 export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
   attachments,
@@ -280,14 +340,13 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
   const [parsedContent, setParsedContent] = useState<ParsedDocContent | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
-  const [pdfViewMode, setPdfViewMode] = useState<'text' | 'embed'>('text');
 
   const safeIdx = Math.min(selectedIdx, Math.max(0, attachments.length - 1));
   const current = attachments[safeIdx];
 
   useEffect(() => {
-    let revokedUrl: string | null = null;
     let cancelled = false;
+    let createdBlobUrl: string | null = null;
 
     async function parseAttachment() {
       if (!current) {
@@ -309,12 +368,20 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
 
         if (mime === 'application/pdf' || lowerName.endsWith('.pdf')) {
           const blob = new Blob([bytes], { type: 'application/pdf' });
-          const blobUrl = URL.createObjectURL(blob);
-          revokedUrl = blobUrl;
-          const lines = extractPdfTextLines(bytes);
+          createdBlobUrl = URL.createObjectURL(blob);
+          const pdfLines = await extractPdfLinesAsync(bytes);
           if (!cancelled) {
-            setParsedContent({ kind: 'pdf', blobUrl, extractedLines: lines });
-            setPdfViewMode(lines.length > 0 ? 'text' : 'embed');
+            setParsedContent({
+              kind: 'pdf',
+              blobUrl: createdBlobUrl,
+              lines:
+                pdfLines.length > 0
+                  ? pdfLines
+                  : [
+                      'This PDF uses scanned page images or custom font encoding.',
+                      'Tap "Open Full PDF" above to view every page clearly on your phone, or tap anywhere on this sheet to stamp your red-ink marks.',
+                    ],
+            });
           }
           return;
         }
@@ -343,6 +410,7 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
             return;
           }
         }
+
 
         if (lowerName.endsWith('.xlsx') || mime.includes('spreadsheetml')) {
           const entries = await unpackZipEntries(bytes);
@@ -416,7 +484,7 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
           setParsedContent({
             kind: 'lines',
             label: 'Document Reader',
-            lines: ['Could not parse file inline. Use Download above to open externally.'],
+            lines: ['Could not render this file inline. Use Download above to open externally.'],
           });
         }
       } finally {
@@ -427,7 +495,7 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
     parseAttachment();
     return () => {
       cancelled = true;
-      if (revokedUrl) URL.revokeObjectURL(revokedUrl);
+      if (createdBlobUrl) URL.revokeObjectURL(createdBlobUrl);
     };
   }, [current]);
 
@@ -438,13 +506,12 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
 
   if (!current) return null;
 
-  // Universal exact-tap placement across images, Word docs, PDFs, slides, and tables
   const handleExactTapStamp = (e: React.MouseEvent<HTMLDivElement>) => {
     if (readOnly || !onUpdateAnnotations || !activeStamp) return;
     const rect = e.currentTarget.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) return;
     const x = Math.max(2, Math.min(98, Number((((e.clientX - rect.left) / rect.width) * 100).toFixed(2))));
-    const y = Math.max(1, Math.min(99, Number((((e.clientY - rect.top) / rect.height) * 100).toFixed(2))));
+    const y = Math.max(0.5, Math.min(99.5, Number((((e.clientY - rect.top) / rect.height) * 100).toFixed(2))));
     onUpdateAnnotations(current.id, [...currentPins, { stamp: activeStamp, x, y }]);
   };
 
@@ -481,6 +548,7 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
       );
     });
 
+
   return (
     <div
       className={
@@ -496,7 +564,6 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
             : 'flex flex-col'
         }
       >
-        {/* Top File Tabs & Toolbar */}
         <div className="px-3 py-2 bg-slate-100 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 overflow-x-auto max-w-full">
             {attachments.map((att, idx) => {
@@ -542,8 +609,6 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
           </div>
         </div>
 
-
-        {/* Red-Ink Marking Toolbar (Teacher Mode) */}
         {!readOnly && onSelectStamp && onUpdateAnnotations && (
           <div className="px-3 py-1.5 bg-rose-50/80 border-b border-rose-200 flex flex-wrap items-center justify-between gap-2">
             <div className="flex flex-wrap items-center gap-1">
@@ -587,15 +652,14 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
           </div>
         )}
 
-        {/* Inline Reader Body */}
         <div
           className={`p-3 bg-white overflow-y-auto ${
-            isExpanded ? 'flex-1' : 'max-h-[440px]'
+            isExpanded ? 'flex-1' : 'max-h-[460px]'
           }`}
         >
           {isLoading ? (
             <div className="py-10 text-center text-xs font-semibold text-slate-500">
-              Opening {current.name} inline...
+              Decoding {current.name} inline...
             </div>
           ) : parsedContent?.kind === 'image' ? (
             <div className="space-y-1.5">
@@ -613,75 +677,48 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
                 <img
                   src={current.dataUrl}
                   alt={current.name}
-                  className="max-h-[540px] w-auto object-contain block"
+                  className="max-h-[560px] w-auto object-contain block"
                 />
                 {renderOverlayPins()}
               </div>
             </div>
           ) : parsedContent?.kind === 'pdf' ? (
             <div className="space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[10px] font-bold text-slate-600 flex items-center gap-1">
-                  <Eye className="w-3 h-3 text-indigo-600" />
-                  <span>
-                    PDF Inline Viewer
-                    {!readOnly && pdfViewMode === 'text' ? ' · Tap exact spot on page to stamp' : ''}
-                  </span>
+              <div className="flex flex-wrap items-center justify-between gap-2 bg-indigo-50/70 border border-indigo-200 rounded-lg px-2.5 py-1.5">
+                <span className="text-[10px] font-bold text-indigo-900">
+                  {!readOnly
+                    ? `Tap exact spot on paper to place (${activeStamp}) · Tap stamp to remove`
+                    : 'PDF Markable Script View'}
                 </span>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setPdfViewMode('text')}
-                    className={`px-2 py-0.5 text-[10px] font-bold rounded border cursor-pointer ${
-                      pdfViewMode === 'text'
-                        ? 'bg-indigo-600 text-white border-indigo-700'
-                        : 'bg-white text-slate-700 border-slate-300'
-                    }`}
-                  >
-                    Markable Script View
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPdfViewMode('embed')}
-                    className={`px-2 py-0.5 text-[10px] font-bold rounded border cursor-pointer ${
-                      pdfViewMode === 'embed'
-                        ? 'bg-indigo-600 text-white border-indigo-700'
-                        : 'bg-white text-slate-700 border-slate-300'
-                    }`}
-                  >
-                    Raw PDF Frame
-                  </button>
-                </div>
+                <a
+                  href={parsedContent.blobUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-md shadow-2xs"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  <span>Open Full PDF</span>
+                </a>
               </div>
 
-              {pdfViewMode === 'embed' ? (
-                <iframe
-                  src={parsedContent.blobUrl}
-                  title={current.name}
-                  className="w-full h-[380px] rounded-lg border border-slate-300 bg-slate-100"
-                />
-              ) : (
-                <div
-                  onClick={handleExactTapStamp}
-                  className={`relative border border-slate-300 rounded-lg bg-white p-4 shadow-2xs space-y-2.5 ${
-                    readOnly ? '' : 'cursor-crosshair'
-                  }`}
-                >
-                  {parsedContent.extractedLines.length === 0 ? (
-                    <p className="text-xs text-slate-600">
-                      This PDF is a scanned image PDF. Switch to <strong>Raw PDF Frame</strong> above or use Download.
-                    </p>
-                  ) : (
-                    parsedContent.extractedLines.map((line, idx) => (
-                      <p key={idx} className="text-xs text-slate-900 whitespace-pre-wrap leading-relaxed">
-                        {line}
-                      </p>
-                    ))
-                  )}
-                  {renderOverlayPins()}
-                </div>
-              )}
+              <div
+                onClick={handleExactTapStamp}
+                className={`relative border border-slate-300 rounded-lg bg-white p-4 shadow-2xs space-y-2.5 ${
+                  readOnly ? '' : 'cursor-crosshair'
+                }`}
+              >
+                {parsedContent.lines.map((line, lIdx) => (
+                  <p
+                    key={lIdx}
+                    className="text-xs text-slate-900 whitespace-pre-wrap leading-relaxed font-sans"
+                  >
+                    {line}
+                  </p>
+                ))}
+                {renderOverlayPins()}
+              </div>
             </div>
+
           ) : parsedContent?.kind === 'slides' ? (
             <div className="space-y-1.5">
               <p className="text-[10px] font-bold text-slate-500 flex items-center gap-1">
