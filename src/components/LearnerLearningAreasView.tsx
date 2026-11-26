@@ -3,6 +3,8 @@ import { useApp } from '../context/AppContext';
 import {
   LearningAreaAssignmentItem,
   LearnerAssignmentSubmission,
+  AssignmentQuestion,
+  SubmissionFileAttachment,
   loadLocalAssignments,
   saveAssignments,
   saveAssignmentsAsync,
@@ -21,6 +23,11 @@ import {
   ArrowLeft,
   Send,
   FileText,
+  Plus,
+  Upload,
+  Trash2,
+  Paperclip,
+  Image as ImageIcon,
 } from 'lucide-react';
 
 const DEFAULT_CBC_LEARNING_AREAS = [
@@ -184,6 +191,194 @@ export const LearnerLearningAreasView: React.FC = () => {
   const [computerShift, setComputerShift] = useState(false);
   const workingInputRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
 
+  // Learner Self-Submitted Past Paper / Practice Work state
+  const [isSelfSubmitOpen, setIsSelfSubmitOpen] = useState(false);
+  const [selfPaperTitle, setSelfPaperTitle] = useState('');
+  const [selfPaperNotes, setSelfPaperNotes] = useState('');
+  const [selfQuestions, setSelfQuestions] = useState<AssignmentQuestion[]>([]);
+  const [selfAnswers, setSelfAnswers] = useState<Record<string, string>>({});
+  const [selfAttachments, setSelfAttachments] = useState<SubmissionFileAttachment[]>([]);
+  const [selfSubmitError, setSelfSubmitError] = useState<string | null>(null);
+  const [isSelfSubmitting, setIsSelfSubmitting] = useState(false);
+
+  const openSelfSubmitModal = () => {
+    setSelfPaperTitle('');
+    setSelfPaperNotes('');
+    setSelfQuestions([]);
+    setSelfAnswers({});
+    setSelfAttachments([]);
+    setSelfSubmitError(null);
+    setIsSelfSubmitOpen(true);
+  };
+
+  const addSelfQuestion = (qType: 'mcq' | 'text') => {
+    const newQ: AssignmentQuestion = {
+      id: `spq-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      prompt: '',
+      type: qType,
+      marks: qType === 'mcq' ? 1 : 2,
+      ...(qType === 'mcq' ? { options: { A: '', B: '', C: '', D: '' } } : {}),
+    };
+    setSelfQuestions((prev) => [...prev, newQ]);
+  };
+
+  const updateSelfQuestion = (id: string, patch: Partial<AssignmentQuestion>) => {
+    setSelfQuestions((prev) => prev.map((q) => (q.id === id ? { ...q, ...patch } : q)));
+  };
+
+  const removeSelfQuestion = (id: string) => {
+    setSelfQuestions((prev) => prev.filter((q) => q.id !== id));
+    setSelfAnswers((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  };
+
+  const handleSelfFilesSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0) return;
+    setSelfSubmitError(null);
+
+    const newFiles: SubmissionFileAttachment[] = [];
+    for (let i = 0; i < fileList.length; i++) {
+      const file = fileList[i];
+      const isImage = file.type.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|bmp|heic|heif|svg)$/i.test(file.name);
+      const maxBytes = isImage ? 12 * 1024 * 1024 : 3.5 * 1024 * 1024;
+      if (file.size > maxBytes) {
+        setSelfSubmitError(`"${file.name}" exceeds the ${isImage ? '12 MB image' : '3.5 MB document'} upload limit.`);
+        continue;
+      }
+      const rawDataUrl: string = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(new Error('Failed to read file'));
+        reader.readAsDataURL(file);
+      });
+      const finalDataUrl = isImage ? await compressImageDataUrl(rawDataUrl, 1280, 0.78) : rawDataUrl;
+      newFiles.push({
+        id: `att-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 6)}`,
+        name: file.name,
+        mimeType: file.type || (isImage ? 'image/jpeg' : 'application/octet-stream'),
+        sizeBytes: file.size,
+        dataUrl: finalDataUrl,
+      });
+    }
+    setSelfAttachments((prev) => [...prev, ...newFiles]);
+    e.target.value = '';
+  };
+
+  const handleConfirmSelfPaperSubmit = async () => {
+    if (!selectedArea) return;
+    setSelfSubmitError(null);
+
+    const title = selfPaperTitle.trim();
+    if (!title) {
+      setSelfSubmitError('Please enter a title for your past paper or practice work (e.g., 2025 Term 2 Past Paper).');
+      return;
+    }
+
+    const hasQuestions = selfQuestions.length > 0;
+    const hasFiles = selfAttachments.length > 0;
+    const hasNotes = selfPaperNotes.trim().length > 0;
+
+    if (!hasQuestions && !hasFiles && !hasNotes) {
+      setSelfSubmitError('Add at least one typed question with your answer, or upload a document/photo of your work.');
+      return;
+    }
+
+    if (hasQuestions) {
+      for (let idx = 0; idx < selfQuestions.length; idx++) {
+        const q = selfQuestions[idx];
+        if (!q.prompt.trim()) {
+          setSelfSubmitError(`Question ${idx + 1} is empty. Enter the question text or remove it.`);
+          return;
+        }
+        if (q.type === 'mcq') {
+          const opts = q.options || { A: '', B: '', C: '', D: '' };
+          if (!opts.A.trim() || !opts.B.trim() || !opts.C.trim() || !opts.D.trim()) {
+            setSelfSubmitError(`Question ${idx + 1} (Multiple Choice): fill in all four options (A, B, C, D).`);
+            return;
+          }
+          const chosen = selfAnswers[q.id];
+          if (!chosen || !['A', 'B', 'C', 'D'].includes(chosen)) {
+            setSelfSubmitError(`Question ${idx + 1}: select your answer choice (A, B, C, or D) before submitting.`);
+            return;
+          }
+        } else {
+          const ans = (selfAnswers[q.id] || '').trim();
+          if (!ans) {
+            setSelfSubmitError(`Question ${idx + 1}: fill in your answer/working before submitting for marking.`);
+            return;
+          }
+        }
+      }
+    }
+
+    setIsSelfSubmitting(true);
+    try {
+      const nowIso = new Date().toISOString();
+      const assignmentId = `self-paper-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const totalMarks = hasQuestions ? calculateAssignmentTotalMarks(selfQuestions) : 20;
+      const firstImage = selfAttachments.find((a) => a.mimeType.startsWith('image/'));
+      const sketchAttachments: Record<string, string> = {};
+      if (firstImage) {
+        sketchAttachments['_general'] = firstImage.dataUrl;
+      }
+
+      const submission: LearnerAssignmentSubmission = {
+        learnerId: activeLearnerId,
+        learnerName: activeLearnerName,
+        studentId: activeStudentId,
+        grade: activeLearnerGrade || 'All Grades',
+        answers: hasQuestions ? { ...selfAnswers } : {},
+        ...(Object.keys(sketchAttachments).length > 0 ? { sketchAttachments } : {}),
+        ...(hasFiles ? { attachments: selfAttachments } : {}),
+        generalResponse:
+          selfPaperNotes.trim() ||
+          (hasFiles
+            ? `Submitted ${selfAttachments.length} file(s): ${selfAttachments.map((f) => f.name).join(', ')}`
+            : 'Interactive past paper questions completed by learner.'),
+        autoScore: 0,
+        totalMarks,
+        status: 'submitted',
+        submittedAt: nowIso,
+      };
+
+      const newAssignment: LearningAreaAssignmentItem = {
+        id: assignmentId,
+        learningArea: selectedArea,
+        grade: activeLearnerGrade || 'All Grades',
+        title,
+        instructions:
+          selfPaperNotes.trim() ||
+          `Learner self-submitted past paper / practice work by ${activeLearnerName} (${activeStudentId}).`,
+        dueDate: `Self-Submitted · ${new Date().toLocaleDateString()}`,
+        teacherName: 'Subject Teacher',
+        status: 'todo',
+        ...(hasQuestions ? { questions: selfQuestions } : {}),
+        totalMarks,
+        isSelfSubmitted: true,
+        submittedByLearnerId: activeLearnerId,
+        submittedByLearnerName: activeLearnerName,
+        submissions: {
+          [activeLearnerId]: submission,
+        },
+        createdAt: nowIso,
+      };
+
+      const latest = loadLocalAssignments();
+      const nextList = [newAssignment, ...latest];
+      saveAssignments(nextList);
+      await saveAssignmentsAsync(nextList);
+      setTeacherAssignments(nextList);
+      setIsSelfSubmitOpen(false);
+      setSubmitNotice(`"${title}" submitted to your ${selectedArea} teacher for marking.`);
+    } finally {
+      setIsSelfSubmitting(false);
+    }
+  };
+
   const getAssignmentsForArea = (area: string) => {
     const learnerGradeKey = activeLearnerGrade.toLowerCase();
     const areaKey = area.trim().toLowerCase();
@@ -193,6 +388,7 @@ export const LearnerLearningAreasView: React.FC = () => {
       const areaMatch =
         itemArea === areaKey || itemArea.includes(areaKey) || areaKey.includes(itemArea);
       if (!areaMatch) return false;
+      if (item.isSelfSubmitted && item.submittedByLearnerId && item.submittedByLearnerId !== activeLearnerId) return false;
       const itemGrade = (item.grade || 'All Grades').trim().toLowerCase();
       return !learnerGradeKey || itemGrade === 'all grades' || itemGrade === learnerGradeKey;
     });
@@ -460,9 +656,14 @@ export const LearnerLearningAreasView: React.FC = () => {
                   <Clock className="w-4 h-4 text-amber-600" />
                   <h3 className="text-sm font-bold text-slate-900">Assignments to Be Done</h3>
                 </div>
-                <span className="text-[11px] text-slate-500">
-                  Answer on screen or print a worksheet copy
-                </span>
+                <button
+                  type="button"
+                  onClick={openSelfSubmitModal}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-xs transition-colors cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Submit Past Paper / Practice Work</span>
+                </button>
               </div>
 
               {getAssignmentsForArea(selectedArea).toDo.length === 0 ? (
@@ -497,6 +698,11 @@ export const LearnerLearningAreasView: React.FC = () => {
                                   ? `${questions.length} Questions · ${totalMarks} Marks`
                                   : `${totalMarks} Marks`}
                               </span>
+                              {assignment.isSelfSubmitted && (
+                                <span className="px-2 py-0.5 text-[10px] font-bold bg-purple-100 text-purple-800 rounded-full">
+                                  Self-Submitted Past Paper
+                                </span>
+                              )}
                               {isSubmitted && (
                                 <span className="px-2 py-0.5 text-[10px] font-bold bg-indigo-100 text-indigo-800 rounded-full">
                                   Submitted · Awaiting Teacher Marking
@@ -1345,6 +1551,307 @@ export const LearnerLearningAreasView: React.FC = () => {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Self-Submit Past Paper / Practice Work Modal */}
+      {isSelfSubmitOpen && selectedArea && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between gap-3 bg-slate-50">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600">
+                  {selectedArea} · {activeLearnerGrade || 'Learner Portal'}
+                </span>
+                <h3 className="text-base font-bold text-slate-900">
+                  Submit Past Paper or Practice Work for Marking
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSelfSubmitOpen(false)}
+                className="px-2.5 py-1 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-white border border-slate-300 rounded-lg cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="p-5 overflow-y-auto space-y-5 flex-1">
+              {selfSubmitError && (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-800">
+                  {selfSubmitError}
+                </div>
+              )}
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-800 mb-1">
+                    Past Paper / Exercise Title *
+                  </label>
+                  <input
+                    type="text"
+                    value={selfPaperTitle}
+                    onChange={(e) => setSelfPaperTitle(e.target.value)}
+                    placeholder="e.g., KPSEA 2025 Revision Paper 1 or Topic 4 Practice"
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-800 mb-1">
+                    Notes / Instructions for Teacher (Optional)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={selfPaperNotes}
+                    onChange={(e) => setSelfPaperNotes(e.target.value)}
+                    placeholder="Add source of the past paper, any working notes, or questions you want feedback on..."
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+
+              {/* Section 1: Upload Documents or Pictures (All Formats) */}
+              <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                      <Paperclip className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Upload Documents or Photos (All Formats)</span>
+                    </h4>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Supports PDF, Word (.doc/.docx), PowerPoint (.ppt/.pptx), Excel (.xls/.xlsx), Text, and all Image formats (JPG, PNG, WEBP, HEIC, etc.).
+                    </p>
+                  </div>
+                  <label className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg cursor-pointer shrink-0">
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Choose Files / Photos</span>
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.rtf,.odt,.ods,.odp,.csv"
+                      onChange={handleSelfFilesSelected}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+
+                {selfAttachments.length > 0 && (
+                  <div className="space-y-2 pt-1">
+                    {selfAttachments.map((att) => {
+                      const isImg = att.mimeType.startsWith('image/');
+                      return (
+                        <div
+                          key={att.id}
+                          className="flex items-center justify-between gap-2 p-2 bg-white border border-slate-200 rounded-lg text-xs"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            {isImg ? (
+                              <img
+                                src={att.dataUrl}
+                                alt={att.name}
+                                className="w-9 h-9 rounded object-cover border border-slate-200 shrink-0"
+                              />
+                            ) : (
+                              <div className="w-9 h-9 rounded bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
+                                <FileText className="w-4 h-4 text-indigo-600" />
+                              </div>
+                            )}
+                            <div className="min-w-0">
+                              <p className="font-semibold text-slate-900 truncate">{att.name}</p>
+                              <p className="text-[10px] text-slate-500">
+                                {isImg ? 'Image' : 'Document'} · {(att.sizeBytes / 1024).toFixed(0)} KB
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setSelfAttachments((prev) => prev.filter((item) => item.id !== att.id))
+                            }
+                            className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer"
+                            title="Remove file"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Section 2: Type Questions & Fill Answers / Select Choices */}
+              <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-900">
+                      Or Type Questions &amp; Fill Your Answers
+                    </h4>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Add Multiple Choice or Written questions from your paper. Every added question must be answered before submitting.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => addSelfQuestion('mcq')}
+                      className="px-2.5 py-1.5 text-[11px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg cursor-pointer"
+                    >
+                      + Multiple Choice
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => addSelfQuestion('text')}
+                      className="px-2.5 py-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg cursor-pointer"
+                    >
+                      + Written Question
+                    </button>
+                  </div>
+                </div>
+
+                {selfQuestions.length > 0 && (
+                  <div className="space-y-3 pt-1">
+                    {selfQuestions.map((q, idx) => (
+                      <div
+                        key={q.id}
+                        className="p-3 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2.5"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[11px] font-bold text-slate-800">
+                            Question {idx + 1} ({q.type === 'mcq' ? 'Multiple Choice' : 'Written / Calculation'})
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <label className="text-[10px] font-semibold text-slate-600 flex items-center gap-1">
+                              Marks:
+                              <input
+                                type="number"
+                                min={1}
+                                max={50}
+                                value={q.marks}
+                                onChange={(e) =>
+                                  updateSelfQuestion(q.id, { marks: Math.max(1, Number(e.target.value) || 1) })
+                                }
+                                className="w-12 px-1.5 py-0.5 text-[11px] bg-white border border-slate-300 rounded"
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => removeSelfQuestion(q.id)}
+                              className="p-1 text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
+                              title="Remove question"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+
+                        <textarea
+                          rows={2}
+                          value={q.prompt}
+                          onChange={(e) => updateSelfQuestion(q.id, { prompt: e.target.value })}
+                          placeholder={`Type Question ${idx + 1} here...`}
+                          className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+                        />
+
+                        {q.type === 'mcq' ? (
+                          <div className="space-y-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {(['A', 'B', 'C', 'D'] as const).map((optKey) => {
+                                const isSelected = selfAnswers[q.id] === optKey;
+                                return (
+                                  <div
+                                    key={optKey}
+                                    className={`flex items-center gap-1.5 p-1.5 rounded-lg border ${
+                                      isSelected
+                                        ? 'bg-indigo-50 border-indigo-500'
+                                        : 'bg-white border-slate-200'
+                                    }`}
+                                  >
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setSelfAnswers((prev) => ({ ...prev, [q.id]: optKey }))
+                                      }
+                                      className={`w-6 h-6 rounded-md text-xs font-bold shrink-0 cursor-pointer ${
+                                        isSelected
+                                          ? 'bg-indigo-600 text-white'
+                                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                                      }`}
+                                      title={`Select ${optKey} as your answer`}
+                                    >
+                                      {optKey}
+                                    </button>
+                                    <input
+                                      type="text"
+                                      value={q.options?.[optKey] || ''}
+                                      onChange={(e) =>
+                                        updateSelfQuestion(q.id, {
+                                          options: {
+                                            A: q.options?.A || '',
+                                            B: q.options?.B || '',
+                                            C: q.options?.C || '',
+                                            D: q.options?.D || '',
+                                            [optKey]: e.target.value,
+                                          },
+                                        })
+                                      }
+                                      placeholder={`Option ${optKey}`}
+                                      className="w-full text-xs bg-transparent focus:outline-none"
+                                    />
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            <p className="text-[11px] font-semibold text-indigo-700">
+                              Selected Answer:{' '}
+                              {selfAnswers[q.id]
+                                ? `Option ${selfAnswers[q.id]}`
+                                : 'Click A, B, C, or D button to select your answer *'}
+                            </p>
+                          </div>
+                        ) : (
+                          <div>
+                            <label className="block text-[11px] font-bold text-emerald-800 mb-1">
+                              Your Answer / Working *
+                            </label>
+                            <textarea
+                              rows={2}
+                              value={selfAnswers[q.id] || ''}
+                              onChange={(e) =>
+                                setSelfAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))
+                              }
+                              placeholder="Fill in your answer or step-by-step working here..."
+                              className="w-full px-2.5 py-1.5 text-xs bg-white border border-emerald-300 rounded-lg font-mono"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="px-5 py-3.5 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsSelfSubmitOpen(false)}
+                className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isSelfSubmitting}
+                onClick={handleConfirmSelfPaperSubmit}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-lg shadow-xs cursor-pointer"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>{isSelfSubmitting ? 'Submitting...' : 'Submit to Teacher for Marking'}</span>
+              </button>
             </div>
           </div>
         </div>

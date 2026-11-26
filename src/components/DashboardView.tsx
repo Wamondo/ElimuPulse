@@ -1208,7 +1208,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   (s.status === 'submitted' ||
                     Boolean(s.submittedAt) ||
                     Object.keys(s.answers || {}).length > 0 ||
-                    Object.keys(s.sketchAttachments || {}).length > 0)
+                    Object.keys(s.sketchAttachments || {}).length > 0 || (s.attachments || []).length > 0)
               );
               if (subs.length === 0) return a.status === 'todo';
               return hasPendingSub || a.status === 'todo';
@@ -1836,6 +1836,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                 <div>
                                   <div className="flex flex-wrap items-center gap-1.5">
                                     <p className="text-xs font-bold text-slate-900">{item.title}</p>
+                                    {item.isSelfSubmitted && (
+                                      <span className="px-1.5 py-0.5 text-[10px] font-bold bg-purple-100 text-purple-800 rounded">
+                                        Self-Submitted Past Paper
+                                      </span>
+                                    )}
                                     <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-slate-100 text-slate-700 rounded">
                                       {(item.questions || []).length} Qs · {totalMarks} Marks
                                     </span>
@@ -2241,7 +2246,44 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                               {activeSub.generalResponse || (activeSub.sketchAttachments?.['_general'] ? 'Submitted via uploaded written paper photo.' : 'No written text submitted.')}
                                             </p>
                                           </div>
-                                          {activeSub.sketchAttachments?.['_general'] && (
+                                          {(activeSub.attachments || []).length > 0 && (
+                                            <div className="p-2 bg-indigo-50/60 border border-indigo-200 rounded-lg space-y-2">
+                                              <p className="text-[10px] font-bold text-indigo-950">
+                                                Learner Uploaded Files &amp; Photos ({activeSub.attachments!.length}):
+                                              </p>
+                                              <div className="space-y-2">
+                                                {activeSub.attachments!.map((att) => {
+                                                  const isImg = att.mimeType.startsWith("image/");
+                                                  return (
+                                                    <div key={att.id} className="p-2 bg-white border border-indigo-200 rounded space-y-1.5">
+                                                      <div className="flex items-center justify-between gap-2">
+                                                        <span className="text-[11px] font-semibold text-slate-900 truncate">
+                                                          {att.name} ({(att.sizeBytes / 1024).toFixed(0)} KB)
+                                                        </span>
+                                                        <a
+                                                          href={att.dataUrl}
+                                                          download={att.name}
+                                                          target="_blank"
+                                                          rel="noreferrer"
+                                                          className="px-2 py-0.5 text-[10px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded shrink-0"
+                                                        >
+                                                          Open / Download
+                                                        </a>
+                                                      </div>
+                                                      {isImg && (
+                                                        <img
+                                                          src={att.dataUrl}
+                                                          alt={att.name}
+                                                          className="max-h-60 w-auto rounded border border-slate-200 bg-white object-contain"
+                                                        />
+                                                      )}
+                                                    </div>
+                                                  );
+                                                })}
+                                              </div>
+                                            </div>
+                                          )}
+                                          {!(activeSub.attachments || []).length && activeSub.sketchAttachments?.['_general'] && (
                                             <div className="p-2 bg-amber-50/50 border border-amber-200 rounded-lg space-y-1">
                                               <p className="text-[10px] font-bold text-amber-950">
                                                 Uploaded Written Paper Work:

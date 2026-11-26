@@ -26,6 +26,14 @@ export interface CalculationStepAnnotation {
   mistakeNote?: string;
 }
 
+export interface SubmissionFileAttachment {
+  id: string;
+  name: string;
+  mimeType: string;
+  sizeBytes: number;
+  dataUrl: string;
+}
+
 export interface LearnerAssignmentSubmission {
   learnerId: string;
   learnerName: string;
@@ -33,6 +41,7 @@ export interface LearnerAssignmentSubmission {
   grade: string;
   answers: Record<string, string>;
   sketchAttachments?: Record<string, string>;
+  attachments?: SubmissionFileAttachment[];
   stepAnnotations?: Record<string, CalculationStepAnnotation[]>;
   generalResponse?: string;
   autoScore: number;
@@ -82,6 +91,9 @@ export interface LearningAreaAssignmentItem {
   questions?: AssignmentQuestion[];
   totalMarks?: number;
   submissions?: Record<string, LearnerAssignmentSubmission>;
+  isSelfSubmitted?: boolean;
+  submittedByLearnerId?: string;
+  submittedByLearnerName?: string;
   createdAt: string;
 }
 
