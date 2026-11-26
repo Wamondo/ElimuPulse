@@ -245,9 +245,9 @@ export const LearnerLearningAreasView: React.FC = () => {
     for (let i = 0; i < fileList.length; i++) {
       const file = fileList[i];
       const isImage = file.type.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|bmp|heic|heif|svg)$/i.test(file.name);
-      const maxBytes = isImage ? 12 * 1024 * 1024 : 3.5 * 1024 * 1024;
+      const maxBytes = 15 * 1024 * 1024;
       if (file.size > maxBytes) {
-        setSelfSubmitError(`"${file.name}" exceeds the ${isImage ? '12 MB image' : '3.5 MB document'} upload limit.`);
+        setSelfSubmitError(`"${file.name}" exceeds the 15 MB file upload limit.`);
         continue;
       }
       const rawDataUrl: string = await new Promise((resolve, reject) => {

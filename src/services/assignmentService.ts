@@ -178,21 +178,6 @@ export async function saveAssignmentsAsync(
       writes.push(
         set(ref(rtdb, `${RTDB_ASSIGNMENTS_PATH}/${encodeURIComponent(item.id)}`), cleanItem)
       );
-      if (item.submissions && typeof item.submissions === 'object') {
-        for (const [learnerId, sub] of Object.entries(item.submissions)) {
-          if (sub && learnerId) {
-            writes.push(
-              set(
-                ref(
-                  rtdb,
-                  `${RTDB_ASSIGNMENTS_PATH}/${encodeURIComponent(item.id)}/submissions/${encodeURIComponent(learnerId)}`
-                ),
-                sanitizeForFirebase(sub)
-              )
-            );
-          }
-        }
-      }
     }
     await Promise.all(writes);
     return { synced: true };
