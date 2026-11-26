@@ -34,12 +34,47 @@ interface InlineSubmissionReaderProps {
 
 type ParsedDocContent =
   | { kind: 'image' }
-  | { kind: 'pdf'; lines: string[]; blobUrl: string }
+  | { kind: 'pdf-pages'; pages: string[]; totalPages: number; blobUrl: string; fallbackMessage?: string }
   | { kind: 'lines'; label: string; lines: string[] }
   | { kind: 'slides'; slides: { title: string; lines: string[] }[] }
   | { kind: 'table'; sheetName: string; rows: string[][] };
 
 const STAMP_CHOICES: RedInkStamp[] = ['✓', 'M1', 'M2', 'A1', 'A2', '✗'];
+
+const PDFJS_CDN_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174';
+let pdfJsLoadPromise: Promise<any> | null = null;
+
+function loadPdfJsFromCdn(): Promise<any> {
+  if (typeof window === 'undefined') return Promise.reject(new Error('No window'));
+  const w = window as any;
+  if (w.pdfjsLib) {
+    w.pdfjsLib.GlobalWorkerOptions.workerSrc = `${PDFJS_CDN_BASE}/pdf.worker.min.js`;
+    return Promise.resolve(w.pdfjsLib);
+  }
+  if (!pdfJsLoadPromise) {
+    pdfJsLoadPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = `${PDFJS_CDN_BASE}/pdf.min.js`;
+      script.async = true;
+      script.onload = () => {
+        const lib = (window as any).pdfjsLib;
+        if (lib) {
+          lib.GlobalWorkerOptions.workerSrc = `${PDFJS_CDN_BASE}/pdf.worker.min.js`;
+          resolve(lib);
+        } else {
+          pdfJsLoadPromise = null;
+          reject(new Error('PDF.js failed to initialize'));
+        }
+      };
+      script.onerror = () => {
+        pdfJsLoadPromise = null;
+        reject(new Error('Network error loading PDF renderer'));
+      };
+      document.head.appendChild(script);
+    });
+  }
+  return pdfJsLoadPromise;
+}
 
 function dataUrlToBytes(dataUrl: string): Uint8Array {
   const commaIdx = dataUrl.indexOf(',');
@@ -83,6 +118,7 @@ function decodeXml(str: string): string {
     .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
 }
 
+
 async function unpackZipEntries(bytes: Uint8Array): Promise<Record<string, Uint8Array>> {
   const map: Record<string, Uint8Array> = {};
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -111,7 +147,6 @@ async function unpackZipEntries(bytes: Uint8Array): Promise<Record<string, Uint8
         scan++;
       }
     }
-
 
     const dataEnd = dataStart + compSize;
     if (dataEnd > bytes.length || compSize === 0) {
@@ -246,86 +281,39 @@ function parseXlsxSheet(entries: Record<string, Uint8Array>): string[][] {
   return rows;
 }
 
-function decodePdfLiteralString(raw: string): string {
-  return raw
-    .replace(/\\n/g, '\n')
-    .replace(/\\r/g, '')
-    .replace(/\\t/g, ' ')
-    .replace(/\\\(/g, '(')
-    .replace(/\\\)/g, ')')
-    .replace(/\\\\/g, '\\')
-    .replace(/\\([0-7]{1,3})/g, (_, oct) => String.fromCharCode(parseInt(oct, 8)));
-}
 
-function extractTextFromPdfContentStream(streamText: string): string[] {
-  const lines: string[] = [];
-  const btBlocks = streamText.match(/BT[\s\S]*?ET/g) || [];
-  for (const block of btBlocks) {
-    const parts: string[] = [];
-    const tokens = block.matchAll(/\((?:\\.|[^\\()])*\)\s*Tj|\[((?:\\.|[^\]])*)\]\s*TJ/g);
-    for (const tok of tokens) {
-      if (tok[1] !== undefined) {
-        const inner = Array.from(tok[1].matchAll(/\(((?:\\.|[^\\()])*)\)/g)).map((m) =>
-          decodePdfLiteralString(m[1])
-        );
-        parts.push(inner.join(''));
-      } else {
-        const lit = tok[0].match(/^\(((?:\\.|[^\\()])*)\)/);
-        if (lit) parts.push(decodePdfLiteralString(lit[1]));
-      }
-    }
-    const joined = parts
-      .join(' ')
-      .replace(/[^\x20-\x7E\n]/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-    if (joined.length >= 2 && /[A-Za-z0-9]/.test(joined)) {
-      lines.push(joined);
-    }
-  }
-  return lines;
-}
+async function renderPdfPagesVisual(
+  bytes: Uint8Array,
+  maxPages = 25
+): Promise<{ pages: string[]; totalPages: number }> {
+  const pdfjsLib = await loadPdfJsFromCdn();
+  const loadingTask = pdfjsLib.getDocument({ data: bytes });
+  const pdf = await loadingTask.promise;
+  const totalPages = pdf.numPages;
+  const count = Math.min(totalPages, maxPages);
+  const pages: string[] = [];
 
+  for (let pageNum = 1; pageNum <= count; pageNum++) {
+    const page = await pdf.getPage(pageNum);
+    const baseViewport = page.getViewport({ scale: 1 });
+    const targetWidth = 1050;
+    const scale = Math.min(2.0, Math.max(1.2, targetWidth / Math.max(1, baseViewport.width)));
+    const viewport = page.getViewport({ scale });
 
-async function extractPdfLinesAsync(bytes: Uint8Array): Promise<string[]> {
-  const latin1 = new TextDecoder('latin1').decode(bytes);
-  const extracted: string[] = [];
-  const streamRegex = /<<([\s\S]*?)>>\s*stream\r?\n/g;
-  let match: RegExpExecArray | null;
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.floor(viewport.width);
+    canvas.height = Math.floor(viewport.height);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) continue;
 
-  while ((match = streamRegex.exec(latin1)) !== null) {
-    const dict = match[1] || '';
-    if (/\/Subtype\s*\/Image\b/i.test(dict)) continue;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    const startIdx = match.index + match[0].length;
-    const endIdx = latin1.indexOf('endstream', startIdx);
-    if (endIdx === -1) break;
-
-    let rawSlice = bytes.slice(startIdx, endIdx);
-    if (rawSlice.length > 0 && rawSlice[rawSlice.length - 1] === 0x0a) {
-      rawSlice = rawSlice.slice(0, -1);
-    }
-    if (rawSlice.length > 0 && rawSlice[rawSlice.length - 1] === 0x0d) {
-      rawSlice = rawSlice.slice(0, -1);
-    }
-
-    let decodedText = '';
-    if (/\/FlateDecode\b/i.test(dict)) {
-      const inflated = await inflateBytes(rawSlice);
-      if (inflated) {
-        decodedText = new TextDecoder('latin1').decode(inflated);
-      }
-    } else if (!/\/Filter\b/i.test(dict)) {
-      decodedText = new TextDecoder('latin1').decode(rawSlice);
-    }
-
-    if (decodedText && decodedText.includes('BT')) {
-      extracted.push(...extractTextFromPdfContentStream(decodedText));
-    }
-    streamRegex.lastIndex = endIdx + 9;
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    pages.push(canvas.toDataURL('image/jpeg', 0.86));
   }
 
-  return extracted.slice(0, 350);
+  return { pages, totalPages };
 }
 
 export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
@@ -369,19 +357,27 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
         if (mime === 'application/pdf' || lowerName.endsWith('.pdf')) {
           const blob = new Blob([bytes], { type: 'application/pdf' });
           createdBlobUrl = URL.createObjectURL(blob);
-          const pdfLines = await extractPdfLinesAsync(bytes);
-          if (!cancelled) {
-            setParsedContent({
-              kind: 'pdf',
-              blobUrl: createdBlobUrl,
-              lines:
-                pdfLines.length > 0
-                  ? pdfLines
-                  : [
-                      'This PDF uses scanned page images or custom font encoding.',
-                      'Tap "Open Full PDF" above to view every page clearly on your phone, or tap anywhere on this sheet to stamp your red-ink marks.',
-                    ],
-            });
+          try {
+            const rendered = await renderPdfPagesVisual(bytes, 25);
+            if (!cancelled) {
+              setParsedContent({
+                kind: 'pdf-pages',
+                pages: rendered.pages,
+                totalPages: rendered.totalPages,
+                blobUrl: createdBlobUrl,
+              });
+            }
+          } catch {
+            if (!cancelled) {
+              setParsedContent({
+                kind: 'pdf-pages',
+                pages: [],
+                totalPages: 0,
+                blobUrl: createdBlobUrl,
+                fallbackMessage:
+                  'Could not load the visual page renderer (check internet connection), or tap "Open Full PDF" above to view the original pages.',
+              });
+            }
           }
           return;
         }
@@ -410,7 +406,6 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
             return;
           }
         }
-
 
         if (lowerName.endsWith('.xlsx') || mime.includes('spreadsheetml')) {
           const entries = await unpackZipEntries(bytes);
@@ -468,6 +463,7 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
           .map((l) => l.replace(/[^\x20-\x7E\u00A0-\u024F]/g, ' ').trim())
           .filter((l) => l.length > 1)
           .slice(0, 300);
+
 
         if (!cancelled) {
           setParsedContent({
@@ -547,7 +543,6 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
         </span>
       );
     });
-
 
   return (
     <div
@@ -629,6 +624,7 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
               ))}
             </div>
 
+
             {currentPins.length > 0 && (
               <div className="flex items-center gap-1">
                 <button
@@ -654,12 +650,12 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
 
         <div
           className={`p-3 bg-white overflow-y-auto ${
-            isExpanded ? 'flex-1' : 'max-h-[460px]'
+            isExpanded ? 'flex-1' : 'max-h-[480px]'
           }`}
         >
           {isLoading ? (
             <div className="py-10 text-center text-xs font-semibold text-slate-500">
-              Decoding {current.name} inline...
+              Rendering {current.name} pages as-is...
             </div>
           ) : parsedContent?.kind === 'image' ? (
             <div className="space-y-1.5">
@@ -682,13 +678,21 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
                 {renderOverlayPins()}
               </div>
             </div>
-          ) : parsedContent?.kind === 'pdf' ? (
+          ) : parsedContent?.kind === 'pdf-pages' ? (
             <div className="space-y-2">
               <div className="flex flex-wrap items-center justify-between gap-2 bg-indigo-50/70 border border-indigo-200 rounded-lg px-2.5 py-1.5">
                 <span className="text-[10px] font-bold text-indigo-900">
-                  {!readOnly
-                    ? `Tap exact spot on paper to place (${activeStamp}) · Tap stamp to remove`
-                    : 'PDF Markable Script View'}
+                  {parsedContent.pages.length > 0
+                    ? `PDF (${parsedContent.pages.length}${
+                        parsedContent.totalPages > parsedContent.pages.length
+                          ? ` of ${parsedContent.totalPages}`
+                          : ''
+                      } Pages) · ${
+                        !readOnly
+                          ? `Tap exact spot to place (${activeStamp}) · Tap stamp to remove`
+                          : 'Marked Script'
+                      }`
+                    : 'PDF Document'}
                 </span>
                 <a
                   href={parsedContent.blobUrl}
@@ -701,24 +705,36 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
                 </a>
               </div>
 
-              <div
-                onClick={handleExactTapStamp}
-                className={`relative border border-slate-300 rounded-lg bg-white p-4 shadow-2xs space-y-2.5 ${
-                  readOnly ? '' : 'cursor-crosshair'
-                }`}
-              >
-                {parsedContent.lines.map((line, lIdx) => (
-                  <p
-                    key={lIdx}
-                    className="text-xs text-slate-900 whitespace-pre-wrap leading-relaxed font-sans"
-                  >
-                    {line}
-                  </p>
-                ))}
-                {renderOverlayPins()}
-              </div>
+              {parsedContent.pages.length > 0 ? (
+                <div
+                  onClick={handleExactTapStamp}
+                  className={`relative border border-slate-300 rounded-lg bg-slate-200/70 p-2 space-y-3 ${
+                    readOnly ? '' : 'cursor-crosshair'
+                  }`}
+                >
+                  {parsedContent.pages.map((pageUrl, pageIdx) => (
+                    <div
+                      key={pageIdx}
+                      className="relative bg-white rounded shadow-sm border border-slate-300 overflow-hidden"
+                    >
+                      <div className="px-2 py-0.5 bg-slate-100 border-b border-slate-200 text-[9px] font-bold text-slate-500">
+                        Page {pageIdx + 1} of {parsedContent.totalPages}
+                      </div>
+                      <img
+                        src={pageUrl}
+                        alt={`${current.name} - Page ${pageIdx + 1}`}
+                        className="w-full h-auto block select-none"
+                      />
+                    </div>
+                  ))}
+                  {renderOverlayPins()}
+                </div>
+              ) : (
+                <div className="p-4 rounded-lg border border-slate-300 bg-slate-50 text-xs text-slate-700">
+                  {parsedContent.fallbackMessage}
+                </div>
+              )}
             </div>
-
           ) : parsedContent?.kind === 'slides' ? (
             <div className="space-y-1.5">
               <p className="text-[10px] font-bold text-slate-500 flex items-center gap-1">
