@@ -1,3 +1,4 @@
+import { InlineSubmissionReader, ReaderAttachmentItem, StampedPin } from './InlineSubmissionReader';
 import { DiagramSketchModal } from './DiagramSketchModal';
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
@@ -2246,55 +2247,61 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                               {activeSub.generalResponse || (activeSub.sketchAttachments?.['_general'] ? 'Submitted via uploaded written paper photo.' : 'No written text submitted.')}
                                             </p>
                                           </div>
-                                          {(activeSub.attachments || []).length > 0 && (
-                                            <div className="p-2 bg-indigo-50/60 border border-indigo-200 rounded-lg space-y-2">
-                                              <p className="text-[10px] font-bold text-indigo-950">
-                                                Learner Uploaded Files &amp; Photos ({activeSub.attachments!.length}):
-                                              </p>
-                                              <div className="space-y-2">
-                                                {activeSub.attachments!.map((att) => {
-                                                  const isImg = att.mimeType.startsWith("image/");
-                                                  return (
-                                                    <div key={att.id} className="p-2 bg-white border border-indigo-200 rounded space-y-1.5">
-                                                      <div className="flex items-center justify-between gap-2">
-                                                        <span className="text-[11px] font-semibold text-slate-900 truncate">
-                                                          {att.name} ({(att.sizeBytes / 1024).toFixed(0)} KB)
-                                                        </span>
-                                                        <a
-                                                          href={att.dataUrl}
-                                                          download={att.name}
-                                                          target="_blank"
-                                                          rel="noreferrer"
-                                                          className="px-2 py-0.5 text-[10px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded shrink-0"
-                                                        >
-                                                          Open / Download
-                                                        </a>
-                                                      </div>
-                                                      {isImg && (
-                                                        <img
-                                                          src={att.dataUrl}
-                                                          alt={att.name}
-                                                          className="max-h-60 w-auto rounded border border-slate-200 bg-white object-contain"
-                                                        />
-                                                      )}
-                                                    </div>
-                                                  );
-                                                })}
-                                              </div>
-                                            </div>
-                                          )}
-                                          {!(activeSub.attachments || []).length && activeSub.sketchAttachments?.['_general'] && (
-                                            <div className="p-2 bg-amber-50/50 border border-amber-200 rounded-lg space-y-1">
-                                              <p className="text-[10px] font-bold text-amber-950">
-                                                Uploaded Written Paper Work:
-                                              </p>
-                                              <img
-                                                src={activeSub.sketchAttachments['_general']}
-                                                alt="Learner written paper work"
-                                                className="max-h-60 w-auto rounded border border-amber-300 bg-white object-contain"
+                                          {((activeSub.attachments || []).length > 0 || activeSub.sketchAttachments?.['_general']) && (() => {
+                                            const readerItems: ReaderAttachmentItem[] =
+                                              (activeSub.attachments || []).length > 0
+                                                ? activeSub.attachments!
+                                                : [
+                                                    {
+                                                      id: '_general',
+                                                      name: 'Uploaded Written Paper',
+                                                      mimeType: 'image/jpeg',
+                                                      dataUrl: activeSub.sketchAttachments!['_general'],
+                                                    },
+                                                  ];
+                                            const currentReaderAnns: Record<string, StampedPin[]> = {};
+                                            readerItems.forEach((att) => {
+                                              const k = `${item.id}:${activeSub.learnerId}:att_${att.id}`;
+                                              currentReaderAnns[att.id] =
+                                                (stepMarksDraft[k] as StampedPin[]) ||
+                                                (activeSub.stepAnnotations?.[`att_${att.id}`] as StampedPin[]) ||
+                                                [];
+                                            });
+                                            return (
+                                              <InlineSubmissionReader
+                                                attachments={readerItems}
+                                                annotationsByKey={currentReaderAnns}
+                                                activeStamp={activePaperStamp}
+                                                onSelectStamp={(st) => setActivePaperStamp(st)}
+                                                onUpdateAnnotations={(attId, nextPins) => {
+                                                  const k = `${item.id}:${activeSub.learnerId}:att_${attId}`;
+                                                  const updatedDraft = {
+                                                    ...stepMarksDraft,
+                                                    [k]: nextPins,
+                                                  };
+                                                  setStepMarksDraft(updatedDraft);
+                                                  let stampedMarks = 0;
+                                                  (item.questions || []).forEach((qq) => {
+                                                    const qk = `${item.id}:${activeSub.learnerId}:${qq.id}`;
+                                                    const anns = updatedDraft[qk] || activeSub.stepAnnotations?.[qq.id] || [];
+                                                    anns.forEach((stItem) => {
+                                                      if (stItem?.stamp === 'M1' || stItem?.stamp === 'A1' || stItem?.stamp === '✓') stampedMarks += 1;
+                                                      if (stItem?.stamp === 'M2' || stItem?.stamp === 'A2') stampedMarks += 2;
+                                                    });
+                                                  });
+                                                  readerItems.forEach((att) => {
+                                                    const ak = `${item.id}:${activeSub.learnerId}:att_${att.id}`;
+                                                    const anns = updatedDraft[ak] || activeSub.stepAnnotations?.[`att_${att.id}`] || [];
+                                                    anns.forEach((stItem) => {
+                                                      if (stItem?.stamp === 'M1' || stItem?.stamp === 'A1' || stItem?.stamp === '✓') stampedMarks += 1;
+                                                      if (stItem?.stamp === 'M2' || stItem?.stamp === 'A2') stampedMarks += 2;
+                                                    });
+                                                  });
+                                                  setMarkScoreInput(`${Math.min(stampedMarks, totalMarks)}/${totalMarks}`);
+                                                }}
                                               />
-                                            </div>
-                                          )}
+                                            );
+                                          })()}
                                         </div>
                                       )}
 
@@ -2330,6 +2337,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                                 const k = `${item.id}:${activeSub.learnerId}:${qq.id}`;
                                                 if (stepMarksDraft[k]) {
                                                   mergedStepAnnotations[qq.id] = stepMarksDraft[k];
+                                                }
+                                              });
+                                              Object.entries(stepMarksDraft).forEach(([draftKey, anns]) => {
+                                                const prefix = `${item.id}:${activeSub.learnerId}:att_`;
+                                                if (draftKey.startsWith(prefix)) {
+                                                  const annKey = draftKey.slice(`${item.id}:${activeSub.learnerId}:`.length);
+                                                  mergedStepAnnotations[annKey] = anns;
                                                 }
                                               });
                                               nextSubs[activeSub.learnerId] = {
