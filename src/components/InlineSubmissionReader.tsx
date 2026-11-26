@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { jsPDF } from 'jspdf';
 import {
   FileText,
   Image as ImageIcon,
@@ -39,7 +40,14 @@ type ParsedDocContent =
   | { kind: 'slides'; slides: { title: string; lines: string[] }[] }
   | { kind: 'table'; sheetName: string; rows: string[][] };
 
-const STAMP_CHOICES: RedInkStamp[] = ['✓', '✓✓', '✗', 'M1', 'M2', 'M3', 'M0', 'A1', 'A2', 'A3', 'A0', 'B1', 'B2', 'B3', 'B0', 'C1', 'S1', 'P1', 'L1', 'CAO', 'FT', 'BOD', '^'];
+const STAMP_CHOICES: RedInkStamp[] = [
+  '✓', '✓✓', '✗',
+  'M1', 'M2', 'M3', 'M0',
+  'A1', 'A2', 'A3', 'A0',
+  'B1', 'B2', 'B3', 'B0',
+  'C1', 'S1', 'P1', 'L1',
+  'CAO', 'FT', 'BOD', '^',
+];
 
 const PDFJS_CDN_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174';
 let pdfJsLoadPromise: Promise<any> | null = null;
@@ -118,7 +126,6 @@ function decodeXml(str: string): string {
     .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
 }
 
-
 async function unpackZipEntries(bytes: Uint8Array): Promise<Record<string, Uint8Array>> {
   const map: Record<string, Uint8Array> = {};
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -156,6 +163,7 @@ async function unpackZipEntries(bytes: Uint8Array): Promise<Record<string, Uint8
       }
       break;
     }
+
 
     const name = decoder.decode(bytes.slice(nameStart, nameStart + nameLen));
     const slice = bytes.slice(dataStart, dataEnd);
@@ -281,7 +289,6 @@ function parseXlsxSheet(entries: Record<string, Uint8Array>): string[][] {
   return rows;
 }
 
-
 async function renderPdfPagesVisual(
   bytes: Uint8Array,
   maxPages = 25
@@ -316,6 +323,118 @@ async function renderPdfPagesVisual(
   return { pages, totalPages };
 }
 
+function loadHtmlImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Failed to load page image'));
+    img.src = src;
+  });
+}
+
+
+function drawRedInkMarkOnCanvas(
+  ctx: CanvasRenderingContext2D,
+  stamp: string,
+  cx: number,
+  cy: number,
+  canvasWidth: number
+) {
+  const isSymbol = stamp === '✓' || stamp === '✓✓' || stamp === '✗';
+  const fontSize = Math.max(20, Math.round(canvasWidth * (isSymbol ? 0.036 : 0.025)));
+  ctx.save();
+  ctx.font = `900 ${fontSize}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineWidth = Math.max(3, Math.round(fontSize * 0.16));
+  ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+  ctx.strokeText(stamp, cx, cy);
+  ctx.fillStyle = '#dc2626';
+  ctx.fillText(stamp, cx, cy);
+  ctx.restore();
+}
+
+async function buildMarkedPdfBlobUrl(
+  pageUrls: string[],
+  pins: StampedPin[]
+): Promise<string> {
+  const loadedPages = await Promise.all(pageUrls.map(loadHtmlImage));
+  if (loadedPages.length === 0) throw new Error('No pages to export');
+
+  const pageHeights = loadedPages.map((img) => img.naturalHeight || img.height || 1400);
+  const totalHeight = pageHeights.reduce((acc, h) => acc + h, 0);
+
+  let pdf: jsPDF | null = null;
+  let cumulativeY = 0;
+
+  for (let i = 0; i < loadedPages.length; i++) {
+    const img = loadedPages[i];
+    const w = img.naturalWidth || img.width || 1050;
+    const h = pageHeights[i];
+
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) continue;
+
+    ctx.drawImage(img, 0, 0, w, h);
+
+    // Draw every pin whose global Y falls on this page slice
+    for (const pin of pins) {
+      const leftPct = typeof pin.x === 'number' ? pin.x : 88;
+      const topPct =
+        typeof pin.y === 'number'
+          ? pin.y
+          : typeof pin.lineIndex === 'number'
+          ? Math.min(96, 6 + pin.lineIndex * 5)
+          : 15;
+      const globalY = (topPct / 100) * totalHeight;
+      if (globalY >= cumulativeY && globalY <= cumulativeY + h) {
+        const localX = (leftPct / 100) * w;
+        const localY = globalY - cumulativeY;
+        drawRedInkMarkOnCanvas(ctx, pin.stamp, localX, localY, w);
+      }
+    }
+
+    const stampedDataUrl = canvas.toDataURL('image/jpeg', 0.88);
+    const orientation = w > h ? 'l' : 'p';
+    if (!pdf) {
+      pdf = new jsPDF({ orientation, unit: 'px', format: [w, h], compress: true });
+    } else {
+      pdf.addPage([w, h], orientation);
+    }
+    pdf.addImage(stampedDataUrl, 'JPEG', 0, 0, w, h);
+    cumulativeY += h;
+  }
+
+  if (!pdf) throw new Error('PDF generation failed');
+  const blob = pdf.output('blob');
+  return URL.createObjectURL(blob);
+}
+
+async function buildMarkedImageDataUrl(
+  imageDataUrl: string,
+  pins: StampedPin[]
+): Promise<string> {
+  const img = await loadHtmlImage(imageDataUrl);
+  const w = img.naturalWidth || img.width || 1000;
+  const h = img.naturalHeight || img.height || 1000;
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return imageDataUrl;
+
+  ctx.drawImage(img, 0, 0, w, h);
+  for (const pin of pins) {
+    const leftPct = typeof pin.x === 'number' ? pin.x : 88;
+    const topPct = typeof pin.y === 'number' ? pin.y : 15;
+    drawRedInkMarkOnCanvas(ctx, pin.stamp, (leftPct / 100) * w, (topPct / 100) * h, w);
+  }
+  return canvas.toDataURL('image/jpeg', 0.9);
+}
+
 export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
   attachments,
   annotationsByKey,
@@ -328,6 +447,7 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
   const [parsedContent, setParsedContent] = useState<ParsedDocContent | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isExportingMarked, setIsExportingMarked] = useState(false);
 
   const safeIdx = Math.min(selectedIdx, Math.max(0, attachments.length - 1));
   const current = attachments[safeIdx];
@@ -429,6 +549,7 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
           return;
         }
 
+
         if (/\.(odt|odp|ods)$/.test(lowerName)) {
           const entries = await unpackZipEntries(bytes);
           const contentXml = entries['content.xml'];
@@ -463,7 +584,6 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
           .map((l) => l.replace(/[^\x20-\x7E\u00A0-\u024F]/g, ' ').trim())
           .filter((l) => l.length > 1)
           .slice(0, 300);
-
 
         if (!cancelled) {
           setParsedContent({
@@ -502,6 +622,59 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
 
   if (!current) return null;
 
+  const handleDownloadOrOpenMarked = async (mode: 'download' | 'open') => {
+    setIsExportingMarked(true);
+    try {
+      if (parsedContent?.kind === 'pdf-pages' && parsedContent.pages.length > 0) {
+        if (currentPins.length === 0) {
+          if (mode === 'open') {
+            window.open(parsedContent.blobUrl, '_blank', 'noopener,noreferrer');
+          } else {
+            const a = document.createElement('a');
+            a.href = current.dataUrl;
+            a.download = current.name;
+            a.click();
+          }
+          return;
+        }
+        const markedPdfUrl = await buildMarkedPdfBlobUrl(parsedContent.pages, currentPins);
+        if (mode === 'open') {
+          window.open(markedPdfUrl, '_blank', 'noopener,noreferrer');
+        } else {
+          const a = document.createElement('a');
+          a.href = markedPdfUrl;
+          a.download = `Marked_${current.name.replace(/\.pdf$/i, '')}.pdf`;
+          a.click();
+        }
+        return;
+      }
+
+      if (parsedContent?.kind === 'image') {
+        const outUrl =
+          currentPins.length > 0
+            ? await buildMarkedImageDataUrl(current.dataUrl, currentPins)
+            : current.dataUrl;
+        if (mode === 'open') {
+          window.open(outUrl, '_blank', 'noopener,noreferrer');
+        } else {
+          const a = document.createElement('a');
+          a.href = outUrl;
+          a.download = currentPins.length > 0 ? `Marked_${current.name}` : current.name;
+          a.click();
+        }
+        return;
+      }
+
+      // Fallback for other document formats
+      const a = document.createElement('a');
+      a.href = current.dataUrl;
+      a.download = current.name;
+      a.click();
+    } finally {
+      setIsExportingMarked(false);
+    }
+  };
+
   const handleExactTapStamp = (e: React.MouseEvent<HTMLDivElement>) => {
     if (readOnly || !onUpdateAnnotations || !activeStamp) return;
     const rect = e.currentTarget.getBoundingClientRect();
@@ -529,15 +702,16 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
           : typeof pin.lineIndex === 'number'
           ? Math.min(96, 6 + pin.lineIndex * 5)
           : 15;
+      const isSymbol = pin.stamp === '✓' || pin.stamp === '✓✓' || pin.stamp === '✗';
       return (
         <span
           key={pIdx}
           onClick={(e) => handleRemovePin(e, pIdx)}
-          title={readOnly ? pin.stamp : 'Tap stamp to remove'}
+          title={readOnly ? pin.stamp : 'Tap mark to remove'}
           style={{ left: `${leftPct}%`, top: `${topPct}%` }}
-          className={`-translate-x-1/2 -translate-y-1/2 absolute z-10 inline-flex items-center font-black text-red-600 select-none leading-none [text-shadow:0_0_3px_#fff,0_0_2px_#fff] ${pin.stamp === '✓' || pin.stamp === '✓✓' || pin.stamp === '✗' ? 'text-xl' : 'text-sm tracking-tight'} ${
-            readOnly ? 'pointer-events-none' : 'cursor-pointer hover:scale-125 transition-transform'
-          }`}
+          className={`-translate-x-1/2 -translate-y-1/2 absolute z-10 inline-flex items-center font-black text-red-600 select-none leading-none [text-shadow:0_0_3px_#fff,0_0_2px_#fff] ${
+            isSymbol ? 'text-xl' : 'text-sm tracking-tight'
+          } ${readOnly ? 'pointer-events-none' : 'cursor-pointer hover:scale-125 transition-transform'}`}
         >
           {pin.stamp}
         </span>
@@ -583,15 +757,16 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
-            <a
-              href={current.dataUrl}
-              download={current.name}
-              className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-md"
-              title="Download original file"
+            <button
+              type="button"
+              disabled={isExportingMarked}
+              onClick={() => handleDownloadOrOpenMarked('download')}
+              className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-md cursor-pointer disabled:opacity-50"
+              title="Download marked script with red-ink stamps"
             >
               <Download className="w-3 h-3" />
-              <span>Download</span>
-            </a>
+              <span>{isExportingMarked ? 'Preparing...' : currentPins.length > 0 ? 'Download Marked' : 'Download'}</span>
+            </button>
             <button
               type="button"
               onClick={() => setIsExpanded((v) => !v)}
@@ -607,7 +782,7 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
         {!readOnly && onSelectStamp && onUpdateAnnotations && (
           <div className="px-3 py-1.5 bg-rose-50/80 border-b border-rose-200 flex flex-wrap items-center justify-between gap-2">
             <div className="flex flex-wrap items-center gap-1">
-              <span className="text-[10px] font-bold text-rose-900 mr-1">Red-Ink Stamp:</span>
+              <span className="text-[10px] font-bold text-rose-900 mr-1">Red-Ink Mark:</span>
               {STAMP_CHOICES.map((st) => (
                 <button
                   key={st}
@@ -623,7 +798,6 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
                 </button>
               ))}
             </div>
-
 
             {currentPins.length > 0 && (
               <div className="flex items-center gap-1">
@@ -661,7 +835,7 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
             <div className="space-y-1.5">
               {!readOnly && (
                 <p className="text-[10px] font-semibold text-slate-500">
-                  Tap the exact spot on the photo to place ({activeStamp}). Tap a placed stamp to remove it.
+                  Tap the exact spot on the photo to place ({activeStamp}). Tap a placed mark to remove it.
                 </p>
               )}
               <div
@@ -678,6 +852,7 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
                 {renderOverlayPins()}
               </div>
             </div>
+
           ) : parsedContent?.kind === 'pdf-pages' ? (
             <div className="space-y-2">
               <div className="flex flex-wrap items-center justify-between gap-2 bg-indigo-50/70 border border-indigo-200 rounded-lg px-2.5 py-1.5">
@@ -689,20 +864,20 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
                           : ''
                       } Pages) · ${
                         !readOnly
-                          ? `Tap exact spot to place (${activeStamp}) · Tap stamp to remove`
+                          ? `Tap exact spot to place (${activeStamp}) · Tap mark to remove`
                           : 'Marked Script'
                       }`
                     : 'PDF Document'}
                 </span>
-                <a
-                  href={parsedContent.blobUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-md shadow-2xs"
+                <button
+                  type="button"
+                  disabled={isExportingMarked}
+                  onClick={() => handleDownloadOrOpenMarked('open')}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-md shadow-2xs cursor-pointer disabled:opacity-50"
                 >
                   <ExternalLink className="w-3 h-3" />
-                  <span>Open Full PDF</span>
-                </a>
+                  <span>{isExportingMarked ? 'Preparing...' : currentPins.length > 0 ? 'Open Marked PDF' : 'Open Full PDF'}</span>
+                </button>
               </div>
 
               {parsedContent.pages.length > 0 ? (
@@ -806,7 +981,7 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
             <div className="space-y-1.5">
               <div className="flex items-center justify-between text-[10px] font-bold text-slate-500">
                 <span>{parsedContent.label}</span>
-                {!readOnly && <span>Tap exact spot on paper to place ({activeStamp}) · Tap stamp to remove</span>}
+                {!readOnly && <span>Tap exact spot on paper to place ({activeStamp}) · Tap mark to remove</span>}
               </div>
               <div
                 onClick={handleExactTapStamp}
