@@ -1258,11 +1258,10 @@ export const LearnerLearningAreasView: React.FC = () => {
                             <span className="px-2.5 py-1 text-xs font-bold text-emerald-800 bg-emerald-100 border border-emerald-200 rounded-md shrink-0">
                               {displayScore}
                             </span>
-                            {submission && (
-                              <>
+                            <>
                                 <button
                                   type="button"
-                                  onClick={() => openPrintSheet({ mode: 'marked', assignment, submission })}
+                                  onClick={() => openPrintSheet({ mode: 'marked', assignment, submission: resolvedSub })}
                                   className="px-2.5 py-1 text-[11px] font-semibold text-emerald-800 bg-white hover:bg-emerald-50 border border-emerald-300 rounded-md cursor-pointer"
                                 >
                                   Print Marked Script
@@ -1277,11 +1276,10 @@ export const LearnerLearningAreasView: React.FC = () => {
                                   {isExpanded ? 'Hide Script' : 'View Marked Script'}
                                 </button>
                               </>
-                            )}
                           </div>
                         </div>
 
-                        {isExpanded && submission && (
+                        {isExpanded && (
                           <div className="pt-2 border-t border-emerald-200/70 space-y-2">
                             {((submission.attachments || []).length > 0 || submission.sketchAttachments?.['_general'] || (assignment.attachments || []).length > 0) && (() => {
                               const readerItems: ReaderAttachmentItem[] =
