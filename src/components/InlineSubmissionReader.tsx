@@ -362,7 +362,7 @@ function drawRedInkMarkOnCanvas(
 ) {
   const isScore = isTotalScoreStamp(stamp);
   const isSymbol = stamp === '✓' || stamp === '✓✓' || stamp === '✗';
-  const fontSize = Math.max(32, Math.round(canvasWidth * (isScore ? 0.058 : isSymbol ? 0.036 : 0.025)));
+  const fontSize = Math.max(64, Math.round(canvasWidth * (isScore ? 0.116 : isSymbol ? 0.036 : 0.025)));
   ctx.save();
   ctx.font = `900 ${fontSize}px sans-serif`;
   ctx.textAlign = 'center';
@@ -375,7 +375,7 @@ function drawRedInkMarkOnCanvas(
     ctx.ellipse(cx, cy, rx, ry, -0.06, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
     ctx.fill();
-    ctx.lineWidth = Math.max(3, Math.round(fontSize * 0.12));
+    ctx.lineWidth = Math.max(5, Math.round(fontSize * 0.12));
     ctx.strokeStyle = '#dc2626';
     ctx.stroke();
   } else {
@@ -753,7 +753,7 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
           style={{ left: `${leftPct}%`, top: `${topPct}%` }}
           className={`-translate-x-1/2 -translate-y-1/2 absolute z-10 inline-flex items-center justify-center font-black text-red-600 select-none leading-none ${
             isScore
-              ? 'px-5 py-2 rounded-full border-[3px] border-red-600 bg-white/95 text-3xl tracking-tight shadow-sm -rotate-3'
+              ? 'px-9 py-4 rounded-full border-[5px] border-red-600 bg-white/95 text-6xl tracking-tight shadow-md -rotate-3'
               : `[text-shadow:0_0_3px_#fff,0_0_2px_#fff] ${isSymbol ? 'text-xl' : 'text-sm tracking-tight'}`
           } ${readOnly ? 'pointer-events-none' : 'cursor-pointer hover:scale-125 transition-transform'}`}
         >
@@ -876,7 +876,7 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
         const val = customScoreStamp.trim();
         if (!val) return;
         const withoutOldScore = currentPins.filter((p) => !isTotalScoreStamp(p.stamp));
-        onUpdateAnnotations(current.id, [...withoutOldScore, { stamp: val, x: 84, y: 6 }]);
+        onUpdateAnnotations(current.id, [...withoutOldScore, { stamp: val, x: 76, y: 8 }]);
       }}
       className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-600 hover:bg-red-700 text-white cursor-pointer disabled:opacity-40"
     >
