@@ -334,6 +334,21 @@ function loadHtmlImage(src: string): Promise<HTMLImageElement> {
 }
 
 
+function toPercentageScoreLabel(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return '';
+  if (/^\d+(\.\d+)?%$/.test(trimmed)) return trimmed;
+  const frac = trimmed.match(/^(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/);
+  if (frac) {
+    const num = parseFloat(frac[1]);
+    const den = parseFloat(frac[2]);
+    if (den > 0) {
+      return `${Math.round((num / den) * 100)}%`;
+    }
+  }
+  return trimmed;
+}
+
 function isTotalScoreStamp(stamp: string): boolean {
   return /^\d+(\.\d+)?\s*\/\s*\d+(\.\d+)?$/.test(stamp.trim()) || /^\d+(\.\d+)?%$/.test(stamp.trim());
 }
@@ -347,15 +362,15 @@ function drawRedInkMarkOnCanvas(
 ) {
   const isScore = isTotalScoreStamp(stamp);
   const isSymbol = stamp === '✓' || stamp === '✓✓' || stamp === '✗';
-  const fontSize = Math.max(20, Math.round(canvasWidth * (isScore ? 0.032 : isSymbol ? 0.036 : 0.025)));
+  const fontSize = Math.max(24, Math.round(canvasWidth * (isScore ? 0.042 : isSymbol ? 0.036 : 0.025)));
   ctx.save();
   ctx.font = `900 ${fontSize}px sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   if (isScore) {
     const metrics = ctx.measureText(stamp);
-    const rx = Math.max(fontSize * 1.15, metrics.width * 0.68);
-    const ry = fontSize * 0.88;
+    const rx = Math.max(fontSize * 1.25, metrics.width * 0.74);
+    const ry = fontSize * 0.94;
     ctx.beginPath();
     ctx.ellipse(cx, cy, rx, ry, -0.06, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
@@ -463,10 +478,10 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
   scoreLabel = '',
   readOnly = false,
 }) => {
-  const [customScoreStamp, setCustomScoreStamp] = useState<string>(scoreLabel || '');
+  const [customScoreStamp, setCustomScoreStamp] = useState<string>(() => toPercentageScoreLabel(scoreLabel || ''));
   useEffect(() => {
     if (scoreLabel && scoreLabel.trim()) {
-      setCustomScoreStamp(scoreLabel.trim());
+      setCustomScoreStamp(toPercentageScoreLabel(scoreLabel));
     }
   }, [scoreLabel]);
   const [selectedIdx, setSelectedIdx] = useState(0);
@@ -738,7 +753,7 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
           style={{ left: `${leftPct}%`, top: `${topPct}%` }}
           className={`-translate-x-1/2 -translate-y-1/2 absolute z-10 inline-flex items-center justify-center font-black text-red-600 select-none leading-none ${
             isScore
-              ? 'px-2.5 py-1 rounded-full border-2 border-red-600 bg-white/95 text-base tracking-tight shadow-xs -rotate-3'
+              ? 'px-3.5 py-1.5 rounded-full border-[2.5px] border-red-600 bg-white/95 text-xl tracking-tight shadow-xs -rotate-3'
               : `[text-shadow:0_0_3px_#fff,0_0_2px_#fff] ${isSymbol ? 'text-xl' : 'text-sm tracking-tight'}`
           } ${readOnly ? 'pointer-events-none' : 'cursor-pointer hover:scale-125 transition-transform'}`}
         >
@@ -836,7 +851,7 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
         setCustomScoreStamp(val);
         if (val.trim()) onSelectStamp(val.trim());
       }}
-      placeholder="e.g. 20/100"
+      placeholder="e.g. 34%"
       className="w-20 px-1.5 py-0.5 text-[11px] font-black text-red-700 bg-white border border-red-400 rounded text-center focus:outline-none focus:border-red-600"
     />
     <button
