@@ -447,6 +447,85 @@ async function buildMarkedPdfBlobUrl(
   return URL.createObjectURL(blob);
 }
 
+async function buildMarkedDocPdfBlobUrl(
+  parsed: Extract<ParsedDocContent, { kind: "lines" | "slides" | "table" }>,
+  pins: StampedPin[]
+): Promise<string> {
+  const docLines: string[] = [];
+  if (parsed.kind === "lines") {
+    docLines.push(...parsed.lines);
+  } else if (parsed.kind === "slides") {
+    parsed.slides.forEach((sl, i) => {
+      docLines.push(`--- Slide ${i + 1}: ${sl.title} ---`);
+      docLines.push(...sl.lines);
+      docLines.push("");
+    });
+  } else if (parsed.kind === "table") {
+    parsed.rows.forEach((r) => docLines.push(r.join("  |  ")));
+  }
+
+  const w = 1240;
+  const h = 1754;
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas unavailable");
+
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, w, h);
+
+  ctx.fillStyle = "#0f172a";
+  ctx.font = "400 22px sans-serif";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+
+  const marginX = 72;
+  const maxWidth = w - marginX * 2;
+  let cursorY = 76;
+  const lineHeight = 32;
+
+  for (const rawLine of docLines) {
+    const line = rawLine.trim();
+    if (!line) {
+      cursorY += Math.round(lineHeight * 0.55);
+      continue;
+    }
+    const words = line.split(/\s+/);
+    let currentLine = "";
+    for (const word of words) {
+      const testLine = currentLine ? `${currentLine} ${word}` : word;
+      if (ctx.measureText(testLine).width > maxWidth && currentLine) {
+        ctx.fillText(currentLine, marginX, cursorY);
+        cursorY += lineHeight;
+        currentLine = word;
+      } else {
+        currentLine = testLine;
+      }
+    }
+    if (currentLine) {
+      ctx.fillText(currentLine, marginX, cursorY);
+      cursorY += lineHeight;
+    }
+    if (cursorY > h - 90) break;
+  }
+
+  for (const pin of pins) {
+    const leftPct = typeof pin.x === "number" ? pin.x : 88;
+    const topPct =
+      typeof pin.y === "number"
+        ? pin.y
+        : typeof pin.lineIndex === "number"
+        ? Math.min(96, 6 + pin.lineIndex * 5)
+        : 15;
+    drawRedInkMarkOnCanvas(ctx, pin.stamp, (leftPct / 100) * w, (topPct / 100) * h, w);
+  }
+
+  const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: [w, h] });
+  pdf.addImage(canvas.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, w, h);
+  return URL.createObjectURL(pdf.output("blob"));
+}
+
 async function buildMarkedImageDataUrl(
   imageDataUrl: string,
   pins: StampedPin[]
@@ -706,7 +785,24 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
         return;
       }
 
-      // Fallback for other document formats
+      // Burn red-ink marks and circled percentage stamp into PDF for Word/PPT/Excel docs
+      if (
+        currentPins.length > 0 &&
+        parsedContent &&
+        (parsedContent.kind === 'lines' || parsedContent.kind === 'slides' || parsedContent.kind === 'table')
+      ) {
+        const markedDocPdfUrl = await buildMarkedDocPdfBlobUrl(parsedContent, currentPins);
+        if (mode === 'open') {
+          window.open(markedDocPdfUrl, '_blank', 'noopener,noreferrer');
+        } else {
+          const a = document.createElement('a');
+          a.href = markedDocPdfUrl;
+          a.download = `Marked_${current.name.replace(/\.[^.]+$/, '')}.pdf`;
+          a.click();
+        }
+        return;
+      }
+
       const a = document.createElement('a');
       a.href = current.dataUrl;
       a.download = current.name;
