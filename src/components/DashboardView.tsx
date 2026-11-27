@@ -2350,6 +2350,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                                 attachments={readerItems}
                                                 annotationsByKey={currentReaderAnns}
                                                 activeStamp={activePaperStamp}
+                                                scoreLabel={markScoreInput.trim() || `${activeSub.autoScore}/${totalMarks}`}
                                                 onSelectStamp={(st) => setActivePaperStamp(st)}
                                                 onUpdateAnnotations={(attId, nextPins) => {
                                                   const k = `${item.id}:${activeSub.learnerId}:att_${attId}`;

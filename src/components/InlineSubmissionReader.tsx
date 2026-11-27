@@ -27,9 +27,10 @@ export type StampedPin = CalculationStepAnnotation & { x?: number; y?: number; l
 interface InlineSubmissionReaderProps {
   attachments: ReaderAttachmentItem[];
   annotationsByKey: Record<string, StampedPin[]>;
-  activeStamp?: RedInkStamp;
-  onSelectStamp?: (stamp: RedInkStamp) => void;
+  activeStamp?: RedInkStamp | string;
+  onSelectStamp?: (stamp: RedInkStamp | string) => void;
   onUpdateAnnotations?: (attachmentId: string, nextPins: StampedPin[]) => void;
+  scoreLabel?: string;
   readOnly?: boolean;
 }
 
@@ -333,6 +334,10 @@ function loadHtmlImage(src: string): Promise<HTMLImageElement> {
 }
 
 
+function isTotalScoreStamp(stamp: string): boolean {
+  return /^\d+(\.\d+)?\s*\/\s*\d+(\.\d+)?$/.test(stamp.trim()) || /^\d+(\.\d+)?%$/.test(stamp.trim());
+}
+
 function drawRedInkMarkOnCanvas(
   ctx: CanvasRenderingContext2D,
   stamp: string,
@@ -340,15 +345,29 @@ function drawRedInkMarkOnCanvas(
   cy: number,
   canvasWidth: number
 ) {
+  const isScore = isTotalScoreStamp(stamp);
   const isSymbol = stamp === '✓' || stamp === '✓✓' || stamp === '✗';
-  const fontSize = Math.max(20, Math.round(canvasWidth * (isSymbol ? 0.036 : 0.025)));
+  const fontSize = Math.max(20, Math.round(canvasWidth * (isScore ? 0.032 : isSymbol ? 0.036 : 0.025)));
   ctx.save();
   ctx.font = `900 ${fontSize}px sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.lineWidth = Math.max(3, Math.round(fontSize * 0.16));
-  ctx.strokeStyle = 'rgba(255,255,255,0.95)';
-  ctx.strokeText(stamp, cx, cy);
+  if (isScore) {
+    const metrics = ctx.measureText(stamp);
+    const rx = Math.max(fontSize * 1.15, metrics.width * 0.68);
+    const ry = fontSize * 0.88;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx, ry, -0.06, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+    ctx.fill();
+    ctx.lineWidth = Math.max(3, Math.round(fontSize * 0.12));
+    ctx.strokeStyle = '#dc2626';
+    ctx.stroke();
+  } else {
+    ctx.lineWidth = Math.max(3, Math.round(fontSize * 0.16));
+    ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+    ctx.strokeText(stamp, cx, cy);
+  }
   ctx.fillStyle = '#dc2626';
   ctx.fillText(stamp, cx, cy);
   ctx.restore();
@@ -702,6 +721,7 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
           : typeof pin.lineIndex === 'number'
           ? Math.min(96, 6 + pin.lineIndex * 5)
           : 15;
+      const isScore = isTotalScoreStamp(pin.stamp);
       const isSymbol = pin.stamp === '✓' || pin.stamp === '✓✓' || pin.stamp === '✗';
       return (
         <span
@@ -709,8 +729,10 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
           onClick={(e) => handleRemovePin(e, pIdx)}
           title={readOnly ? pin.stamp : 'Tap mark to remove'}
           style={{ left: `${leftPct}%`, top: `${topPct}%` }}
-          className={`-translate-x-1/2 -translate-y-1/2 absolute z-10 inline-flex items-center font-black text-red-600 select-none leading-none [text-shadow:0_0_3px_#fff,0_0_2px_#fff] ${
-            isSymbol ? 'text-xl' : 'text-sm tracking-tight'
+          className={`-translate-x-1/2 -translate-y-1/2 absolute z-10 inline-flex items-center justify-center font-black text-red-600 select-none leading-none ${
+            isScore
+              ? 'px-2.5 py-1 rounded-full border-2 border-red-600 bg-white/95 text-base tracking-tight shadow-xs -rotate-3'
+              : `[text-shadow:0_0_3px_#fff,0_0_2px_#fff] ${isSymbol ? 'text-xl' : 'text-sm tracking-tight'}`
           } ${readOnly ? 'pointer-events-none' : 'cursor-pointer hover:scale-125 transition-transform'}`}
         >
           {pin.stamp}
