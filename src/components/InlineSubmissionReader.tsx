@@ -460,8 +460,15 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
   activeStamp = '✓',
   onSelectStamp,
   onUpdateAnnotations,
+  scoreLabel = '',
   readOnly = false,
 }) => {
+  const [customScoreStamp, setCustomScoreStamp] = useState<string>(scoreLabel || '');
+  useEffect(() => {
+    if (scoreLabel && scoreLabel.trim()) {
+      setCustomScoreStamp(scoreLabel.trim());
+    }
+  }, [scoreLabel]);
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [parsedContent, setParsedContent] = useState<ParsedDocContent | null>(null);
   const [isLoading, setIsLoading] = useState(false);
