@@ -1258,7 +1258,7 @@ export const LearnerLearningAreasView: React.FC = () => {
                             <span className="px-2.5 py-1 text-xs font-bold text-emerald-800 bg-emerald-100 border border-emerald-200 rounded-md shrink-0">
                               {displayScore}
                             </span>
-                            {submission && (questions.length > 0 || (submission.attachments || []).length > 0 || Boolean(submission.sketchAttachments?.['_general'])) && (
+                            {submission && (
                               <>
                                 <button
                                   type="button"
@@ -1281,20 +1281,22 @@ export const LearnerLearningAreasView: React.FC = () => {
                           </div>
                         </div>
 
-                        {isExpanded && submission && (questions.length > 0 || (submission.attachments || []).length > 0 || Boolean(submission.sketchAttachments?.['_general'])) && (
+                        {isExpanded && submission && (
                           <div className="pt-2 border-t border-emerald-200/70 space-y-2">
-                            {((submission.attachments || []).length > 0 || submission.sketchAttachments?.['_general']) && (() => {
+                            {((submission.attachments || []).length > 0 || submission.sketchAttachments?.['_general'] || (assignment.attachments || []).length > 0) && (() => {
                               const readerItems: ReaderAttachmentItem[] =
                                 (submission.attachments || []).length > 0
                                   ? submission.attachments!
-                                  : [
+                                  : submission.sketchAttachments?.['_general']
+                                  ? [
                                       {
                                         id: '_general',
                                         name: 'Uploaded Written Paper',
                                         mimeType: 'image/jpeg',
                                         dataUrl: submission.sketchAttachments!['_general'],
                                       },
-                                    ];
+                                    ]
+                                  : (assignment.attachments || []);
                               const annsByAtt: Record<string, StampedPin[]> = {};
                               readerItems.forEach((att) => {
                                 annsByAtt[att.id] =
