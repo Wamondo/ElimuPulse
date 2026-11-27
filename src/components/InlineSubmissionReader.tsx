@@ -819,6 +819,48 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
                   {st}
                 </button>
               ))}
+  <div className="inline-flex items-center gap-1.5 ml-1 pl-2 border-l border-rose-300">
+    <span className="text-[10px] font-bold text-rose-950">Total Score:</span>
+    <input
+      type="text"
+      value={customScoreStamp}
+      onChange={(e) => {
+        const val = e.target.value;
+        setCustomScoreStamp(val);
+        if (val.trim()) onSelectStamp(val.trim());
+      }}
+      placeholder="e.g. 20/100"
+      className="w-20 px-1.5 py-0.5 text-[11px] font-black text-red-700 bg-white border border-red-400 rounded text-center focus:outline-none focus:border-red-600"
+    />
+    <button
+      type="button"
+      disabled={!customScoreStamp.trim()}
+      onClick={() => {
+        const val = customScoreStamp.trim();
+        if (val) onSelectStamp(val);
+      }}
+      className={`px-2.5 py-0.5 rounded-full text-[11px] font-black border-2 cursor-pointer disabled:opacity-40 ${
+        customScoreStamp.trim() && activeStamp === customScoreStamp.trim()
+          ? 'bg-red-600 text-white border-red-800 ring-2 ring-red-300'
+          : 'bg-white text-red-600 border-red-600 hover:bg-red-50'
+      }`}
+    >
+      Stamp Score
+    </button>
+    <button
+      type="button"
+      disabled={!customScoreStamp.trim()}
+      onClick={() => {
+        const val = customScoreStamp.trim();
+        if (!val) return;
+        const withoutOldScore = currentPins.filter((p) => !isTotalScoreStamp(p.stamp));
+        onUpdateAnnotations(current.id, [...withoutOldScore, { stamp: val, x: 84, y: 6 }]);
+      }}
+      className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-600 hover:bg-red-700 text-white cursor-pointer disabled:opacity-40"
+    >
+      Place Top-Right
+    </button>
+  </div>
             </div>
 
             {currentPins.length > 0 && (
