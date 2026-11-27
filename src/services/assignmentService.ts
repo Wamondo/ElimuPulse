@@ -190,6 +190,28 @@ export async function saveAssignmentsAsync(
   }
 }
 
+export async function saveLearnerSubmissionAsync(
+  assignmentId: string,
+  submission: LearnerAssignmentSubmission
+): Promise<{ synced: boolean; error?: string }> {
+  try {
+    const cleanSub = sanitizeForFirebase(submission);
+    await set(
+      ref(
+        rtdb,
+        `${RTDB_ASSIGNMENTS_PATH}/${encodeURIComponent(assignmentId)}/submissions/${encodeURIComponent(submission.learnerId)}`
+      ),
+      cleanSub
+    );
+    return { synced: true };
+  } catch (err) {
+    return {
+      synced: false,
+      error: err instanceof Error ? err.message : "Network or permission error while submitting.",
+    };
+  }
+}
+
 export function exportAssignmentsBackupJson(items: LearningAreaAssignmentItem[]): void {
   const payload = {
     exportedAt: new Date().toISOString(),

@@ -1894,7 +1894,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                 (s.status === 'submitted' ||
                                   Boolean(s.submittedAt) ||
                                   Object.keys(s.answers || {}).length > 0 ||
-                                  Object.keys(s.sketchAttachments || {}).length > 0)
+                                  Object.keys(s.sketchAttachments || {}).length > 0 ||
+                                  (s.attachments || []).length > 0 ||
+                                  Boolean((s.generalResponse || '').trim()))
                             );
                           const markedCount = allSubs.filter((s) => s.status === 'marked').length;
                           const totalMarks = item.totalMarks || calculateAssignmentTotalMarks(item.questions);

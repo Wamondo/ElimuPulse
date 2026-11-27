@@ -9,6 +9,7 @@ import {
   loadLocalAssignments,
   saveAssignments,
   saveAssignmentsAsync,
+  saveLearnerSubmissionAsync,
   compressImageDataUrl,
   subscribeAssignments,
   calculateAssignmentTotalMarks,
@@ -170,6 +171,7 @@ export const LearnerLearningAreasView: React.FC = () => {
   const [draftAnswers, setDraftAnswers] = useState<Record<string, Record<string, string>>>({});
   const [draftGeneralResponses, setDraftGeneralResponses] = useState<Record<string, string>>({});
   const [draftSketches, setDraftSketches] = useState<Record<string, Record<string, string>>>({});
+  const [draftReplyAttachments, setDraftReplyAttachments] = useState<Record<string, SubmissionFileAttachment[]>>({});
   const [submitNotice, setSubmitNotice] = useState<string | null>(null);
   const [submittingAssignmentId, setSubmittingAssignmentId] = useState<string | null>(null);
   const [expandedMarkedId, setExpandedMarkedId] = useState<string | null>(null);
@@ -496,10 +498,21 @@ export const LearnerLearningAreasView: React.FC = () => {
           sketchAttachments[k] = await compressImageDataUrl(url, 960, 0.72);
         }
       }
+      const replyFiles = draftReplyAttachments[assignment.id] || [];
+      const firstReplyImg = replyFiles.find((f) => f.mimeType.startsWith('image/'));
+      if (firstReplyImg && !sketchAttachments['_general']) {
+        sketchAttachments['_general'] = firstReplyImg.dataUrl;
+      }
       const hasSketchAttachments = Object.keys(sketchAttachments).length > 0;
+      const hasReplyFiles = replyFiles.length > 0;
       const questions = assignment.questions || [];
       const totalMarks = assignment.totalMarks || calculateAssignmentTotalMarks(questions);
       const autoScore = calculateAutoScore(questions, answers);
+      const resolvedResponse =
+        generalResponse ||
+        (hasReplyFiles
+          ? `Submitted ${replyFiles.length} file(s): ${replyFiles.map((f) => f.name).join(', ')}`
+          : '');
 
       const submission: LearnerAssignmentSubmission = {
         learnerId: activeLearnerId,
@@ -508,7 +521,8 @@ export const LearnerLearningAreasView: React.FC = () => {
         grade: activeLearnerGrade || assignment.grade,
         answers,
         ...(hasSketchAttachments ? { sketchAttachments } : {}),
-        ...(generalResponse ? { generalResponse } : {}),
+        ...(hasReplyFiles ? { attachments: replyFiles } : {}),
+        ...(resolvedResponse ? { generalResponse: resolvedResponse } : {}),
         autoScore,
         totalMarks,
         status: 'submitted',
@@ -527,7 +541,8 @@ export const LearnerLearningAreasView: React.FC = () => {
       });
 
       setTeacherAssignments(nextList);
-      const syncRes = await saveAssignmentsAsync(nextList);
+      saveAssignments(nextList);
+      const syncRes = await saveLearnerSubmissionAsync(assignment.id, submission);
       setActiveAssignmentId(null);
       if (syncRes.synced) {
         setSubmitNotice(
@@ -1067,10 +1082,83 @@ export const LearnerLearningAreasView: React.FC = () => {
                                   placeholder="Type your complete answers directly here..."
                                   className="w-full px-2.5 py-2 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:border-indigo-500 focus:outline-none"
                                 />
+                                <div className="p-2.5 bg-indigo-50/70 border border-indigo-200 rounded-lg space-y-2">
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <span className="text-[11px] font-semibold text-indigo-950">
+                                      Attach Completed Document / Paper / Photos (PDF, Word, PPT, Excel, Image · up to 15 MB):
+                                    </span>
+                                    <label className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-md cursor-pointer shadow-2xs">
+                                      <span>📎 Upload Document / Photo</span>
+                                      <input
+                                        type="file"
+                                        multiple
+                                        accept="application/pdf,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.txt,.rtf,.odt,.odp,.ods,image/*"
+                                        className="hidden"
+                                        onChange={async (e) => {
+                                          const fl = e.target.files;
+                                          if (!fl || fl.length === 0) return;
+                                          const added: SubmissionFileAttachment[] = [];
+                                          for (let i = 0; i < fl.length; i++) {
+                                            const f = fl[i];
+                                            const isImg = f.type.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|bmp|heic|heif|svg)$/i.test(f.name);
+                                            if (f.size > 15 * 1024 * 1024) {
+                                              setSubmitNotice(`"${f.name}" exceeds the 15 MB upload limit.`);
+                                              continue;
+                                            }
+                                            const rawUrl: string = await new Promise((res, rej) => {
+                                              const r = new FileReader();
+                                              r.onload = () => res(String(r.result || ''));
+                                              r.onerror = () => rej(new Error('Read error'));
+                                              r.readAsDataURL(f);
+                                            });
+                                            const finalUrl = isImg ? await compressImageDataUrl(rawUrl, 1280, 0.78) : rawUrl;
+                                            added.push({
+                                              id: `sub-att-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 6)}`,
+                                              name: f.name,
+                                              mimeType: f.type || (isImg ? 'image/jpeg' : 'application/octet-stream'),
+                                              sizeBytes: f.size,
+                                              dataUrl: finalUrl,
+                                            });
+                                          }
+                                          setDraftReplyAttachments((prev) => ({
+                                            ...prev,
+                                            [assignment.id]: [...(prev[assignment.id] || []), ...added],
+                                          }));
+                                          e.currentTarget.value = '';
+                                        }}
+                                      />
+                                    </label>
+                                  </div>
+                                  {(draftReplyAttachments[assignment.id] || []).length > 0 && (
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                      {(draftReplyAttachments[assignment.id] || []).map((att) => (
+                                        <span
+                                          key={att.id}
+                                          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-white border border-indigo-200 text-[11px] font-semibold text-indigo-950"
+                                        >
+                                          <span className="truncate max-w-[180px]">{att.name}</span>
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              setDraftReplyAttachments((prev) => ({
+                                                ...prev,
+                                                [assignment.id]: (prev[assignment.id] || []).filter((x) => x.id !== att.id),
+                                              }))
+                                            }
+                                            className="text-rose-600 font-bold cursor-pointer"
+                                          >
+                                            ×
+                                          </button>
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+
                                 <div className="p-2 bg-amber-50/60 border border-amber-200 rounded-lg space-y-2">
                                   <div className="flex flex-wrap items-center justify-between gap-2">
                                     <span className="text-[11px] font-semibold text-amber-950">
-                                      Or upload a photo of your written work on paper:
+                                      Or upload a quick camera photo of written work:
                                     </span>
                                     <label className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-amber-950 bg-white hover:bg-amber-100 border border-amber-300 rounded-md cursor-pointer">
                                       <span>📷 Upload / Camera Photo</span>
