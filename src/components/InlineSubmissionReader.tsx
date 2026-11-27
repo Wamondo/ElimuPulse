@@ -362,15 +362,15 @@ function drawRedInkMarkOnCanvas(
 ) {
   const isScore = isTotalScoreStamp(stamp);
   const isSymbol = stamp === '✓' || stamp === '✓✓' || stamp === '✗';
-  const fontSize = Math.max(24, Math.round(canvasWidth * (isScore ? 0.042 : isSymbol ? 0.036 : 0.025)));
+  const fontSize = Math.max(32, Math.round(canvasWidth * (isScore ? 0.058 : isSymbol ? 0.036 : 0.025)));
   ctx.save();
   ctx.font = `900 ${fontSize}px sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   if (isScore) {
     const metrics = ctx.measureText(stamp);
-    const rx = Math.max(fontSize * 1.25, metrics.width * 0.74);
-    const ry = fontSize * 0.94;
+    const rx = Math.max(fontSize * 1.32, metrics.width * 0.78);
+    const ry = fontSize * 0.98;
     ctx.beginPath();
     ctx.ellipse(cx, cy, rx, ry, -0.06, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
@@ -753,7 +753,7 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
           style={{ left: `${leftPct}%`, top: `${topPct}%` }}
           className={`-translate-x-1/2 -translate-y-1/2 absolute z-10 inline-flex items-center justify-center font-black text-red-600 select-none leading-none ${
             isScore
-              ? 'px-3.5 py-1.5 rounded-full border-[2.5px] border-red-600 bg-white/95 text-xl tracking-tight shadow-xs -rotate-3'
+              ? 'px-5 py-2 rounded-full border-[3px] border-red-600 bg-white/95 text-3xl tracking-tight shadow-sm -rotate-3'
               : `[text-shadow:0_0_3px_#fff,0_0_2px_#fff] ${isSymbol ? 'text-xl' : 'text-sm tracking-tight'}`
           } ${readOnly ? 'pointer-events-none' : 'cursor-pointer hover:scale-125 transition-transform'}`}
         >
