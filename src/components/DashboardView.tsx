@@ -2323,18 +2323,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                               {activeSub.generalResponse || (activeSub.sketchAttachments?.['_general'] ? 'Submitted via uploaded written paper photo.' : 'No written text submitted.')}
                                             </p>
                                           </div>
-                                          {((activeSub.attachments || []).length > 0 || activeSub.sketchAttachments?.['_general']) && (() => {
+                                          {((activeSub.attachments || []).length > 0 || activeSub.sketchAttachments?.['_general'] || (item.attachments || []).length > 0) && (() => {
                                             const readerItems: ReaderAttachmentItem[] =
                                               (activeSub.attachments || []).length > 0
                                                 ? activeSub.attachments!
-                                                : [
+                                                : activeSub.sketchAttachments?.['_general']
+                                                ? [
                                                     {
                                                       id: '_general',
                                                       name: 'Uploaded Written Paper',
                                                       mimeType: 'image/jpeg',
                                                       dataUrl: activeSub.sketchAttachments!['_general'],
                                                     },
-                                                  ];
+                                                  ]
+                                                : (item.attachments || []);
                                             const currentReaderAnns: Record<string, StampedPin[]> = {};
                                             readerItems.forEach((att) => {
                                               const k = `${item.id}:${activeSub.learnerId}:att_${att.id}`;
