@@ -90,6 +90,7 @@ export interface LearningAreaAssignmentItem {
   feedback?: string;
   questions?: AssignmentQuestion[];
   totalMarks?: number;
+  attachments?: SubmissionFileAttachment[];
   submissions?: Record<string, LearnerAssignmentSubmission>;
   isSelfSubmitted?: boolean;
   submittedByLearnerId?: string;

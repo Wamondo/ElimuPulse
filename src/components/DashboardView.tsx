@@ -35,6 +35,7 @@ import { extractQuestionsFromPdfFile } from '../services/pdfQuestionExtractor';
 import {
   AssignmentQuestion,
   LearningAreaAssignmentItem,
+  SubmissionFileAttachment,
   LearnerAssignmentSubmission,
   loadLocalAssignments,
   saveAssignments,
@@ -171,8 +172,43 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [assignDueDate, setAssignDueDate] = useState<string>('');
   const [sketchTargetQuestionId, setSketchTargetQuestionId] = useState<string | null>(null);
   const [draftQuestions, setDraftQuestions] = useState<AssignmentQuestion[]>([]);
+  const [assignAttachments, setAssignAttachments] = useState<SubmissionFileAttachment[]>([]);
   const [isExtractingPdf, setIsExtractingPdf] = useState<boolean>(false);
   const [pdfExtractNotice, setPdfExtractNotice] = useState<string>('');
+
+  const handleTeacherAttachFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0) return;
+    setPdfExtractNotice('');
+    const newFiles: SubmissionFileAttachment[] = [];
+    for (let i = 0; i < fileList.length; i++) {
+      const file = fileList[i];
+      const isImage = file.type.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|bmp|heic|heif|svg)$/i.test(file.name);
+      if (file.size > 15 * 1024 * 1024) {
+        setPdfExtractNotice(`"${file.name}" exceeds the 15 MB file upload limit.`);
+        continue;
+      }
+      const rawDataUrl: string = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(new Error('Failed to read file'));
+        reader.readAsDataURL(file);
+      });
+      const finalDataUrl = isImage ? await compressImageDataUrl(rawDataUrl, 1280, 0.78) : rawDataUrl;
+      newFiles.push({
+        id: `t-att-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 6)}`,
+        name: file.name,
+        mimeType: file.type || (isImage ? 'image/jpeg' : 'application/octet-stream'),
+        sizeBytes: file.size,
+        dataUrl: finalDataUrl,
+      });
+      if (!assignTitle.trim()) {
+        setAssignTitle(file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim());
+      }
+    }
+    setAssignAttachments((prev) => [...prev, ...newFiles]);
+    e.target.value = '';
+  };
 
   const handlePdfQuestionsUpload = async (file?: File | null) => {
     if (!file) return;
@@ -1277,7 +1313,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         prompt: q.prompt.trim(),
                         marks: Number(q.marks) > 0 ? Number(q.marks) : 2,
                       }));
-                    const totalMarks = calculateAssignmentTotalMarks(cleanedQuestions);
+                    const totalMarks =
+                      cleanedQuestions.length > 0
+                        ? calculateAssignmentTotalMarks(cleanedQuestions)
+                        : assignAttachments.length > 0
+                        ? 20
+                        : 0;
 
                     const created: LearningAreaAssignmentItem = {
                       id: `asgn-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -1286,7 +1327,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       title: assignTitle.trim(),
                       instructions:
                         assignInstructions.trim() ||
-                        (cleanedQuestions.length > 0
+                        (assignAttachments.length > 0 && cleanedQuestions.length === 0
+                          ? `Open the attached ${activeArea} document/paper below, work out all questions, and submit your answers or photos/document for marking.`
+                          : cleanedQuestions.length > 0
                           ? `Answer all ${cleanedQuestions.length} interactive questions directly below and submit.`
                           : `Complete the ${activeArea} task directly on your portal and submit before the due date.`),
                       dueDate: assignDueDate.trim() || 'Due This Week',
@@ -1294,6 +1337,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       teacherName: currentUser?.name || 'Subject Teacher',
                       status: 'todo',
                       questions: cleanedQuestions,
+                      ...(assignAttachments.length > 0 ? { attachments: assignAttachments } : {}),
                       totalMarks,
                       submissions: {},
                       createdAt: new Date().toISOString(),
@@ -1303,8 +1347,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     setAssignInstructions('');
                     setAssignDueDate('');
                     setDraftQuestions([]);
+                    setAssignAttachments([]);
                     setAssignToast(
-                      `Sent "${created.title}" (${cleanedQuestions.length} questions · ${totalMarks} marks) to Learner Portal under ${activeArea} (${created.grade}).`
+                      `Sent "${created.title}" (${assignAttachments.length > 0 ? `${assignAttachments.length} attached file(s)${cleanedQuestions.length > 0 ? ` + ${cleanedQuestions.length} questions` : ''}` : `${cleanedQuestions.length} questions · ${totalMarks} marks`}) to Learner Portal under ${activeArea} (${created.grade}).`
                     );
                   }}
                   className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-3"
@@ -1381,27 +1426,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
                         <p className="text-xs font-bold text-slate-900">
-                          Interactive Questions ({draftQuestions.length}) · Total: {draftTotalMarks} Marks
+                          Attach Complete Document / Paper ({assignAttachments.length}) {draftQuestions.length > 0 ? `· Interactive Questions (${draftQuestions.length}) · ${draftTotalMarks} Marks` : ''}
                         </p>
                         <p className="text-[11px] text-slate-500">
-                          Learners answer these questions directly on their phones without downloading or printing.
+                          Upload complete PDF, Word, PowerPoint, Excel, or photo papers as-is (up to 15 MB) — or add typed questions below.
                         </p>
                       </div>
                       <div className="flex flex-wrap items-center gap-1.5">
                         <label className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold cursor-pointer shadow-2xs">
-                                <span>{isExtractingPdf ? 'Extracting...' : '📄 Upload Questions (PDF / Word / Image)'}</span>
-                                <input
-                                  type="file"
-                                  accept="application/pdf,.pdf,.docx,.txt,.md,image/*"
-                                  disabled={isExtractingPdf}
-                                  className="hidden"
-                                  onChange={(e) => {
-                                    const f = e.target.files?.[0] || null;
-                                    e.currentTarget.value = '';
-                                    void handlePdfQuestionsUpload(f);
-                                  }}
-                                />
-                              </label>
+                          <span>📎 Attach Document / Photo (PDF, Word, PPT, Excel, Image)</span>
+                          <input
+                            type="file"
+                            multiple
+                            accept="application/pdf,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.txt,.rtf,.odt,.odp,.ods,image/*"
+                            className="hidden"
+                            onChange={handleTeacherAttachFiles}
+                          />
+                        </label>
                             <button
                               type="button"
                               onClick={() => {
@@ -1428,6 +1469,39 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         </button>
                       </div>
                     </div>
+
+                    {assignAttachments.length > 0 && (
+                      <div className="p-2.5 rounded-lg bg-indigo-50/70 border border-indigo-200 space-y-2">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {assignAttachments.map((att) => (
+                            <span
+                              key={att.id}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white border border-indigo-200 text-[11px] font-semibold text-indigo-950 shadow-2xs"
+                            >
+                              <span className="truncate max-w-[200px]">{att.name}</span>
+                              <span className="text-[10px] text-slate-500">
+                                ({(att.sizeBytes / (1024 * 1024)).toFixed(1)} MB)
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setAssignAttachments((prev) => prev.filter((x) => x.id !== att.id))
+                                }
+                                className="text-rose-600 font-bold hover:text-rose-800 cursor-pointer ml-0.5"
+                                title="Remove attached file"
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                        <InlineSubmissionReader
+                          attachments={assignAttachments}
+                          annotationsByKey={{}}
+                          readOnly
+                        />
+                      </div>
+                    )}
 
                     {pdfExtractNotice && (
                       <div className="p-2 rounded-lg bg-indigo-50 border border-indigo-200 text-[11px] font-medium text-indigo-950">

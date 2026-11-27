@@ -738,6 +738,19 @@ export const LearnerLearningAreasView: React.FC = () => {
 
                         {isOpen && (
                           <div className="pt-3 border-t border-amber-200/80 space-y-3">
+                            {assignment.attachments && assignment.attachments.length > 0 && (
+                              <div className="space-y-1.5">
+                                <p className="text-[11px] font-bold text-indigo-900">
+                                  Teacher Attached Document / Question Paper ({assignment.attachments.length} file{assignment.attachments.length === 1 ? '' : 's'}):
+                                </p>
+                                <InlineSubmissionReader
+                                  attachments={assignment.attachments}
+                                  annotationsByKey={{}}
+                                  readOnly
+                                />
+                              </div>
+                            )}
+
                             {questions.length > 0 ? (
                               <div className="space-y-3">
                                 {questions.map((q, idx) => (
