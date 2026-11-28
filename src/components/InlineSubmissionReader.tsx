@@ -367,22 +367,9 @@ function drawRedInkMarkOnCanvas(
   ctx.font = `900 ${fontSize}px sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  if (isScore) {
-    const metrics = ctx.measureText(stamp);
-    const rx = Math.max(fontSize * 1.32, metrics.width * 0.78);
-    const ry = fontSize * 0.98;
-    ctx.beginPath();
-    ctx.ellipse(cx, cy, rx, ry, -0.06, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
-    ctx.fill();
-    ctx.lineWidth = Math.max(5, Math.round(fontSize * 0.12));
-    ctx.strokeStyle = '#dc2626';
-    ctx.stroke();
-  } else {
-    ctx.lineWidth = Math.max(3, Math.round(fontSize * 0.16));
+  ctx.lineWidth = Math.max(3, Math.round(fontSize * 0.16));
     ctx.strokeStyle = 'rgba(255,255,255,0.95)';
     ctx.strokeText(stamp, cx, cy);
-  }
   ctx.fillStyle = '#dc2626';
   ctx.fillText(stamp, cx, cy);
   ctx.restore();
@@ -849,7 +836,7 @@ export const InlineSubmissionReader: React.FC<InlineSubmissionReaderProps> = ({
           style={{ left: `${leftPct}%`, top: `${topPct}%` }}
           className={`-translate-x-1/2 -translate-y-1/2 absolute z-10 inline-flex items-center justify-center font-black text-red-600 select-none leading-none ${
             isScore
-              ? 'px-9 py-4 rounded-full border-[5px] border-red-600 bg-white/95 text-6xl tracking-tight shadow-md -rotate-3'
+              ? 'text-6xl tracking-tight [text-shadow:0_0_4px_#fff,0_0_3px_#fff] -rotate-3'
               : `[text-shadow:0_0_3px_#fff,0_0_2px_#fff] ${isSymbol ? 'text-xl' : 'text-sm tracking-tight'}`
           } ${readOnly ? 'pointer-events-none' : 'cursor-pointer hover:scale-125 transition-transform'}`}
         >
